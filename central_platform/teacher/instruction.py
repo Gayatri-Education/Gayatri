@@ -38,9 +38,11 @@ class TeacherInstructionEngine:
         for inst in self._instructions.values():
             if not inst.is_active:
                 continue
-            if inst.student_id != student_id or inst.course_id != course_id:
+            if course_id and inst.course_id and inst.course_id not in (course_id, "all", "*"):
                 continue
-            if inst.concept_scope and concept_id and inst.concept_scope != concept_id:
+            if inst.student_id not in (student_id, "all", "*", ""):
+                continue
+            if inst.concept_scope and concept_id and inst.concept_scope not in ("ALL", "*", concept_id):
                 continue
             active.append(inst)
 

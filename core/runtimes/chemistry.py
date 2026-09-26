@@ -453,6 +453,12 @@ class ChemistryTutorRuntime:
                     course_id="crs-chem-101",
                     concept_id=student.current_concept,
                 )
+                if not active_tchr_insts and student.student_id != "local_student_1":
+                    active_tchr_insts = tchr_engine.get_instructions_for_student(
+                        student_id="local_student_1",
+                        course_id="crs-chem-101",
+                        concept_id=student.current_concept,
+                    )
                 if active_tchr_insts:
                     inst_bullet_list = "\n".join(f"  * {i.instruction_text}" for i in active_tchr_insts)
                     policy_directive += (

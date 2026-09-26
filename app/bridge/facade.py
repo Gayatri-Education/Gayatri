@@ -1325,4 +1325,53 @@ class Bridge(QObject):
             sanitized = sanitize_error(exc, category="bridge_sync_with_central_server")
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
+    @Slot(result=str)
+    def get_active_teacher_guidance(self) -> str:
+        """Get list of active teacher guidance strings for current student and concept."""
+        try:
+            from core.tutor.adaptive import StudentProfile
+
+            st = StudentProfile.load_from_file()
+            engine = get_teacher_instruction_engine()
+            insts = engine.get_instructions_for_student(
+                student_id=st.student_id,
+                course_id="crs-chem-101",
+                concept_id=st.current_concept,
+            )
+            if not insts and st.student_id != "local_student_1":
+                insts = engine.get_instructions_for_student(
+                    student_id="local_student_1",
+                    course_id="crs-chem-101",
+                    concept_id=st.current_concept,
+                )
+            texts = [i.instruction_text for i in insts if i.is_active]
+            return json.dumps({"ok": True, "active": len(texts) > 0, "guidance": texts})
+        except Exception as exc:
+            return json.dumps({"ok": False, "active": False, "guidance": []})
+
+    @Slot(str, result=str)
+    def verify_server_connectivity(self, server_url: str = "http://localhost:8000") -> str:
+        """Verify reachability and latency of central platform server."""
+        try:
+            import time
+            import urllib.request
+
+            clean_url = server_url.rstrip("/")
+            t0 = time.time()
+            req = urllib.request.Request(f"{clean_url}/api/health", headers={"User-Agent": "GayatriClient/1.0"})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                status = resp.status
+                latency_ms = int((time.time() - t0) * 1000)
+                body = json.loads(resp.read().decode("utf-8"))
+            return json.dumps({
+                "ok": (status == 200),
+                "server_url": clean_url,
+                "latency_ms": latency_ms,
+                "service": body.get("service", "Unknown"),
+                "status": body.get("status", "ONLINE"),
+            })
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "server_url": server_url})
+
+
 
