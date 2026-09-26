@@ -1022,6 +1022,7 @@
       <button class="sidebar-btn" id="btn-chemistry" title="Chemistry Tutor" onclick="switchTab('chemistry', this)">🧪</button>
       <button class="sidebar-btn" id="btn-general" title="General Assistant" onclick="switchTab('general', this)">🤖</button>
       <button class="sidebar-btn" id="btn-courses" title="My Progress & Dashboard" onclick="switchTab('courses', this)">📚</button>
+      <button class="sidebar-btn" id="btn-teacher" title="Teacher Portal & Copilot" onclick="switchTab('teacher', this)">👩‍🏫</button>
       <button class="sidebar-btn" id="btn-assessment" title="Assessment & Tests" onclick="switchTab('assessment', this)">📝</button>
       <button class="sidebar-btn" id="btn-settings" title="Settings" onclick="switchTab('settings', this)">⚙️</button>
     </div>
@@ -1377,6 +1378,57 @@
                 </div>
               </div>
 
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 4.5: TEACHER PORTAL & COPILOT DASHBOARD -->
+      <div class="tab-view" id="tab-teacher">
+        <div class="tab-scrollable">
+          <div class="dashboard-container">
+            <div class="dash-banner" style="background: linear-gradient(135deg, #16213e 0%, #1f1b4d 100%);">
+              <div class="dash-student-info">
+                <div class="dash-avatar" style="background: #9b59b6;">👩‍🏫</div>
+                <div>
+                  <div class="dash-name-wrap">
+                    <span class="dash-name">Teacher Portal & AI Copilot</span>
+                    <span class="dash-grade-pill" style="background: #9b59b6;">Instructor View</span>
+                  </div>
+                  <div class="dash-caption">Class Health Overview • Evidence-Backed Copilot • Targeted Instructions</div>
+                </div>
+              </div>
+
+              <div class="dash-quick-stats">
+                <div class="dash-stat-card">
+                  <div class="dash-stat-lbl">Class Health</div>
+                  <div class="dash-stat-val" style="color: #27c93f;" id="tchrHealthStatus">Excellent</div>
+                </div>
+                <div class="dash-stat-card">
+                  <div class="dash-stat-lbl">Total Students</div>
+                  <div class="dash-stat-val" style="color: #53a8b6;" id="tchrTotalStudents">1</div>
+                </div>
+                <div class="dash-stat-card">
+                  <div class="dash-stat-lbl">Active Alerts</div>
+                  <div class="dash-stat-val" style="color: #f5c542;" id="tchrActiveAlerts">0</div>
+                </div>
+                <div class="dash-stat-card" style="cursor: pointer; background: #0f3460;" onclick="loadTeacherDashboardUI()">
+                  <div class="dash-stat-lbl">Sync</div>
+                  <div class="dash-stat-val" style="color: #53a8b6; font-size: 13px;">🔄 Refresh</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Teacher Instruction Injection Box -->
+            <div class="dash-roadmap-box" style="border-left: 4px solid #9b59b6;">
+              <div class="dash-section-title"><span>📝</span> Inject Teacher Instruction</div>
+              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 10px;">Set persistent instructions that guide the AI Tutor for your students.</div>
+              <div style="display: flex; gap: 10px;">
+                <input type="text" id="tchrInstructionInput" placeholder="Enter instruction (e.g. 'Emphasize sign conventions in Thermodynamics')..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 13px;">
+                <button class="dash-btn-primary" style="background: #9b59b6;" onclick="submitTeacherInstructionUI()">Inject Instruction</button>
+              </div>
+              <div id="tchrInstructionFeedback" style="font-size: 11px; margin-top: 6px; color: #27c93f;"></div>
             </div>
 
           </div>
@@ -2598,6 +2650,41 @@
         URL.revokeObjectURL(url);
       } catch (e) {
         console.error("Failed to export analytics report:", e);
+      }
+    }
+
+    // ── Teacher Dashboard UI Handlers ──
+    async function loadTeacherDashboardUI() {
+      if (!bridge || typeof bridge.get_teacher_dashboard !== 'function') return;
+      try {
+        var raw = await bridge.get_teacher_dashboard('crs-chem-101');
+        var data = JSON.parse(raw);
+        if (data && data.ok) {
+          document.getElementById('tchrHealthStatus').textContent = data.class_health_status || 'Good';
+          document.getElementById('tchrTotalStudents').textContent = data.total_students || 1;
+          document.getElementById('tchrActiveAlerts').textContent = data.active_alerts_count || 0;
+        }
+      } catch (e) {
+        console.error("Failed to load teacher dashboard UI:", e);
+      }
+    }
+
+    async function submitTeacherInstructionUI() {
+      if (!bridge || typeof bridge.add_teacher_instruction !== 'function') return;
+      var txt = document.getElementById('tchrInstructionInput').value.trim();
+      if (!txt) return;
+      try {
+        var raw = await bridge.add_teacher_instruction('teacher-1', 'local_student_1', txt);
+        var data = JSON.parse(raw);
+        if (data && data.ok) {
+          document.getElementById('tchrInstructionFeedback').textContent = '✓ Instruction injected! (ID: ' + data.instruction_id + ')';
+          document.getElementById('tchrInstructionInput').value = '';
+          setTimeout(function() {
+            document.getElementById('tchrInstructionFeedback').textContent = '';
+          }, 4000);
+        }
+      } catch (e) {
+        console.error("Failed to inject teacher instruction:", e);
       }
     }
 
