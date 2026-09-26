@@ -9,7 +9,9 @@ from urllib.parse import parse_qs, urlparse
 from central_platform.admin import AdminService
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import Organization, User, UserRole
-from central_platform.teacher import TeacherPortalService, TeacherCopilot, TeacherInstructionEngine
+from central_platform.teacher.portal import TeacherPortalService
+from central_platform.teacher.copilot import TeacherCopilot
+from central_platform.teacher.instruction import TeacherInstructionEngine
 
 db = PlatformDatabase(":memory:")
 org = Organization(id="org-dsa", name="Delhi Science Academy", slug="dsa")
