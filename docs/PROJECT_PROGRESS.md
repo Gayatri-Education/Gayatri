@@ -21,9 +21,9 @@
 | **Phase 7** | Teacher Instruction Engine | **DONE** | 358 PASSED | `tests/test_phase7_teacher_instructions.py` |
 | **Phase 8** | Teacher Portal MVP | **DONE** | 360 PASSED | `tests/test_phase8_teacher_portal.py` |
 | **Phase 9** | Adaptive Teacher Intervention | **DONE** | 362 PASSED | `tests/test_phase9_teacher_intervention.py` |
-| **Phase 10** | Teacher AI Copilot | **PLANNED** | - | Pending Approval |
-| **Phase 11** | Unified Assessment Platform | **TODO** | - | - |
-| **Phase 12** | Plug & Play Curriculum Platform | **TODO** | - | - |
+| **Phase 10** | Teacher AI Copilot | **DONE** | 364 PASSED | `tests/test_phase10_teacher_copilot.py` |
+| **Phase 11** | Unified Assessment Platform | **DONE** | 365 PASSED | `tests/test_phase11_assessment_platform.py` |
+| **Phase 12** | Plug & Play Curriculum Platform | **PLANNED** | - | Pending Approval |
 | **Phase 13** | Multi-Level Admin Portal | **TODO** | - | - |
 | **Phase 14** | AI Governance & Model Routing | **TODO** | - | - |
 | **Phase 15** | Platform Analytics & Reporting | **TODO** | - | - |
