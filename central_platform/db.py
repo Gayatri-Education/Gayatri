@@ -123,3 +123,11 @@ class PlatformDatabase:
                 )
                 for r in rows
             ]
+
+    def create_enrollment(self, enrollment: Enrollment) -> Enrollment:
+        with self._get_connection() as conn:
+            conn.execute(
+                "INSERT INTO enrollments (id, student_id, course_id, enrolled_at) VALUES (?, ?, ?, ?)",
+                (enrollment.id, enrollment.student_id, enrollment.course_id, enrollment.enrolled_at),
+            )
+        return enrollment
