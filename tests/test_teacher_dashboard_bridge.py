@@ -26,3 +26,19 @@ def test_add_teacher_instruction_bridge_slot(bridge):
 
     assert res["ok"] is True
     assert res["instruction_id"].startswith("inst-")
+
+
+def test_teacher_instruction_persistence():
+    from app.bridge.facade import get_teacher_instruction_engine
+    engine = get_teacher_instruction_engine()
+    instructions = engine.get_instructions_for_student("stu-1", "crs-chem-101")
+    assert any("Hess Law" in i.instruction_text for i in instructions)
+
+
+def test_sync_with_central_server_offline_handling(bridge):
+    # Tests that when an invalid/offline server port is supplied, it handles gracefully without crashing
+    raw_res = bridge.sync_with_central_server("http://127.0.0.1:59999")
+    res = json.loads(raw_res)
+    assert res["ok"] is False
+    assert "error" in res
+

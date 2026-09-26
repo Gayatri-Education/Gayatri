@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 
 
@@ -34,7 +34,7 @@ class StudentLearningRecord:
         metadata: Optional[dict] = None,
     ) -> TimelineItem:
         if timestamp is None:
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = datetime.now(timezone.utc).isoformat()
         if metadata is None:
             metadata = {}
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 
@@ -18,7 +18,7 @@ class TeacherInstruction:
     priority: int = 1  # Higher priority overrides lower
     is_active: bool = True
     version: int = 1
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class TeacherInstructionEngine:
@@ -51,3 +51,7 @@ class TeacherInstructionEngine:
             self._instructions[instruction_id].is_active = False
             return True
         return False
+
+    def get_all_instructions(self) -> List[TeacherInstruction]:
+        return sorted(list(self._instructions.values()), key=lambda x: x.created_at, reverse=True)
+

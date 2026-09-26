@@ -1420,6 +1420,17 @@
               </div>
             </div>
 
+            <!-- Central Platform & Cross-Device Sync Card -->
+            <div class="dash-roadmap-box" style="border-left: 4px solid #00d2d3;">
+              <div class="dash-section-title"><span>🌐</span> Central Server Sync (USA ⇄ India)</div>
+              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 10px;">Connect to the Central Platform server to push student telemetry and fetch live teacher directives.</div>
+              <div style="display: flex; gap: 10px;">
+                <input type="text" id="tchrServerUrlInput" value="http://localhost:8000" placeholder="Central Server URL (e.g. http://localhost:8000 or tunnel URL)..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 13px;">
+                <button class="dash-btn-primary" style="background: #00d2d3; color: #000; font-weight: bold;" onclick="syncWithCentralServerUI()">🔄 Sync with Server</button>
+              </div>
+              <div id="tchrSyncFeedback" style="font-size: 12px; margin-top: 8px; color: #53a8b6;"></div>
+            </div>
+
             <!-- Teacher Instruction Injection Box -->
             <div class="dash-roadmap-box" style="border-left: 4px solid #9b59b6;">
               <div class="dash-section-title"><span>📝</span> Inject Teacher Instruction</div>
@@ -1686,6 +1697,8 @@
         loadAssessmentTab();
       } else if (tab === 'settings') {
         loadSettingsTab();
+      } else if (tab === 'teacher') {
+        loadTeacherDashboardUI();
       }
     }
 
@@ -2685,6 +2698,29 @@
         }
       } catch (e) {
         console.error("Failed to inject teacher instruction:", e);
+      }
+    }
+
+    async function syncWithCentralServerUI() {
+      if (!bridge || typeof bridge.sync_with_central_server !== 'function') return;
+      var sUrl = (document.getElementById('tchrServerUrlInput').value || '').trim() || 'http://localhost:8000';
+      var feedback = document.getElementById('tchrSyncFeedback');
+      feedback.style.color = '#53a8b6';
+      feedback.textContent = 'Syncing with ' + sUrl + '...';
+      try {
+        var raw = await bridge.sync_with_central_server(sUrl);
+        var data = JSON.parse(raw);
+        if (data && data.ok) {
+          feedback.style.color = '#27c93f';
+          feedback.textContent = '✓ ' + (data.message || 'Synced successfully!');
+          loadTeacherDashboardUI();
+        } else {
+          feedback.style.color = '#ff5f56';
+          feedback.textContent = '✗ Sync failed: ' + (data.error || 'Server error');
+        }
+      } catch (e) {
+        feedback.style.color = '#ff5f56';
+        feedback.textContent = '✗ Connection error: ' + e.message;
       }
     }
 

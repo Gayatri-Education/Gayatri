@@ -12,14 +12,19 @@ class PlatformDatabase:
     """Central data layer manager supporting multi-tenant isolation."""
 
     def __init__(self, db_path: str = ":memory:"):
-        self.db_path = db_path
+        self.db_path = str(db_path)
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA foreign_keys = ON;")
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON;")
-        return conn
+        return self._conn
+
+    def close(self) -> None:
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     def _init_db(self) -> None:
         with self._get_connection() as conn:
@@ -66,18 +71,43 @@ class PlatformDatabase:
     def create_organization(self, org: Organization) -> Organization:
         with self._get_connection() as conn:
             conn.execute(
-                "INSERT INTO organizations (id, name, slug, created_at) VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO organizations (id, name, slug, created_at) VALUES (?, ?, ?, ?)",
                 (org.id, org.name, org.slug, org.created_at),
             )
         return org
 
+    def get_organization(self, org_id: str) -> Optional[Organization]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT id, name, slug, created_at FROM organizations WHERE id = ?", (org_id,)).fetchone()
+            if r:
+                return Organization(id=r["id"], name=r["name"], slug=r["slug"], created_at=r["created_at"])
+            return None
+
     def create_user(self, user: User) -> User:
         with self._get_connection() as conn:
             conn.execute(
-                "INSERT INTO users (id, email, full_name, role, organization_id, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO users (id, email, full_name, role, organization_id, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (user.id, user.email, user.full_name, user.role.value, user.organization_id, 1 if user.is_active else 0, user.created_at),
             )
         return user
+
+    def get_user(self, user_id: str) -> Optional[User]:
+        with self._get_connection() as conn:
+            r = conn.execute(
+                "SELECT id, email, full_name, role, organization_id, is_active, created_at FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
+            if r:
+                return User(
+                    id=r["id"],
+                    email=r["email"],
+                    full_name=r["full_name"],
+                    role=UserRole(r["role"]),
+                    organization_id=r["organization_id"],
+                    is_active=bool(r["is_active"]),
+                    created_at=r["created_at"],
+                )
+            return None
 
     def get_users_by_organization(self, organization_id: str) -> List[User]:
         with self._get_connection() as conn:
@@ -101,10 +131,27 @@ class PlatformDatabase:
     def create_course(self, course: Course) -> Course:
         with self._get_connection() as conn:
             conn.execute(
-                "INSERT INTO courses (id, organization_id, code, title, description, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO courses (id, organization_id, code, title, description, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (course.id, course.organization_id, course.code, course.title, course.description, course.created_at),
             )
         return course
+
+    def get_course(self, course_id: str) -> Optional[Course]:
+        with self._get_connection() as conn:
+            r = conn.execute(
+                "SELECT id, organization_id, code, title, description, created_at FROM courses WHERE id = ?",
+                (course_id,),
+            ).fetchone()
+            if r:
+                return Course(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    code=r["code"],
+                    title=r["title"],
+                    description=r["description"],
+                    created_at=r["created_at"],
+                )
+            return None
 
     def get_courses_by_organization(self, organization_id: str) -> List[Course]:
         with self._get_connection() as conn:
@@ -127,7 +174,7 @@ class PlatformDatabase:
     def create_enrollment(self, enrollment: Enrollment) -> Enrollment:
         with self._get_connection() as conn:
             conn.execute(
-                "INSERT INTO enrollments (id, student_id, course_id, enrolled_at) VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO enrollments (id, student_id, course_id, enrolled_at) VALUES (?, ?, ?, ?)",
                 (enrollment.id, enrollment.student_id, enrollment.course_id, enrollment.enrolled_at),
             )
         return enrollment

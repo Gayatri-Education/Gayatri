@@ -63,3 +63,8 @@ class TeacherPortalService:
             s for s in self._students.values()
             if s["course_id"] == course_id and (s["needs_attention"] or s["mastery"] < 0.5)
         ]
+
+    def get_all_students(self, course_id: Optional[str] = None) -> List[dict]:
+        if course_id:
+            return [s for s in self._students.values() if s["course_id"] == course_id]
+        return list(self._students.values())

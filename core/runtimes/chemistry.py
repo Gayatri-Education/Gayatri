@@ -444,6 +444,25 @@ class ChemistryTutorRuntime:
                     "Ensure definitions are accurate according to NCERT."
                 )
 
+            # 6. Priority Teacher Pedagogical Instructions
+            try:
+                from app.bridge.facade import get_teacher_instruction_engine
+                tchr_engine = get_teacher_instruction_engine()
+                active_tchr_insts = tchr_engine.get_instructions_for_student(
+                    student_id=student.student_id,
+                    course_id="crs-chem-101",
+                    concept_id=student.current_concept,
+                )
+                if active_tchr_insts:
+                    inst_bullet_list = "\n".join(f"  * {i.instruction_text}" for i in active_tchr_insts)
+                    policy_directive += (
+                        f"\n\n[PRIORITY TEACHER INSTRUCTIONS]:\n"
+                        f"The teacher has provided the following pedagogical guidance which you MUST respect:\n"
+                        f"{inst_bullet_list}"
+                    )
+            except Exception:
+                pass
+
             system = _build_chemistry_system_prompt(
                 self._topics or None,
                 rag_evidence=isolated_evidence,

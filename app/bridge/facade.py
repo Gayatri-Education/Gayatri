@@ -18,6 +18,29 @@ from core.model_fetch.ollama_pull import OllamaPullError
 
 logger = setup_logging()
 
+# ── Teacher Portal & Instruction Engine Singletons ───────────────
+_teacher_portal_singleton = None
+_teacher_instruction_engine_singleton = None
+
+
+def get_teacher_portal_service():
+    global _teacher_portal_singleton
+    if _teacher_portal_singleton is None:
+        from central_platform.teacher.portal import TeacherPortalService
+        _teacher_portal_singleton = TeacherPortalService()
+        _teacher_portal_singleton.register_student_snapshot(
+            "local_student_1", "Local Student", "crs-chem-101", 0.85, needs_attention=False
+        )
+    return _teacher_portal_singleton
+
+
+def get_teacher_instruction_engine():
+    global _teacher_instruction_engine_singleton
+    if _teacher_instruction_engine_singleton is None:
+        from central_platform.teacher.instruction import TeacherInstructionEngine
+        _teacher_instruction_engine_singleton = TeacherInstructionEngine()
+    return _teacher_instruction_engine_singleton
+
 
 class Bridge(QObject):
     """Exposes async slots and streaming signals to the UI via QWebChannel.
@@ -1083,11 +1106,7 @@ class Bridge(QObject):
     def get_teacher_dashboard(self, course_id: str = "crs-chem-101") -> str:
         """Retrieve unified Teacher Dashboard payload with class health metrics and alerts."""
         try:
-            from central_platform.teacher.portal import TeacherPortalService
-
-            portal = TeacherPortalService()
-            # Register local active student snapshot
-            portal.register_student_snapshot("local_student_1", "Local Student", course_id, 0.85, needs_attention=False)
+            portal = get_teacher_portal_service()
             overview = portal.get_dashboard_overview(course_id)
             needing_attn = portal.get_students_needing_attention(course_id)
 
@@ -1110,9 +1129,9 @@ class Bridge(QObject):
     def add_teacher_instruction(self, teacher_id: str, student_id: str, instruction_text: str) -> str:
         """Add a persistent teacher instruction targeting a specific student's tutor context."""
         try:
-            from central_platform.teacher.instruction import TeacherInstruction, TeacherInstructionEngine
+            from central_platform.teacher.instruction import TeacherInstruction
 
-            engine = TeacherInstructionEngine()
+            engine = get_teacher_instruction_engine()
             inst = TeacherInstruction(
                 instruction_id=f"inst-{uuid.uuid4().hex[:6]}",
                 teacher_id=teacher_id,
@@ -1125,6 +1144,73 @@ class Bridge(QObject):
         except Exception as exc:
             from core.errors import sanitize_error
             sanitized = sanitize_error(exc, category="bridge_add_teacher_instruction")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, result=str)
+    def sync_with_central_server(self, server_url: str = "http://localhost:8000") -> str:
+        """Sync local student progress snapshot to central server and pull active teacher instructions."""
+        try:
+            import urllib.error
+            import urllib.request
+            from core.learning.progress import ProgressService
+            from core.tutor.state import TutorStateManager
+
+            sm = TutorStateManager()
+            ps = ProgressService(sm)
+            summary = ps.get_student_progress_summary("local_student_1")
+            mastery = summary.get("overall_mastery", 0.85)
+
+            # 1. Push student snapshot to central server
+            clean_url = server_url.rstrip("/")
+            snapshot_payload = json.dumps({
+                "student_id": "local_student_1",
+                "student_name": "Local Student",
+                "course_id": "crs-chem-101",
+                "mastery": mastery,
+                "needs_attention": (mastery < 0.5),
+            }).encode("utf-8")
+
+            snap_req = urllib.request.Request(
+                f"{clean_url}/api/student/snapshot",
+                data=snapshot_payload,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(snap_req, timeout=5) as resp:
+                snap_res = json.loads(resp.read().decode("utf-8"))
+
+            # 2. Pull active instructions from server
+            inst_req = urllib.request.Request(
+                f"{clean_url}/api/teacher/instructions?student_id=local_student_1&course_id=crs-chem-101"
+            )
+            with urllib.request.urlopen(inst_req, timeout=5) as resp:
+                inst_res = json.loads(resp.read().decode("utf-8"))
+
+            engine = get_teacher_instruction_engine()
+            synced_count = 0
+            if inst_res.get("ok"):
+                from central_platform.teacher.instruction import TeacherInstruction
+                for item in inst_res.get("instructions", []):
+                    inst = TeacherInstruction(
+                        instruction_id=item["instruction_id"],
+                        teacher_id=item["teacher_id"],
+                        student_id=item["student_id"],
+                        course_id=item["course_id"],
+                        instruction_text=item["instruction_text"],
+                        priority=item.get("priority", 1),
+                        created_at=item.get("created_at", ""),
+                    )
+                    engine.add_instruction(inst)
+                    synced_count += 1
+
+            return json.dumps({
+                "ok": True,
+                "synced_instructions": synced_count,
+                "server_url": clean_url,
+                "message": f"Synced with {clean_url}. Received {synced_count} teacher instruction(s).",
+            })
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_sync_with_central_server")
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
 
