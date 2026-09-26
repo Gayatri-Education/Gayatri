@@ -61,3 +61,13 @@ class TeacherInterventionEngine:
             self._alerts[alert_id].status = new_status
             return True
         return False
+
+    def resolve_alert(self, alert_id: str) -> bool:
+        return self.transition_alert_status(alert_id, AlertStatus.RESOLVED)
+
+    def get_all_alerts(self, course_id: Optional[str] = None) -> List[TeacherAlert]:
+        alerts = list(self._alerts.values())
+        if course_id:
+            alerts = [a for a in alerts if a.course_id == course_id]
+        return sorted(alerts, key=lambda x: x.created_at, reverse=True)
+

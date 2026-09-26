@@ -18,9 +18,10 @@ from core.model_fetch.ollama_pull import OllamaPullError
 
 logger = setup_logging()
 
-# ── Teacher Portal & Instruction Engine Singletons ───────────────
+# ── Teacher Portal, Instruction & Intervention Engine Singletons ──
 _teacher_portal_singleton = None
 _teacher_instruction_engine_singleton = None
+_teacher_intervention_engine_singleton = None
 
 
 def get_teacher_portal_service():
@@ -29,7 +30,22 @@ def get_teacher_portal_service():
         from central_platform.teacher.portal import TeacherPortalService
         _teacher_portal_singleton = TeacherPortalService()
         _teacher_portal_singleton.register_student_snapshot(
-            "local_student_1", "Local Student", "crs-chem-101", 0.85, needs_attention=False
+            "local_student_1", "Rahul Kumar", "crs-chem-101", 0.85, needs_attention=False,
+            chapter_mastery={"Thermodynamics": 0.88, "Chemical Bonding": 0.84, "Coordination Chemistry": 0.80, "Periodic Trends": 0.90},
+            recent_activity="Solved Hess Law numerical",
+        )
+        _teacher_portal_singleton.register_student_snapshot(
+            "local_student_2", "Priya Sharma", "crs-chem-101", 0.94, needs_attention=False,
+            chapter_mastery={"Thermodynamics": 0.95, "Chemical Bonding": 0.92, "Coordination Chemistry": 0.94, "Periodic Trends": 0.95},
+            recent_activity="Practicing Gibbs free energy",
+        )
+        _teacher_portal_singleton.register_student_snapshot(
+            "local_student_3", "Amit Patel", "crs-chem-101", 0.42, needs_attention=True,
+            misconceptions=["THERMO_SIGN_CONVENTION"],
+            hint_count=7,
+            retention_rate=0.60,
+            chapter_mastery={"Thermodynamics": 0.36, "Chemical Bonding": 0.52, "Coordination Chemistry": 0.38, "Periodic Trends": 0.58},
+            recent_activity="Failed sign convention in expansion work",
         )
     return _teacher_portal_singleton
 
@@ -37,9 +53,48 @@ def get_teacher_portal_service():
 def get_teacher_instruction_engine():
     global _teacher_instruction_engine_singleton
     if _teacher_instruction_engine_singleton is None:
-        from central_platform.teacher.instruction import TeacherInstructionEngine
+        from central_platform.teacher.instruction import TeacherInstruction, TeacherInstructionEngine
         _teacher_instruction_engine_singleton = TeacherInstructionEngine()
+        _teacher_instruction_engine_singleton.add_instruction(
+            TeacherInstruction(
+                instruction_id="inst-seed-01",
+                teacher_id="tchr-101",
+                student_id="all",
+                course_id="crs-chem-101",
+                instruction_text="Emphasize IUPAC sign conventions: work done by system is negative (-w).",
+                priority=2,
+            )
+        )
     return _teacher_instruction_engine_singleton
+
+
+def get_teacher_intervention_engine():
+    global _teacher_intervention_engine_singleton
+    if _teacher_intervention_engine_singleton is None:
+        from central_platform.teacher.intervention import AlertSeverity, TeacherAlert, TeacherInterventionEngine
+        _teacher_intervention_engine_singleton = TeacherInterventionEngine()
+        _teacher_intervention_engine_singleton.raise_alert(
+            TeacherAlert(
+                alert_id="alt-b01",
+                student_id="local_student_3",
+                course_id="crs-chem-101",
+                alert_type="repeated_failure",
+                severity=AlertSeverity.CRITICAL,
+                message="Amit Patel encountered repeated sign convention error in Thermodynamics expansion work.",
+            )
+        )
+        _teacher_intervention_engine_singleton.raise_alert(
+            TeacherAlert(
+                alert_id="alt-b02",
+                student_id="local_student_1",
+                course_id="crs-chem-101",
+                alert_type="advancement_ready",
+                severity=AlertSeverity.INFO,
+                message="Rahul Kumar reached 85% mastery. Ready for advanced numerical practice.",
+            )
+        )
+    return _teacher_intervention_engine_singleton
+
 
 
 class Bridge(QObject):
@@ -1109,6 +1164,31 @@ class Bridge(QObject):
             portal = get_teacher_portal_service()
             overview = portal.get_dashboard_overview(course_id)
             needing_attn = portal.get_students_needing_attention(course_id)
+            students = portal.get_all_students(course_id)
+            alerts_eng = get_teacher_intervention_engine()
+            alerts = [
+                {
+                    "alert_id": a.alert_id,
+                    "student_id": a.student_id,
+                    "severity": a.severity.value,
+                    "alert_type": a.alert_type,
+                    "message": a.message,
+                    "status": a.status.value,
+                }
+                for a in alerts_eng.get_all_alerts(course_id)
+            ]
+            inst_eng = get_teacher_instruction_engine()
+            instructions = [
+                {
+                    "instruction_id": i.instruction_id,
+                    "student_id": i.student_id,
+                    "instruction_text": i.instruction_text,
+                    "concept_scope": i.concept_scope or "ALL",
+                    "priority": i.priority,
+                    "is_active": i.is_active,
+                }
+                for i in inst_eng.get_all_instructions()
+            ]
 
             return json.dumps({
                 "ok": True,
@@ -1116,13 +1196,45 @@ class Bridge(QObject):
                 "total_students": overview.total_students,
                 "students_needing_attention": overview.students_needing_attention,
                 "average_mastery": overview.average_mastery,
-                "active_alerts_count": overview.active_alerts_count,
+                "active_alerts_count": len([a for a in alerts if a["status"] != "resolved"]),
                 "class_health_status": overview.class_health_status,
+                "mastered_count": overview.mastered_count,
+                "progressing_count": overview.progressing_count,
+                "critical_count": overview.critical_count,
+                "chapter_averages": overview.chapter_averages,
+                "top_misconceptions": overview.top_misconceptions,
                 "students_attention_list": needing_attn,
+                "students": students,
+                "alerts": alerts,
+                "instructions": instructions,
             })
         except Exception as exc:
             from core.errors import sanitize_error
             sanitized = sanitize_error(exc, category="bridge_get_teacher_dashboard")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, result=str)
+    def resolve_teacher_alert(self, alert_id: str) -> str:
+        """Resolve an active teacher alert by ID."""
+        try:
+            alerts_eng = get_teacher_intervention_engine()
+            success = alerts_eng.resolve_alert(alert_id)
+            return json.dumps({"ok": success})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_resolve_teacher_alert")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, result=str)
+    def toggle_teacher_instruction(self, instruction_id: str) -> str:
+        """Toggle active state of a teacher instruction."""
+        try:
+            inst_eng = get_teacher_instruction_engine()
+            success = inst_eng.toggle_instruction(instruction_id)
+            return json.dumps({"ok": success})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_toggle_teacher_instruction")
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
     @Slot(str, str, str, result=str)

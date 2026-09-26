@@ -52,6 +52,18 @@ class TeacherInstructionEngine:
             return True
         return False
 
+    def toggle_instruction(self, instruction_id: str) -> bool:
+        if instruction_id in self._instructions:
+            self._instructions[instruction_id].is_active = not self._instructions[instruction_id].is_active
+            return True
+        return False
+
+    def delete_instruction(self, instruction_id: str) -> bool:
+        if instruction_id in self._instructions:
+            del self._instructions[instruction_id]
+            return True
+        return False
+
     def get_all_instructions(self) -> List[TeacherInstruction]:
         return sorted(list(self._instructions.values()), key=lambda x: x.created_at, reverse=True)
 

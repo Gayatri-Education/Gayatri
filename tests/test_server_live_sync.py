@@ -1,4 +1,4 @@
-"""End-to-end integration tests for server.py and cross-device sync."""
+"""End-to-end integration tests for server.py and Teacher Command Center."""
 
 import json
 import socket
@@ -34,9 +34,11 @@ def test_server_html_dashboard(live_server):
     req = urllib.request.urlopen(f"{live_server}/")
     assert req.status == 200
     html = req.read().decode("utf-8")
-    assert "Gayatri AI — Teacher Portal" in html
-    assert "Monitored Students Roster" in html
-    assert "Cross-Device &amp; International Sync Guide" in html or "Cross-Device" in html
+    assert "Gayatri AI — Teacher Command Center" in html
+    assert "Cohort Mastery Distribution" in html
+    assert "Teacher AI Copilot" in html
+    assert "Real-Time Teacher Alert Queue" in html
+    assert "Student Performance Roster" in html
 
 
 def test_server_api_health(live_server):
@@ -45,6 +47,8 @@ def test_server_api_health(live_server):
     data = json.loads(req.read().decode("utf-8"))
     assert data["status"] == "HEALTHY"
     assert data["service"] == "TeacherPortalServer"
+    assert "students_monitored" in data
+    assert "active_alerts" in data
 
 
 def test_server_api_teacher_dashboard(live_server):
@@ -53,7 +57,10 @@ def test_server_api_teacher_dashboard(live_server):
     data = json.loads(req.read().decode("utf-8"))
     assert data["ok"] is True
     assert "class_health_status" in data
-    assert len(data["students"]) >= 1
+    assert "mastered_count" in data
+    assert "chapter_averages" in data
+    assert len(data["students"]) >= 3
+    assert len(data["alerts"]) >= 1
 
 
 def test_server_student_snapshot_sync(live_server):
@@ -63,6 +70,7 @@ def test_server_student_snapshot_sync(live_server):
         "course_id": "crs-chem-101",
         "mastery": 0.88,
         "needs_attention": False,
+        "misconceptions": ["THERMO_SIGN_CONVENTION"],
     }).encode("utf-8")
     req = urllib.request.Request(
         f"{live_server}/api/student/snapshot",
@@ -107,6 +115,19 @@ def test_server_teacher_instruction_injection_and_retrieval(live_server):
     found = [i for i in data["instructions"] if i["instruction_id"] == inst_id]
     assert len(found) == 1
     assert "Gibbs Free Energy" in found[0]["instruction_text"]
+
+
+def test_server_alert_resolution_endpoint(live_server):
+    payload = json.dumps({"alert_id": "alt-001"}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{live_server}/api/teacher/alert/resolve",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req) as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read().decode("utf-8"))
+        assert data["ok"] is True
 
 
 def test_bridge_sync_with_live_server(live_server):

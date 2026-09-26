@@ -1420,26 +1420,98 @@
               </div>
             </div>
 
-            <!-- Central Platform & Cross-Device Sync Card -->
-            <div class="dash-roadmap-box" style="border-left: 4px solid #00d2d3;">
-              <div class="dash-section-title"><span>🌐</span> Central Server Sync (USA ⇄ India)</div>
-              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 10px;">Connect to the Central Platform server to push student telemetry and fetch live teacher directives.</div>
-              <div style="display: flex; gap: 10px;">
-                <input type="text" id="tchrServerUrlInput" value="http://localhost:8000" placeholder="Central Server URL (e.g. http://localhost:8000 or tunnel URL)..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 13px;">
-                <button class="dash-btn-primary" style="background: #00d2d3; color: #000; font-weight: bold;" onclick="syncWithCentralServerUI()">🔄 Sync with Server</button>
+            <!-- 1. Cohort Mastery Distribution & Chapter Breakdown -->
+            <div class="dash-roadmap-box" style="border-left: 4px solid #27c93f;">
+              <div class="dash-section-title"><span>📈</span> Cohort Mastery Distribution &amp; Chapters</div>
+              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 8px;">Breakdown of students by NCERT Chemistry competency tiers.</div>
+              <div style="height: 14px; background: #0c0e1e; border-radius: 7px; overflow: hidden; display: flex; margin: 10px 0; border: 1px solid #23274c;">
+                <div id="tchrBarMastered" style="width: 60%; background: #27c93f;" title="Mastered"></div>
+                <div id="tchrBarProgressing" style="width: 25%; background: #f5a623;" title="In Progress"></div>
+                <div id="tchrBarCritical" style="width: 15%; background: #ff5f56;" title="Attention Needed"></div>
               </div>
-              <div id="tchrSyncFeedback" style="font-size: 12px; margin-top: 8px; color: #53a8b6;"></div>
+              <div style="display: flex; gap: 16px; font-size: 11px; color: #adb5bd; flex-wrap: wrap;">
+                <div><span style="color: #27c93f;">●</span> Mastered (&ge;80%): <strong id="tchrCountMastered">1</strong></div>
+                <div><span style="color: #f5a623;">●</span> In Progress (50-79%): <strong id="tchrCountProgressing">1</strong></div>
+                <div><span style="color: #ff5f56;">●</span> Attention Needed (&lt;50%): <strong id="tchrCountCritical">1</strong></div>
+              </div>
+
+              <!-- Chapter Mastery Cards -->
+              <div id="tchrChapterGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px;">
+                <!-- Populated dynamically via JS -->
+              </div>
             </div>
 
-            <!-- Teacher Instruction Injection Box -->
+            <!-- 2. AI Teacher Copilot Briefing -->
+            <div class="dash-roadmap-box" style="border-left: 4px solid #9b59b6; background: linear-gradient(135deg, #181d3d 0%, #201736 100%);">
+              <div class="dash-section-title" style="color: #e0b0ff;"><span>🤖</span> Teacher AI Copilot — Cohort Gap Analysis</div>
+              <div style="font-size: 12px; color: #d1d5db; line-height: 1.5; margin-top: 6px;">
+                <strong>Empirical Cohort Synthesis:</strong>
+                Primary conceptual friction detected in <strong style="color: #ff8580;">IUPAC Thermodynamic Sign Conventions</strong> and <strong style="color: #f5a623;">VSEPR Hybridization</strong>.
+                <div style="background: rgba(155, 89, 182, 0.15); border-left: 3px solid #9b59b6; padding: 6px 10px; border-radius: 4px; margin-top: 8px; font-size: 12px;">
+                  <strong>💡 Recommended Intervention:</strong> Injected directives should require student sign reasoning before computing numerical values of ΔU = q + w.
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Real-Time Teacher Alert Queue -->
+            <div class="dash-roadmap-box" style="border-left: 4px solid #ff5f56;">
+              <div class="dash-section-title"><span>🚨</span> Active Teacher Alerts &amp; Interventions</div>
+              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 10px;">Automated flags triggered by repeated errors, prerequisite gaps, or score regression.</div>
+              <div id="tchrAlertsContainer" style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Populated dynamically via JS -->
+              </div>
+            </div>
+
+            <!-- 4. Monitored Student Performance Roster -->
+            <div class="dash-roadmap-box" style="border-left: 4px solid #53a8b6;">
+              <div class="dash-section-title"><span>👥</span> Student Performance Roster &amp; Misconceptions</div>
+              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 10px;">Live student mastery, diagnosed conceptual bugs, and hint usage.</div>
+              <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; color: #e0e0e0;">
+                  <thead>
+                    <tr style="border-bottom: 1px solid #333; color: #8a8a9a; text-align: left;">
+                      <th style="padding: 8px;">Student</th>
+                      <th style="padding: 8px;">Mastery</th>
+                      <th style="padding: 8px;">Diagnosed Misconceptions</th>
+                      <th style="padding: 8px;">Recent Focus</th>
+                      <th style="padding: 8px;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tchrStudentTableBody">
+                    <!-- Populated dynamically via JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 5. Targeted Teacher Directive Injection Box -->
             <div class="dash-roadmap-box" style="border-left: 4px solid #9b59b6;">
-              <div class="dash-section-title"><span>📝</span> Inject Teacher Instruction</div>
-              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 10px;">Set persistent instructions that guide the AI Tutor for your students.</div>
-              <div style="display: flex; gap: 10px;">
-                <input type="text" id="tchrInstructionInput" placeholder="Enter instruction (e.g. 'Emphasize sign conventions in Thermodynamics')..." style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 13px;">
-                <button class="dash-btn-primary" style="background: #9b59b6;" onclick="submitTeacherInstructionUI()">Inject Instruction</button>
+              <div class="dash-section-title"><span>📝</span> Inject Targeted Teacher Directive</div>
+              <div style="font-size: 12px; color: #8a8a9a; margin-bottom: 10px;">Set persistent pedagogical directives that guide the AI Tutor for your students.</div>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <select id="tchrStudentSelect" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 12px; min-width: 140px;">
+                  <option value="all">Entire Class</option>
+                  <option value="local_student_1">Rahul Kumar</option>
+                  <option value="local_student_2">Priya Sharma</option>
+                  <option value="local_student_3">Amit Patel</option>
+                </select>
+                <select id="tchrScopeSelect" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 12px; min-width: 140px;">
+                  <option value="ALL">All Concepts</option>
+                  <option value="THERMODYNAMICS">Thermodynamics</option>
+                  <option value="CHEMICAL_BONDING">Chemical Bonding</option>
+                  <option value="COORDINATION">Coordination Chemistry</option>
+                </select>
+                <input type="text" id="tchrInstructionInput" placeholder="Enter directive (e.g. 'Emphasize sign conventions in Thermodynamics')..." style="flex: 1; min-width: 220px; padding: 8px 12px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 12px;">
+                <button class="dash-btn-primary" style="background: #9b59b6;" onclick="submitTeacherInstructionUI()">Inject Directive</button>
               </div>
               <div id="tchrInstructionFeedback" style="font-size: 11px; margin-top: 6px; color: #27c93f;"></div>
+
+              <div style="margin-top: 16px;">
+                <div style="font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 8px;">Active AI Tutor Directives:</div>
+                <div id="tchrInstructionsList" style="display: flex; flex-direction: column; gap: 6px;">
+                  <!-- Populated dynamically via JS -->
+                </div>
+              </div>
             </div>
 
           </div>
@@ -2672,10 +2744,110 @@
       try {
         var raw = await bridge.get_teacher_dashboard('crs-chem-101');
         var data = JSON.parse(raw);
-        if (data && data.ok) {
-          document.getElementById('tchrHealthStatus').textContent = data.class_health_status || 'Good';
-          document.getElementById('tchrTotalStudents').textContent = data.total_students || 1;
-          document.getElementById('tchrActiveAlerts').textContent = data.active_alerts_count || 0;
+        if (!data || !data.ok) return;
+
+        // Header Metrics
+        document.getElementById('tchrHealthStatus').textContent = data.class_health_status || 'Good';
+        document.getElementById('tchrTotalStudents').textContent = data.total_students || 1;
+        document.getElementById('tchrActiveAlerts').textContent = data.active_alerts_count || 0;
+
+        // Mastery Tier Counts
+        var total = Math.max(1, data.total_students || 1);
+        var mastered = data.mastered_count || 0;
+        var progressing = data.progressing_count || 0;
+        var critical = data.critical_count || 0;
+
+        document.getElementById('tchrCountMastered').textContent = mastered;
+        document.getElementById('tchrCountProgressing').textContent = progressing;
+        document.getElementById('tchrCountCritical').textContent = critical;
+
+        var mPct = Math.round((mastered / total) * 100);
+        var pPct = Math.round((progressing / total) * 100);
+        var cPct = 100 - mPct - pPct;
+
+        document.getElementById('tchrBarMastered').style.width = mPct + '%';
+        document.getElementById('tchrBarProgressing').style.width = pPct + '%';
+        document.getElementById('tchrBarCritical').style.width = cPct + '%';
+
+        // Chapter Grid
+        var chGrid = document.getElementById('tchrChapterGrid');
+        if (chGrid && data.chapter_averages) {
+          chGrid.innerHTML = '';
+          for (var ch in data.chapter_averages) {
+            var score = Math.round(data.chapter_averages[ch] * 100);
+            var box = document.createElement('div');
+            box.style.cssText = 'background: #151833; border: 1px solid #23274c; border-radius: 8px; padding: 10px; font-size: 11px;';
+            box.innerHTML = '<div style=\"color:#fff; font-weight:700;\">' + ch + '</div>' +
+                            '<div style=\"font-size:16px; font-weight:800; color:#00d2d3; margin:4px 0;\">' + score + '%</div>' +
+                            '<div style=\"height:4px; background:#0b0d1b; border-radius:2px; overflow:hidden;\"><div style=\"height:100%; width:' + score + '%; background:#00d2d3;\"></div></div>';
+            chGrid.appendChild(box);
+          }
+        }
+
+        // Active Alerts
+        var alertsCont = document.getElementById('tchrAlertsContainer');
+        if (alertsCont && data.alerts) {
+          alertsCont.innerHTML = '';
+          var active = data.alerts.filter(function(a) { return a.status !== 'resolved'; });
+          if (active.length === 0) {
+            alertsCont.innerHTML = '<div style=\"color:#8a8a9a; font-size:12px;\">No active alerts. All students are progressing stably.</div>';
+          } else {
+            active.forEach(function(a) {
+              var color = a.severity === 'critical' ? '#ff5f56' : (a.severity === 'warning' ? '#f5a623' : '#3b82f6');
+              var row = document.createElement('div');
+              row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#181c3a; border-left:4px solid ' + color + '; padding:8px 12px; border-radius:0 6px 6px 0; font-size:12px;';
+              row.innerHTML = '<div>' +
+                                '<span style=\"color:' + color + '; font-weight:bold; text-transform:uppercase;\">[' + a.severity + ']</span> ' +
+                                '<strong style=\"color:#fff;\">' + a.student_id + ':</strong> ' +
+                                '<span style=\"color:#d1d5db;\">' + a.message + '</span>' +
+                              '</div>' +
+                              '<button class=\"btn-small\" style=\"background:#24324f; color:#64b5f6; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-weight:bold;\" onclick=\"resolveTeacherAlertUI(\'' + a.alert_id + '\')\">✓ Resolve</button>';
+              alertsCont.appendChild(row);
+            });
+          }
+        }
+
+        // Student Roster
+        var tbody = document.getElementById('tchrStudentTableBody');
+        if (tbody && data.students) {
+          tbody.innerHTML = '';
+          data.students.forEach(function(s) {
+            var tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #23274c';
+            var statusBadge = s.needs_attention ? '<span style=\"background:rgba(255,95,86,0.2); color:#ff5f56; padding:2px 8px; border-radius:8px; font-weight:bold;\">Attention Needed</span>' : '<span style=\"background:rgba(39,201,63,0.2); color:#27c93f; padding:2px 8px; border-radius:8px; font-weight:bold;\">On Track</span>';
+            var miscs = (s.misconceptions && s.misconceptions.length > 0) ? s.misconceptions.map(function(m) { return '<code style=\"background:#2a1b24; color:#ff8580; padding:2px 6px; border-radius:4px; font-size:10px;\">' + m + '</code>'; }).join(' ') : '<span style=\"color:#6b7280;\">None</span>';
+            tr.innerHTML = '<td style=\"padding:8px;\"><strong>' + s.name + '</strong><br><span style=\"color:#6b7280; font-size:10px;\">' + s.id + '</span></td>' +
+                           '<td style=\"padding:8px;\"><strong style=\"color:#00d2d3;\">' + Math.round(s.mastery * 100) + '%</strong></td>' +
+                           '<td style=\"padding:8px;\">' + miscs + '</td>' +
+                           '<td style=\"padding:8px; color:#9ca3af;\">' + (s.recent_activity || 'Active') + '</td>' +
+                           '<td style=\"padding:8px;\">' + statusBadge + '</td>';
+            tbody.appendChild(tr);
+          });
+        }
+
+        // Active Instructions List
+        var instCont = document.getElementById('tchrInstructionsList');
+        if (instCont && data.instructions) {
+          instCont.innerHTML = '';
+          if (data.instructions.length === 0) {
+            instCont.innerHTML = '<div style=\"color:#8a8a9a; font-size:11px;\">No directives added yet.</div>';
+          } else {
+            data.instructions.forEach(function(i) {
+              var badge = i.is_active ? '<span style=\"color:#27c93f; font-weight:bold;\">● Active</span>' : '<span style=\"color:#6b7280;\">Inactive</span>';
+              var toggleTxt = i.is_active ? 'Deactivate' : 'Activate';
+              var div = document.createElement('div');
+              div.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#181c3a; border-left:3px solid #9b59b6; padding:8px 12px; border-radius:0 6px 6px 0; font-size:12px;';
+              div.innerHTML = '<div>' +
+                                '<div style=\"color:#fff; font-weight:600;\">\"' + i.instruction_text + '\"</div>' +
+                                '<div style=\"color:#8a8a9a; font-size:10px; margin-top:2px;\">Target: <code>' + i.student_id + '</code> | Priority: ' + i.priority + '</div>' +
+                              '</div>' +
+                              '<div style=\"display:flex; align-items:center; gap:8px;\">' +
+                                badge +
+                                '<button style=\"background:#2a203f; color:#d8b4e2; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;\" onclick=\"toggleTeacherInstructionUI(\'' + i.instruction_id + '\')\">' + toggleTxt + '</button>' +
+                              '</div>';
+              instCont.appendChild(div);
+            });
+          }
         }
       } catch (e) {
         console.error("Failed to load teacher dashboard UI:", e);
@@ -2686,12 +2858,14 @@
       if (!bridge || typeof bridge.add_teacher_instruction !== 'function') return;
       var txt = document.getElementById('tchrInstructionInput').value.trim();
       if (!txt) return;
+      var sid = document.getElementById('tchrStudentSelect') ? document.getElementById('tchrStudentSelect').value : 'all';
       try {
-        var raw = await bridge.add_teacher_instruction('teacher-1', 'local_student_1', txt);
+        var raw = await bridge.add_teacher_instruction('teacher-1', sid, txt);
         var data = JSON.parse(raw);
         if (data && data.ok) {
-          document.getElementById('tchrInstructionFeedback').textContent = '✓ Instruction injected! (ID: ' + data.instruction_id + ')';
+          document.getElementById('tchrInstructionFeedback').textContent = '✓ Directive injected and synced into AI Tutor! (ID: ' + data.instruction_id + ')';
           document.getElementById('tchrInstructionInput').value = '';
+          loadTeacherDashboardUI();
           setTimeout(function() {
             document.getElementById('tchrInstructionFeedback').textContent = '';
           }, 4000);
@@ -2701,26 +2875,23 @@
       }
     }
 
-    async function syncWithCentralServerUI() {
-      if (!bridge || typeof bridge.sync_with_central_server !== 'function') return;
-      var sUrl = (document.getElementById('tchrServerUrlInput').value || '').trim() || 'http://localhost:8000';
-      var feedback = document.getElementById('tchrSyncFeedback');
-      feedback.style.color = '#53a8b6';
-      feedback.textContent = 'Syncing with ' + sUrl + '...';
+    async function resolveTeacherAlertUI(alertId) {
+      if (!bridge || typeof bridge.resolve_teacher_alert !== 'function') return;
       try {
-        var raw = await bridge.sync_with_central_server(sUrl);
-        var data = JSON.parse(raw);
-        if (data && data.ok) {
-          feedback.style.color = '#27c93f';
-          feedback.textContent = '✓ ' + (data.message || 'Synced successfully!');
-          loadTeacherDashboardUI();
-        } else {
-          feedback.style.color = '#ff5f56';
-          feedback.textContent = '✗ Sync failed: ' + (data.error || 'Server error');
-        }
+        await bridge.resolve_teacher_alert(alertId);
+        loadTeacherDashboardUI();
       } catch (e) {
-        feedback.style.color = '#ff5f56';
-        feedback.textContent = '✗ Connection error: ' + e.message;
+        console.error("Failed to resolve teacher alert:", e);
+      }
+    }
+
+    async function toggleTeacherInstructionUI(instructionId) {
+      if (!bridge || typeof bridge.toggle_teacher_instruction !== 'function') return;
+      try {
+        await bridge.toggle_teacher_instruction(instructionId);
+        loadTeacherDashboardUI();
+      } catch (e) {
+        console.error("Failed to toggle teacher instruction:", e);
       }
     }
 
