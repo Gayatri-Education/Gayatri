@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import threading
+import uuid
 
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -1075,4 +1076,55 @@ class Bridge(QObject):
             from core.errors import sanitize_error
             sanitized = sanitize_error(exc, category="bridge_export_student_analytics")
             return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    # ── Teacher Dashboard & Copilot Slots ─────────────────────────────
+
+    @Slot(str, result=str)
+    def get_teacher_dashboard(self, course_id: str = "crs-chem-101") -> str:
+        """Retrieve unified Teacher Dashboard payload with class health metrics and alerts."""
+        try:
+            from central_platform.teacher.portal import TeacherPortalService
+
+            portal = TeacherPortalService()
+            # Register local active student snapshot
+            portal.register_student_snapshot("local_student_1", "Local Student", course_id, 0.85, needs_attention=False)
+            overview = portal.get_dashboard_overview(course_id)
+            needing_attn = portal.get_students_needing_attention(course_id)
+
+            return json.dumps({
+                "ok": True,
+                "course_id": course_id,
+                "total_students": overview.total_students,
+                "students_needing_attention": overview.students_needing_attention,
+                "average_mastery": overview.average_mastery,
+                "active_alerts_count": overview.active_alerts_count,
+                "class_health_status": overview.class_health_status,
+                "students_attention_list": needing_attn,
+            })
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_get_teacher_dashboard")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, str, str, result=str)
+    def add_teacher_instruction(self, teacher_id: str, student_id: str, instruction_text: str) -> str:
+        """Add a persistent teacher instruction targeting a specific student's tutor context."""
+        try:
+            from central_platform.teacher.instruction import TeacherInstruction, TeacherInstructionEngine
+
+            engine = TeacherInstructionEngine()
+            inst = TeacherInstruction(
+                instruction_id=f"inst-{uuid.uuid4().hex[:6]}",
+                teacher_id=teacher_id,
+                student_id=student_id,
+                course_id="crs-chem-101",
+                instruction_text=instruction_text,
+            )
+            engine.add_instruction(inst)
+            return json.dumps({"ok": True, "instruction_id": inst.instruction_id})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_add_teacher_instruction")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
 
