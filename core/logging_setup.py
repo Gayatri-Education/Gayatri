@@ -33,6 +33,9 @@ class _RedactFilter(logging.Filter):
         record.msg = _redact(str(record.msg))
         if record.args:
             record.args = tuple(_redact(str(a)) for a in record.args)
+        # Preserve structured log correlation metadata if present
+        if not hasattr(record, "correlation_id"):
+            record.correlation_id = getattr(record, "request_id", "-")
         return True
 
 
