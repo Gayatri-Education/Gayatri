@@ -25,7 +25,7 @@
 | **Phase 11** | Unified Assessment Platform | **DONE** | 365 PASSED | `tests/test_phase11_assessment_platform.py` |
 | **Phase 12** | Plug & Play Curriculum Platform | **DONE** | 367 PASSED | `tests/test_phase12_curriculum_platform.py` |
 | **Phase 13** | Multi-Level Admin Portal | **DONE** | 372 PASSED | `tests/test_phase13_admin_portal.py` |
-| **Phase 14** | AI Governance & Model Routing | **TODO** | - | - |
+| **Phase 14** | AI Governance & Model Routing | **DONE** | 378 PASSED | `tests/test_phase14_ai_governance.py` |
 | **Phase 15** | Platform Analytics & Reporting | **TODO** | - | - |
 | **Phase 16** | Notification Abstraction Engine | **TODO** | - | - |
 | **Phase 17** | Security Hardening & Audit | **TODO** | - | - |
