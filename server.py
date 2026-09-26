@@ -8,10 +8,18 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import Organization, User, UserRole
@@ -565,7 +573,7 @@ class TeacherPortalHTTPHandler(BaseHTTPRequestHandler):
 def run_server(port: int = 8000) -> None:
     server_address = ("0.0.0.0", port)
     httpd = HTTPServer(server_address, TeacherPortalHTTPHandler)
-    print(f"🚀 Gayatri Teacher Portal HTTP Server running at http://localhost:{port}")
+    print(f"[ONLINE] Gayatri Teacher Portal HTTP Server running at http://localhost:{port}")
     httpd.serve_forever()
 
 
