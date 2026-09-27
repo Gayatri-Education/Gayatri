@@ -3,10 +3,10 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 15  
-Overall Completion: 50.0% (15/30 Phases)  
-Last Verified Commit: 3c5e45d (Phase 14)  
-Last Full Regression: 2026-09-28 (570/570 passed)  
+Current Phase: 16  
+Overall Completion: 53.3% (16/30 Phases)  
+Last Verified Commit: 75710bb (Phase 15)  
+Last Full Regression: 2026-09-28 (580/580 passed)  
 Last Full Backtest: 2026-09-28 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
@@ -32,7 +32,7 @@ Open P3: 0
 | 12 | Teacher Intervention System | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7d9e786 |
 | 13 | Teacher Copilot | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 14e988f |
 | 14 | Admin Web Portal | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 3c5e45d |
-| 15 | Plug-and-Play Curriculum | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 15 | Plug-and-Play Curriculum | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 75710bb |
 | 16 | RAG Plug-and-Play | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 17 | Real AI Gateway + Model Router | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 18 | AI Governance / Observability | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,59 +51,56 @@ Open P3: 0
 ## Current Phase
  
 ### Objective
-Execute Phase 14 (Admin Web Portal): Build comprehensive multi-tenant administration platform supporting all 16 canonical admin pages and resources per Master Plan Section 23: Dashboard, Organizations, Users, Teachers, Students, Courses, Curricula, Classes, Cohorts, Enrollments, Providers, Models, AI Policies, Audit Trail, Analytics, and System Health. Enforce strict multi-tenant RBAC scoping, Super Admin emergency kill switches, and immutable audit logs.
+Execute Phase 15 (Plug-and-Play Curriculum): Make courses and curricula dynamic and replaceable without rewriting or modifying the tutor engine. Implement full hierarchical model (Course -> Curriculum Version -> Subject -> Module -> Topic -> Concept -> Prerequisites DAG -> Activities -> Assessments), strict immutability upon publication, DAG cycle and orphan validation, universal declarative JSON import/export with round-trip fidelity, and dynamic REST APIs.
 
 ### Implemented
-- Authoritative Admin Service (`central_platform/admin/service.py`) supporting full CRUD & operations:
-  - Organizations lifecycle (tiers, student quotas, tenant isolation)
-  - User and identity provisioning (role assignments, password resets, deactivation, soft deletion)
-  - Academic hierarchy (courses, curricula, versioning, classes, cohorts, student enrollments)
-  - AI Gateway governance (provider registration, model registration, context windows, default model routing)
-  - Policy enforcement (strict/balanced/permissive AI modes, answer leakage shields, feature flags)
-  - Emergency Kill Switch with audit reasoning and system-wide health telemetry
-  - Provenance audit logging for all mutations with IP, timestamp, actor, and payload details
-- Admin REST API Router (`central_platform/api/routes/admin.py`) exposing all 16 Master Plan Section 23 resource endpoints:
-  - `GET /admin/dashboard`, `GET /admin/system-health`, `POST /admin/kill-switch`
-  - `GET/POST /admin/organizations`, `GET /admin/organizations/{id}/report`
-  - `GET/POST /admin/users`, `PATCH/DELETE /admin/users/{id}`, `GET /admin/teachers`, `GET /admin/students`
-  - `GET/POST /admin/courses`, `GET/POST /admin/curricula`, `GET/POST /admin/classes`, `GET/POST /admin/cohorts`
-  - `GET/POST /admin/enrollments`, `DELETE /admin/enrollments/{id}`
-  - `GET/POST /admin/providers`, `GET/POST /admin/models`
-  - `GET/POST /admin/ai-policies`, `GET/POST /admin/feature-flags`
-  - `GET /admin/audit`, `GET /admin/analytics`
-- Pydantic Request & Response Schemas (`central_platform/api/schemas.py`):
-  - Typed DTOs for all 16 resource domains with validation and documentation
-- Full Admin Web Portal Single-Page Application (`app/ui/admin_portal.html`):
-  - 16 views with navigation, sidebar, responsive styling, summary metrics, dynamic tables, modals for entity creation, emergency kill switch banner, and JSON viewer
-- Phase 14 Verification Test Suite (`tests/test_phase14_admin_portal_platform.py`):
-  - 13 comprehensive test cases covering all 16 pages/endpoints, RBAC scoping, tenant isolation, student/teacher rejection, and HTML integrity (13/13 passed)
-- Full regression suite: 570/570 tests passing repository-wide (0 failures, 0 warnings)
+- Authoritative Curriculum Service (`central_platform/curriculum/service.py`) supporting:
+  - Full hierarchical DAG management (Course, Curriculum, CurriculumVersion, Subject, Module, Topic, Concept, Prerequisite)
+  - Strict immutability enforcement: once a version is PUBLISHED, modifying nodes is rejected (`ValueError`), enforcing version draft branching
+  - Version lifecycle state machine (`draft` -> `validated` -> `published` -> `archived`)
+  - Deep DAG cycle detection (DFS recursion stack) preventing circular prerequisites (\(A \rightarrow B \rightarrow A\))
+  - Orphan prerequisite and invalid programmatic identifier detection
+  - Declarative package import and export with round-trip fidelity
+  - Multi-subject coexistence (Chemistry, Mathematics, Python running concurrently without cross-contamination)
+- REST API Router (`central_platform/api/routes/curricula.py`):
+  - `GET /api/v1/curricula/{course_id}`: dynamic retrieval of active published curriculum hierarchy with backward compatibility
+  - `GET/POST /api/v1/curricula/{curriculum_id}/versions`: list and create version drafts
+  - `GET /api/v1/curricula/versions/{version_id}/hierarchy`: retrieve complete nested tree
+  - `POST /api/v1/curricula/versions/{version_id}/validate`: run DAG validation report
+  - `POST /api/v1/curricula/versions/{version_id}/publish`: validate and lock version immutably
+  - `POST /api/v1/curricula/import`: import complete declarative JSON package
+  - `GET /api/v1/curricula/versions/{version_id}/export`: export canonical JSON package
+- Pydantic Schemas (`central_platform/api/schemas.py`):
+  - `CurriculumHierarchyResponse`, `CurriculumValidationResponse`, `CurriculumImportRequest`, `CurriculumImportResponse`, `CurriculumVersionCreateRequest`, `CurriculumVersionPublishResponse`, `CurriculumExportResponse`
+- Central Platform Database (`central_platform/db.py` & `migrations/001_initial_schema.sql`):
+  - Upgraded schema to support `status`, `published_at`, `schema_data` on `curriculum_versions` and `subject_id` on `modules`
+  - Replaced `INSERT OR REPLACE` with `ON CONFLICT(id) DO UPDATE SET` on parent tables to prevent CASCADE deletion of child nodes in SQLite
+- Phase 15 Verification Suite in `tests/test_phase15_plug_and_play_curriculum_platform.py` (10/10 passed)
+- Full regression suite: 580/580 tests passing repository-wide (0 failures, 0 warnings)
 - Frozen baseline: 44/44 benchmarks passing (100.0%)
 
 ### Files Changed
-- `central_platform/admin/service.py` (enhanced with multi-tenant operations, academic management, and foreign key safety)
-- `central_platform/api/routes/admin.py` (added all 16 Section 23 endpoints with RBAC gatekeeping)
-- `central_platform/api/schemas.py` (added comprehensive admin request and response models)
-- `central_platform/db.py` (updated suspend_user signature to accept optional reason)
-- `app/ui/admin_portal.html` (created 16-view standalone web portal)
-- `tests/test_phase14_admin_portal_platform.py` (created, 13 test cases)
+- `central_platform/curriculum/service.py` (created)
+- `central_platform/curriculum/__init__.py` (updated exports)
+- `central_platform/api/routes/curricula.py` (enhanced with Section 24 endpoints)
+- `central_platform/api/schemas.py` (added curriculum schemas)
+- `central_platform/db.py` (added curriculum version and node query methods, ON CONFLICT safety)
+- `central_platform/models/schema.py` (updated CurriculumVersion and Module dataclasses)
+- `migrations/001_initial_schema.sql` (updated schema definitions)
+- `tests/test_phase15_plug_and_play_curriculum_platform.py` (created, 10 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase14_admin_portal_platform.py` (13 test cases covering: Dashboard metrics, System health & emergency kill switch, Organizations CRUD & tenant scoping, User provisioning & RBAC scoping, User update & soft-delete, Teacher/Student roster endpoints, Academics curriculum/classes/cohorts hierarchy, Enrollments lifecycle, AI providers & models, AI policies & feature flags, Audit trail & analytics, Strict 403 rejection for teachers/students, and Admin portal HTML 16-view integrity).
+- `tests/test_phase15_plug_and_play_curriculum_platform.py` (10 test cases covering: Full hierarchy construction, Immutability upon publication, Draft versioning & cloning, Prerequisite cycle rejection, Orphan prerequisite rejection, Invalid identifier rejection, Import/export round-trip fidelity, Multi-subject coexistence, REST API full lifecycle, and RBAC rejection for students).
 
 ### Tests Passed
-- 570 / 570 pytest tests passed (0 failures, 0 warnings).
+- 580 / 580 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
 
 ### Security
-- Students and Teachers are strictly blocked from all `/admin/*` endpoints (`403 Forbidden`).
-- Org Admins are strictly scoped to their own organization (cannot view/mutate other organizations' data, cannot escalate roles to Super Admin).
-- Super Admin possesses global governance, provider management, and emergency kill switch controls.
-
-### Frontend
-- Standalone browser web portal (`app/ui/admin_portal.html`) implementing all 16 required navigation views, stats widgets, data grids, search filters, entity creation dialogs, and instant kill switch alert.
+- Students are strictly forbidden from authoring, importing, or publishing curricula (`403 Forbidden`).
+- Super Admin and Org Admin govern curriculum publishing within their respective organization scopes.
 
 ### Bugs Found
 - 0 open bugs.
