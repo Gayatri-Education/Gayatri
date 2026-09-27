@@ -34,8 +34,11 @@ from central_platform.teacher.intervention import (
     TeacherInterventionEngine,
 )
 from central_platform.teacher.copilot import TeacherCopilot
+from central_platform.slr.service import SLRService
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
+
+_slr_service = SLRService()
 
 try:
     from server import (
@@ -234,3 +237,29 @@ async def get_copilot_briefing(
     else:
         resp = _copilot.query("Summarize overall cohort progress and critical misconceptions.")
     return ApiResponse(ok=True, data=resp.to_dict())
+
+
+@router.get("/students/{student_id}/slr", response_model=ApiResponse[Dict[str, Any]])
+async def get_teacher_student_slr(
+    student_id: str,
+    course_id: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve Authoritative SLR for an assigned student."""
+    if current_user:
+        if current_user.role == UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students cannot use teacher endpoints",
+            )
+        if current_user.role == UserRole.TEACHER:
+            db = get_db()
+            assigned = db.get_assigned_student_ids_for_teacher(current_user.id)
+            if assigned and student_id not in assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: student '{student_id}' is not assigned to this teacher",
+                )
+
+    slr = _slr_service.get_authoritative_slr(student_id, course_id=course_id)
+    return ApiResponse(ok=True, data=slr.to_dict())

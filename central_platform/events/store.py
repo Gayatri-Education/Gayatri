@@ -179,6 +179,20 @@ class LearningEventStore:
             limit=filter_params.limit,
         )
 
+    def get_student_events(
+        self,
+        student_id: str,
+        course_id: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[LearningEvent]:
+        """Convenience method to retrieve chronological events for a student."""
+        flt = LearningEventFilter(
+            student_id=student_id,
+            course_id=course_id,
+            limit=limit,
+        )
+        return self.query_events(flt)
+
     def update_event(self, event_id: str, updates: Dict[str, Any]) -> None:
         """Infallible immutability guard: updates are strictly forbidden."""
         raise PermissionError("Learning events are immutable and cannot be updated.")
@@ -203,6 +217,7 @@ class LearningEventStore:
 
         total_events = len(events)
         current_mastery = 0.50  # Baseline neutral prior
+        concept_mastery: Dict[str, float] = {}
         concepts_introduced: Set[str] = set()
         concepts_mastered: Set[str] = set()
         active_misconceptions: Set[str] = set()
@@ -220,10 +235,13 @@ class LearningEventStore:
 
             # Concept trajectory
             if ev.concept_id:
+                if ev.concept_id not in concept_mastery:
+                    concept_mastery[ev.concept_id] = 0.50
                 if etype in ("concept_introduced", "concept_reinforced", "question_attempted"):
                     concepts_introduced.add(ev.concept_id)
                 if etype == "concept_mastered":
                     concepts_mastered.add(ev.concept_id)
+                    concept_mastery[ev.concept_id] = round(ev.score if ev.score is not None else 0.95, 4)
 
             # Questions & Answers
             if etype in ("question_attempted",):
@@ -236,8 +254,12 @@ class LearningEventStore:
                     questions_correct += 1
                     # Incremental BKT-style mastery gain
                     current_mastery = min(1.0, current_mastery + 0.05)
+                    if ev.concept_id:
+                        concept_mastery[ev.concept_id] = min(1.0, concept_mastery.get(ev.concept_id, 0.50) + 0.05)
                 else:
                     current_mastery = max(0.05, current_mastery - 0.03)
+                    if ev.concept_id:
+                        concept_mastery[ev.concept_id] = max(0.05, concept_mastery.get(ev.concept_id, 0.50) - 0.03)
 
             # Hints
             if etype in ("hint_requested", "hint_used"):
@@ -269,6 +291,7 @@ class LearningEventStore:
             organization_id=resolved_org,
             total_events=total_events,
             current_mastery=round(current_mastery, 4),
+            concept_mastery=concept_mastery,
             concepts_introduced=sorted(list(concepts_introduced)),
             concepts_mastered=sorted(list(concepts_mastered)),
             active_misconceptions=sorted(list(active_misconceptions)),

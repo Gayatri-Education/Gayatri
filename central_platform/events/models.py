@@ -97,6 +97,7 @@ class ReplayProjectionResult(BaseModel):
     organization_id: str
     total_events: int
     current_mastery: float
+    concept_mastery: Dict[str, float] = Field(default_factory=dict)
     concepts_introduced: List[str]
     concepts_mastered: List[str]
     active_misconceptions: List[str]

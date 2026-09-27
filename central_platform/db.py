@@ -497,6 +497,23 @@ class PlatformDatabase:
                 )
             return None
 
+    def get_curriculum_for_course(self, course_id: str) -> Optional[Curriculum]:
+        with self._get_connection() as conn:
+            r = conn.execute(
+                "SELECT * FROM curricula WHERE course_id = ? AND is_active = 1 ORDER BY created_at DESC;",
+                (course_id,),
+            ).fetchone()
+            if r:
+                return Curriculum(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    title=r["title"],
+                    version=r["version"],
+                    is_active=bool(r["is_active"]),
+                    created_at=r["created_at"],
+                )
+            return None
+
     def create_module(self, mod: Module) -> Module:
         with self._get_connection() as conn:
             conn.execute(
@@ -628,6 +645,25 @@ class PlatformDatabase:
                 (now_iso, session_id),
             )
             return cursor.rowcount > 0
+
+    def get_sessions_for_student(self, student_id: str, limit: int = 20) -> List[Session]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT ?;",
+                (student_id, limit),
+            ).fetchall()
+            return [
+                Session(
+                    id=r["id"],
+                    student_id=r["student_id"],
+                    course_id=r["course_id"],
+                    concept_id=r["concept_id"],
+                    status=SessionStatus(r["status"]),
+                    started_at=r["started_at"],
+                    ended_at=r["ended_at"],
+                )
+                for r in rows
+            ]
 
     def record_learning_event(self, event: LearningEvent) -> LearningEvent:
         with self._get_connection() as conn:
@@ -818,6 +854,20 @@ class PlatformDatabase:
                 for r in rows
             ]
 
+    def get_misconception_by_code(self, code: str) -> Optional[Misconception]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM misconceptions WHERE code = ?;", (code,)).fetchone()
+            if r:
+                return Misconception(
+                    id=r["id"],
+                    code=r["code"],
+                    category=r["category"],
+                    name=r["name"],
+                    description=r["description"] or "",
+                    remediation=r["remediation"] or "",
+                )
+            return None
+
     # ── 6. Assessments ───────────────────────────────────────────────────────
 
     def create_assessment(self, asmt: Assessment) -> Assessment:
@@ -844,6 +894,39 @@ class PlatformDatabase:
                 (attempt.id, attempt.assessment_id, attempt.student_id, attempt.score, 1 if attempt.passed else 0, attempt.started_at, attempt.completed_at),
             )
         return attempt
+
+    def get_assessment(self, assessment_id: str) -> Optional[Assessment]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM assessments WHERE id = ?;", (assessment_id,)).fetchone()
+            if r:
+                return Assessment(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    title=r["title"],
+                    assessment_type=AssessmentType(r["assessment_type"]),
+                    total_marks=float(r["total_marks"]),
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def get_assessment_attempts_for_student(self, student_id: str, limit: int = 50) -> List[AssessmentAttempt]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM assessment_attempts WHERE student_id = ? ORDER BY started_at DESC LIMIT ?;",
+                (student_id, limit),
+            ).fetchall()
+            return [
+                AssessmentAttempt(
+                    id=r["id"],
+                    assessment_id=r["assessment_id"],
+                    student_id=r["student_id"],
+                    score=float(r["score"]),
+                    passed=bool(r["passed"]),
+                    started_at=r["started_at"],
+                    completed_at=r["completed_at"],
+                )
+                for r in rows
+            ]
 
     # ── 7. Teacher Directives & Interventions ────────────────────────────────
 
@@ -905,6 +988,28 @@ class PlatformDatabase:
                 sql += " AND status != 'resolved'"
             sql += " ORDER BY created_at DESC;"
             rows = conn.execute(sql, (course_id,)).fetchall()
+            return [
+                InterventionRecord(
+                    id=r["id"],
+                    student_id=r["student_id"],
+                    course_id=r["course_id"],
+                    severity=AlertSeverity(r["severity"]),
+                    alert_type=r["alert_type"],
+                    message=r["message"],
+                    status=AlertStatus(r["status"]),
+                    created_at=r["created_at"],
+                    resolved_at=r["resolved_at"],
+                )
+                for r in rows
+            ]
+
+    def get_interventions_for_student(self, student_id: str, active_only: bool = False) -> List[InterventionRecord]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM interventions WHERE student_id = ?"
+            if active_only:
+                sql += " AND status != 'resolved'"
+            sql += " ORDER BY created_at DESC;"
+            rows = conn.execute(sql, (student_id,)).fetchall()
             return [
                 InterventionRecord(
                     id=r["id"],
