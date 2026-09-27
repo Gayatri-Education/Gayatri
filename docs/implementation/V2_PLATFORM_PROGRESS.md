@@ -3,11 +3,11 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 13  
-Overall Completion: 43.3% (13/30 Phases)  
-Last Verified Commit: 7d9e786 (Phase 12)  
-Last Full Regression: 2026-09-27 (546/546 passed)  
-Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
+Current Phase: 14  
+Overall Completion: 46.7% (14/30 Phases)  
+Last Verified Commit: 14e988f (Phase 13)  
+Last Full Regression: 2026-09-28 (557/557 passed)  
+Last Full Backtest: 2026-09-28 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
 Open P2: 0  
@@ -30,7 +30,7 @@ Open P3: 0
 | 10 | Teacher Web Portal | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7c9ec5d |
 | 11 | Teacher AI Instructions | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | d8d1271 |
 | 12 | Teacher Intervention System | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7d9e786 |
-| 13 | Teacher Copilot | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 13 | Teacher Copilot | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 14e988f |
 | 14 | Admin Web Portal | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 15 | Plug-and-Play Curriculum | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 16 | RAG Plug-and-Play | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,68 +51,71 @@ Open P3: 0
 ## Current Phase
  
 ### Objective
-Execute Phase 12 (Teacher Intervention System): Complete the teacher intervention system with full support for all Section 21 dimensions: statuses (OPEN, ACKNOWLEDGED, IN_PROGRESS, RESOLVED, DISMISSED), priorities (CRITICAL, HIGH, MEDIUM, LOW), trigger types (persistent_misconception, declining_performance, long_inactivity, repeated_failed_assessment, low_prerequisite_mastery, teacher_created), auditable evidence requirements (zero unbacked interventions), notes provenance, resolution documentation, chronological audit trails, trigger evaluator, REST API endpoints, and Teacher Web Portal UI.
+Execute Phase 13 (Teacher Copilot): Transform the prototype into a real retrieval-backed pedagogical assistant answering diagnostic cohort and student inquiries grounded strictly in authoritative learning evidence. Enforce traceability to authorized SLR data, zero fabrication of student performance, and strict authorization isolation. Output structured answers with 5 mandatory fields: answer, evidence, source records, confidence, and recommended action.
 
 ### Implemented
-- Canonical Teacher Intervention entity (`central_platform/teacher/intervention.py` and `central_platform/models/schema.py`) covering all Section 21 fields (`intervention_id`, `student_id`, `teacher_id`, `course_id`, `concept_id`, `trigger_type`, `trigger_evidence`, `priority`, `status`, `educator_notes`, `suggested_action`, `resolution_note`, `audit_trail`, `created_at`, `updated_at`, `resolved_at`).
-- Non-negotiable auditable evidence guarantee: Enforced rule that non-manual interventions MUST provide non-empty `trigger_evidence` linking to actual SLR metrics or learning event IDs (preventing ungrounded automated alerts).
-- Complete 5-state lifecycle management (`OPEN` -> `ACKNOWLEDGED` -> `IN_PROGRESS` -> `RESOLVED` / `DISMISSED`) with timestamped educator notes and immutable audit trail records for all state transitions.
-- Deterministic trigger evaluator (`TeacherInterventionEngine.evaluate_triggers_for_student()`) inspecting real student SLR data (mastery trends, misconception persistence, inactivity duration, assessment failures, and low prerequisite masteries).
-- Central REST API endpoints in `central_platform/api/routes/teachers.py`:
-  - `POST /teachers/interventions` (201 Created)
-  - `GET /teachers/interventions` (filtered by student, status, priority, trigger_type)
-  - `GET /teachers/interventions/{intervention_id}` (detailed profile with notes and audit trail)
-  - `PATCH /teachers/interventions/{intervention_id}` (update status and priority with audit logging)
-  - `POST /teachers/interventions/{intervention_id}/notes` (append educator note)
-  - `POST /teachers/interventions/{intervention_id}/resolve` (resolve intervention with mandatory resolution note)
-  - `POST /teachers/interventions/{intervention_id}/dismiss` (dismiss intervention with mandatory justification note)
-  - `POST /teachers/interventions/evaluate` (evaluates SLR/events and generates actionable interventions)
-  - Strict RBAC: Student access is blocked with 403 Forbidden; students can only view their own interventions.
-- Teacher Web Portal UI (`app/ui/teacher_portal.html`) enhanced with Section 21 UI (status badges, priority indicators, create intervention modal/form, filter dropdowns, and inline Acknowledge/Start Work/Resolve/Dismiss actions).
-- Comprehensive Phase 12 test suite in `tests/test_phase12_teacher_intervention_platform.py` (10/10 passed, 0 failures, 0 warnings).
-- Full regression suite: 546/546 tests passing repository-wide (0 failures, 0 warnings).
+- Canonical Teacher Copilot Engine (`central_platform/teacher/copilot.py`) supporting the 6 core Master Plan Section 22 inquiries:
+  1. *"Why is this student struggling?"* (root-cause diagnosis via active misconceptions, failed assessment items, and low mastery)
+  2. *"What concepts are weak?"* (identifies concepts below 0.60 threshold with exact metric values)
+  3. *"What changed recently?"* (temporal event velocity and mastery trajectory shifts over 7-14 days)
+  4. *"Which students need intervention?"* (cohort scan flagging students with open interventions, severe deficits, or persistent misconceptions)
+  5. *"What should I assign?"* (actionable curriculum recommendations targeting weakest concepts with scaffolded problem sets)
+  6. *"Summarize this student's last week"* (chronological 7-day retrospective timeline with activity breakdown)
+- Invariant Non-Negotiables Enforced:
+  - **Traceability to Authorized Data**: Every claim links to `evidence` (metric values, categories, descriptions) and `source_records` (exact record IDs, types, timestamps, summaries).
+  - **Zero Fabrication**: When querying unrecorded or unknown students, Copilot strictly returns `confidence: 0.0`, empty evidence, empty source records, and an explicit statement indicating insufficient records.
+  - **Authorization Scoping**: Teachers can only query assigned students in their cohort; cross-cohort access and student caller tokens are blocked with 403 Forbidden.
+- Structured API Models (`central_platform/api/schemas.py`):
+  - `CopilotEvidenceItemSchema`, `CopilotSourceRecordSchema`, `CopilotCitationSchema`, `TeacherCopilotQueryRequest`, `TeacherCopilotQueryResponse`.
+- REST API Endpoints (`central_platform/api/routes/teachers.py`):
+  - `POST /teachers/copilot/query`: Authenticated retrieval-backed diagnostic query endpoint with RBAC scoping checks.
+  - `GET /teachers/copilot/briefing`: Maintained and enhanced with 5-field structured output for backward compatibility.
+- Teacher Web Portal UI (`app/ui/teacher_portal.html`):
+  - Upgraded `#view-copilot` with interactive Diagnostic Scope selector (Whole Cohort vs Specific Student), 6 quick inquiry prompt pills, custom question input bar, confidence indicator badges (High/Medium/Low), synthesized answer display, recommended action card with 1-click intervention bridge, and verifiable empirical evidence drawer.
+- Comprehensive Phase 13 test suite in `tests/test_phase13_teacher_copilot_platform.py` (11/11 passed, 0 failures, 0 warnings).
+- Full regression suite: 557/557 tests passing repository-wide (0 failures, 0 warnings).
 - Frozen baseline: 44/44 benchmarks passing (100.0%).
 
 ### Files Changed
-- `central_platform/teacher/intervention.py` (enhanced with Section 21 fields, evidence validation, 5 statuses, 6 triggers, evaluator)
-- `central_platform/models/schema.py` (updated InterventionRecord with Section 21 schema)
-- `central_platform/api/schemas.py` (updated request/response schemas for interventions)
-- `central_platform/api/routes/teachers.py` (added full intervention REST API routes and evaluation endpoint)
-- `app/ui/teacher_portal.html` (enhanced teacher interventions UI with badges, filters, note tracking, resolution actions)
-- `tests/test_phase12_teacher_intervention_platform.py` (created, 10 test cases)
+- `central_platform/teacher/copilot.py` (enhanced with Section 22 queries, evidence traceability, and zero fabrication)
+- `central_platform/api/schemas.py` (added Copilot request and response schemas)
+- `central_platform/api/routes/teachers.py` (added POST /copilot/query endpoint and RBAC scoping)
+- `app/ui/teacher_portal.html` (enhanced copilot UI with scope selector, pills, input bar, confidence badges, evidence list)
+- `tests/test_phase13_teacher_copilot_platform.py` (created, 11 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase12_teacher_intervention_platform.py` (10 test cases covering: 5 intervention statuses, 6 trigger types, rejection of automated interventions lacking auditable trigger evidence, educator notes appending with timestamp and author, formal resolution requiring resolution notes and setting resolved_at, formal dismissal requiring dismissal notes, trigger evaluation engine across misconception/performance/inactivity/assessment/prerequisite signals, REST API CRUD and status transition operations, REST API evaluate endpoint, and RBAC 403 Forbidden enforcement against student mutations).
+- `tests/test_phase13_teacher_copilot_platform.py` (11 test cases covering: Why student struggling, What concepts are weak, What changed recently, Which students need intervention, What should I assign, Summarize last week, Zero fabrication on unknown student, Traceability of source records, REST API POST /query with auth, REST API student 403 Forbidden, and REST API teacher cohort scoping isolation).
 
 ### Tests Passed
-- 546 / 546 pytest tests passed (0 failures, 0 warnings).
+- 557 / 557 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
 
 ### Security
-- Interventions require valid teacher or admin authentication to create, update status, append notes, resolve, or dismiss (students receive 403 Forbidden).
-- Automated interventions strictly require verifiable trigger evidence to prevent unbacked flagging of students.
+- Students are strictly prohibited from accessing Teacher Copilot (`403 Forbidden`).
+- Teachers cannot query diagnostics for students outside their assigned classes/cohorts (`403 Forbidden`).
 
 ### Frontend
-- Teacher portal single-page application (`app/ui/teacher_portal.html`) enhanced in the `interventions` subview with priority badges, status filters, interactive status progression buttons, resolution dialogs, and manual intervention creation.
+- Teacher portal single-page application (`app/ui/teacher_portal.html`) enhanced in the `#view-copilot` view with interactive prompt pills, student scoping dropdown, confidence score badges, and action triggers.
 
 ### Bugs Found
 - 0 open bugs.
 
 ### Bugs Fixed
-- Ensured resolution and dismissal endpoints strictly validate non-empty note payloads.
+- Resolved `AttributeError: identify_learning_gaps` by ensuring backward-compatible method aliases for Phase 10 test suite.
+- Replaced mock user dictionary instantiation with typed `User` model conforming to Section 13 auth schema.
 
 ### Known Issues
 - None.
 
 ### Remaining Work
-- Phase 12 complete and verified. Ready to present and execute Phase 13 (Teacher Copilot).
+- Phase 13 complete and verified. Ready to present and execute Phase 14 (Admin Web Portal).
 
 ### Commit
-- 7d9e786 (Phase 12: Teacher Intervention System)
+- 14e988f (Phase 13: Teacher Copilot)
 
 ### Verification Evidence
-- `pytest` run output: 546 passed in 39.94s.
+- `pytest` run output: 557 passed in 42.25s.
 - `python scripts/run_frozen_baseline.py` output: 44/44 passed (100.0%).
 
