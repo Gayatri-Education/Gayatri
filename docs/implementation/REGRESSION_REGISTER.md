@@ -99,5 +99,6 @@ pytest -k "rag or slm or security"
 | 2026-09-27 | Phase 11 Teacher AI Instructions | FULL SUITE | 536 | 536 | 0 | 0 | `tests/test_phase11_teacher_instructions_platform.py` (11/11) | PASSED |
 | 2026-09-27 | Phase 12 Teacher Intervention System | FULL SUITE | 546 | 546 | 0 | 0 | `tests/test_phase12_teacher_intervention_platform.py` (10/10) | PASSED |
 | 2026-09-28 | Phase 13 Teacher Copilot | FULL SUITE | 557 | 557 | 0 | 0 | `tests/test_phase13_teacher_copilot_platform.py` (11/11) | PASSED |
+| 2026-09-28 | Phase 14 Admin Web Portal | FULL SUITE | 570 | 570 | 0 | 0 | `tests/test_phase14_admin_portal_platform.py` (13/13) | PASSED |
 
 

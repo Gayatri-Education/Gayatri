@@ -3,10 +3,10 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 14  
-Overall Completion: 46.7% (14/30 Phases)  
-Last Verified Commit: 14e988f (Phase 13)  
-Last Full Regression: 2026-09-28 (557/557 passed)  
+Current Phase: 15  
+Overall Completion: 50.0% (15/30 Phases)  
+Last Verified Commit: 3c5e45d (Phase 14)  
+Last Full Regression: 2026-09-28 (570/570 passed)  
 Last Full Backtest: 2026-09-28 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
@@ -31,7 +31,7 @@ Open P3: 0
 | 11 | Teacher AI Instructions | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | d8d1271 |
 | 12 | Teacher Intervention System | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7d9e786 |
 | 13 | Teacher Copilot | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 14e988f |
-| 14 | Admin Web Portal | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 14 | Admin Web Portal | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 3c5e45d |
 | 15 | Plug-and-Play Curriculum | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 16 | RAG Plug-and-Play | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 17 | Real AI Gateway + Model Router | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,53 +51,59 @@ Open P3: 0
 ## Current Phase
  
 ### Objective
-Execute Phase 13 (Teacher Copilot): Transform the prototype into a real retrieval-backed pedagogical assistant answering diagnostic cohort and student inquiries grounded strictly in authoritative learning evidence. Enforce traceability to authorized SLR data, zero fabrication of student performance, and strict authorization isolation. Output structured answers with 5 mandatory fields: answer, evidence, source records, confidence, and recommended action.
+Execute Phase 14 (Admin Web Portal): Build comprehensive multi-tenant administration platform supporting all 16 canonical admin pages and resources per Master Plan Section 23: Dashboard, Organizations, Users, Teachers, Students, Courses, Curricula, Classes, Cohorts, Enrollments, Providers, Models, AI Policies, Audit Trail, Analytics, and System Health. Enforce strict multi-tenant RBAC scoping, Super Admin emergency kill switches, and immutable audit logs.
 
 ### Implemented
-- Canonical Teacher Copilot Engine (`central_platform/teacher/copilot.py`) supporting the 6 core Master Plan Section 22 inquiries:
-  1. *"Why is this student struggling?"* (root-cause diagnosis via active misconceptions, failed assessment items, and low mastery)
-  2. *"What concepts are weak?"* (identifies concepts below 0.60 threshold with exact metric values)
-  3. *"What changed recently?"* (temporal event velocity and mastery trajectory shifts over 7-14 days)
-  4. *"Which students need intervention?"* (cohort scan flagging students with open interventions, severe deficits, or persistent misconceptions)
-  5. *"What should I assign?"* (actionable curriculum recommendations targeting weakest concepts with scaffolded problem sets)
-  6. *"Summarize this student's last week"* (chronological 7-day retrospective timeline with activity breakdown)
-- Invariant Non-Negotiables Enforced:
-  - **Traceability to Authorized Data**: Every claim links to `evidence` (metric values, categories, descriptions) and `source_records` (exact record IDs, types, timestamps, summaries).
-  - **Zero Fabrication**: When querying unrecorded or unknown students, Copilot strictly returns `confidence: 0.0`, empty evidence, empty source records, and an explicit statement indicating insufficient records.
-  - **Authorization Scoping**: Teachers can only query assigned students in their cohort; cross-cohort access and student caller tokens are blocked with 403 Forbidden.
-- Structured API Models (`central_platform/api/schemas.py`):
-  - `CopilotEvidenceItemSchema`, `CopilotSourceRecordSchema`, `CopilotCitationSchema`, `TeacherCopilotQueryRequest`, `TeacherCopilotQueryResponse`.
-- REST API Endpoints (`central_platform/api/routes/teachers.py`):
-  - `POST /teachers/copilot/query`: Authenticated retrieval-backed diagnostic query endpoint with RBAC scoping checks.
-  - `GET /teachers/copilot/briefing`: Maintained and enhanced with 5-field structured output for backward compatibility.
-- Teacher Web Portal UI (`app/ui/teacher_portal.html`):
-  - Upgraded `#view-copilot` with interactive Diagnostic Scope selector (Whole Cohort vs Specific Student), 6 quick inquiry prompt pills, custom question input bar, confidence indicator badges (High/Medium/Low), synthesized answer display, recommended action card with 1-click intervention bridge, and verifiable empirical evidence drawer.
-- Comprehensive Phase 13 test suite in `tests/test_phase13_teacher_copilot_platform.py` (11/11 passed, 0 failures, 0 warnings).
-- Full regression suite: 557/557 tests passing repository-wide (0 failures, 0 warnings).
-- Frozen baseline: 44/44 benchmarks passing (100.0%).
+- Authoritative Admin Service (`central_platform/admin/service.py`) supporting full CRUD & operations:
+  - Organizations lifecycle (tiers, student quotas, tenant isolation)
+  - User and identity provisioning (role assignments, password resets, deactivation, soft deletion)
+  - Academic hierarchy (courses, curricula, versioning, classes, cohorts, student enrollments)
+  - AI Gateway governance (provider registration, model registration, context windows, default model routing)
+  - Policy enforcement (strict/balanced/permissive AI modes, answer leakage shields, feature flags)
+  - Emergency Kill Switch with audit reasoning and system-wide health telemetry
+  - Provenance audit logging for all mutations with IP, timestamp, actor, and payload details
+- Admin REST API Router (`central_platform/api/routes/admin.py`) exposing all 16 Master Plan Section 23 resource endpoints:
+  - `GET /admin/dashboard`, `GET /admin/system-health`, `POST /admin/kill-switch`
+  - `GET/POST /admin/organizations`, `GET /admin/organizations/{id}/report`
+  - `GET/POST /admin/users`, `PATCH/DELETE /admin/users/{id}`, `GET /admin/teachers`, `GET /admin/students`
+  - `GET/POST /admin/courses`, `GET/POST /admin/curricula`, `GET/POST /admin/classes`, `GET/POST /admin/cohorts`
+  - `GET/POST /admin/enrollments`, `DELETE /admin/enrollments/{id}`
+  - `GET/POST /admin/providers`, `GET/POST /admin/models`
+  - `GET/POST /admin/ai-policies`, `GET/POST /admin/feature-flags`
+  - `GET /admin/audit`, `GET /admin/analytics`
+- Pydantic Request & Response Schemas (`central_platform/api/schemas.py`):
+  - Typed DTOs for all 16 resource domains with validation and documentation
+- Full Admin Web Portal Single-Page Application (`app/ui/admin_portal.html`):
+  - 16 views with navigation, sidebar, responsive styling, summary metrics, dynamic tables, modals for entity creation, emergency kill switch banner, and JSON viewer
+- Phase 14 Verification Test Suite (`tests/test_phase14_admin_portal_platform.py`):
+  - 13 comprehensive test cases covering all 16 pages/endpoints, RBAC scoping, tenant isolation, student/teacher rejection, and HTML integrity (13/13 passed)
+- Full regression suite: 570/570 tests passing repository-wide (0 failures, 0 warnings)
+- Frozen baseline: 44/44 benchmarks passing (100.0%)
 
 ### Files Changed
-- `central_platform/teacher/copilot.py` (enhanced with Section 22 queries, evidence traceability, and zero fabrication)
-- `central_platform/api/schemas.py` (added Copilot request and response schemas)
-- `central_platform/api/routes/teachers.py` (added POST /copilot/query endpoint and RBAC scoping)
-- `app/ui/teacher_portal.html` (enhanced copilot UI with scope selector, pills, input bar, confidence badges, evidence list)
-- `tests/test_phase13_teacher_copilot_platform.py` (created, 11 test cases)
+- `central_platform/admin/service.py` (enhanced with multi-tenant operations, academic management, and foreign key safety)
+- `central_platform/api/routes/admin.py` (added all 16 Section 23 endpoints with RBAC gatekeeping)
+- `central_platform/api/schemas.py` (added comprehensive admin request and response models)
+- `central_platform/db.py` (updated suspend_user signature to accept optional reason)
+- `app/ui/admin_portal.html` (created 16-view standalone web portal)
+- `tests/test_phase14_admin_portal_platform.py` (created, 13 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase13_teacher_copilot_platform.py` (11 test cases covering: Why student struggling, What concepts are weak, What changed recently, Which students need intervention, What should I assign, Summarize last week, Zero fabrication on unknown student, Traceability of source records, REST API POST /query with auth, REST API student 403 Forbidden, and REST API teacher cohort scoping isolation).
+- `tests/test_phase14_admin_portal_platform.py` (13 test cases covering: Dashboard metrics, System health & emergency kill switch, Organizations CRUD & tenant scoping, User provisioning & RBAC scoping, User update & soft-delete, Teacher/Student roster endpoints, Academics curriculum/classes/cohorts hierarchy, Enrollments lifecycle, AI providers & models, AI policies & feature flags, Audit trail & analytics, Strict 403 rejection for teachers/students, and Admin portal HTML 16-view integrity).
 
 ### Tests Passed
-- 557 / 557 pytest tests passed (0 failures, 0 warnings).
+- 570 / 570 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
 
 ### Security
-- Students are strictly prohibited from accessing Teacher Copilot (`403 Forbidden`).
-- Teachers cannot query diagnostics for students outside their assigned classes/cohorts (`403 Forbidden`).
+- Students and Teachers are strictly blocked from all `/admin/*` endpoints (`403 Forbidden`).
+- Org Admins are strictly scoped to their own organization (cannot view/mutate other organizations' data, cannot escalate roles to Super Admin).
+- Super Admin possesses global governance, provider management, and emergency kill switch controls.
 
 ### Frontend
-- Teacher portal single-page application (`app/ui/teacher_portal.html`) enhanced in the `#view-copilot` view with interactive prompt pills, student scoping dropdown, confidence score badges, and action triggers.
+- Standalone browser web portal (`app/ui/admin_portal.html`) implementing all 16 required navigation views, stats widgets, data grids, search filters, entity creation dialogs, and instant kill switch alert.
 
 ### Bugs Found
 - 0 open bugs.
