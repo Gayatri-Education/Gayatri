@@ -5,7 +5,7 @@
 Status: IN_PROGRESS  
 Current Phase: 01  
 Overall Completion: 6.7% (2/30 Phases)  
-Last Verified Commit: b671b26  
+Last Verified Commit: e754ed5  
 Last Full Regression: 2026-09-27 (411/411 passed)  
 Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
@@ -18,7 +18,7 @@ Open P3: 0
 | Phase | Description | Status | Unit | Integration | Regression | Backtest | Security | Frontend | Docs | Debug | Commit |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 00 | Truth Reset / Repo Reconciliation | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 1481123 |
-| 01 | Stabilize the Core Tutor | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | pending |
+| 01 | Stabilize the Core Tutor | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | e754ed5 |
 | 02 | Real Platform API | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 03 | PostgreSQL Central Data Layer | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 04 | Authentication + RBAC | NOT_STARTED | - | - | - | - | - | - | - | - | - |
