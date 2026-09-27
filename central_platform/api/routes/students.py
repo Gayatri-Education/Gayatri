@@ -8,7 +8,7 @@ Master Plan Section 15:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from central_platform.api.schemas import (
     ApiResponse,
@@ -23,6 +23,7 @@ from central_platform.auth.dependencies import (
 from central_platform.learning.bridge import LearningEngineBridge
 from central_platform.learning.models import StudentActionPayload
 from central_platform.models.schema import User, UserRole
+from central_platform.progress.service import StudentProgressService
 from central_platform.slr.service import SLRService
 from central_platform.teacher.portal import TeacherPortalService
 
@@ -30,6 +31,8 @@ router = APIRouter(prefix="/students", tags=["Students"])
 
 _slr_service = SLRService()
 _engine_bridge = LearningEngineBridge()
+_progress_service = StudentProgressService()
+
 
 try:
     from server import portal as _portal_service
@@ -172,4 +175,62 @@ async def submit_student_action(
         ok=True,
         data=action_result.to_dict(),
     )
+
+
+@router.get("/{student_id}/progress", response_model=ApiResponse[Dict[str, Any]])
+async def get_student_progress_report(
+    student_id: str,
+    course_id: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve full 14-dimension canonical student learning progress report.
+
+    Master Plan Section 18:
+    overall mastery, topic mastery, concept heatmap, recent sessions, recent activity,
+    weak areas, misconceptions, accuracy trends, mastery trends, question-type performance,
+    review due, recommendations (policy-driven), session summary, learning streak.
+    """
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=student_id)
+
+    report = _progress_service.get_student_progress(student_id, course_id=course_id)
+    return ApiResponse(ok=True, data=report.to_dict())
+
+
+@router.get("/{student_id}/progress/heatmap", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_student_progress_heatmap(
+    student_id: str,
+    course_id: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve granular concept mastery heatmap matrix with pedagogical color coding."""
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=student_id)
+
+    report = _progress_service.get_student_progress(student_id, course_id=course_id)
+    return ApiResponse(ok=True, data=[h.to_dict() for h in report.concept_heatmap])
+
+
+@router.get("/{student_id}/progress/summary", response_model=ApiResponse[Dict[str, Any]])
+async def get_student_progress_summary(
+    student_id: str,
+    course_id: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve high-level student progress summary (overall mastery, topics, streak)."""
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=student_id)
+
+    report = _progress_service.get_student_progress(student_id, course_id=course_id)
+    summary_data = {
+        "student_id": report.student_id,
+        "course_id": report.course_id,
+        "overall_mastery": report.overall_mastery,
+        "topic_mastery": [t.to_dict() for t in report.topic_mastery],
+        "learning_streak": report.learning_streak.to_dict(),
+        "weak_areas_count": len(report.weak_areas),
+        "review_due_count": len(report.review_due),
+    }
+    return ApiResponse(ok=True, data=summary_data)
+
 

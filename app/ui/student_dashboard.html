@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gayatri AI - Student Learning Progress & Mastery Dashboard</title>
+  <style>
+    :root {
+      --bg-dark: #0f0f23;
+      --card-bg: #16213e;
+      --card-border: #23274c;
+      --accent-cyan: #53a8b6;
+      --accent-green: #27c93f;
+      --accent-amber: #f5c542;
+      --accent-rose: #e94560;
+      --accent-purple: #8b5cf6;
+      --text-main: #e0e0e0;
+      --text-muted: #8a8a9a;
+      --text-bright: #ffffff;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .dashboard-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Top Identity & Summary Banner */
+    .dash-banner {
+      background: linear-gradient(135deg, #16213e 0%, #1f2847 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+    .dash-student-info { display: flex; align-items: center; gap: 16px; }
+    .dash-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: var(--accent-rose);
+      color: white;
+      font-weight: 700;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
+    }
+    .dash-name-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .dash-name { font-size: 22px; font-weight: 700; color: var(--text-bright); }
+    .dash-grade-pill {
+      background: rgba(83, 168, 182, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(83, 168, 182, 0.3);
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .dash-caption { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Summary Metric Cards */
+    .dash-quick-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+    }
+    .dash-stat-card {
+      background: rgba(15, 15, 35, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      min-width: 120px;
+      text-align: center;
+    }
+    .dash-stat-lbl { font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+    .dash-stat-val { font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+    /* Layout Grids */
+    .dash-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 20px;
+    }
+    .dash-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+    .dash-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .dash-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 10px;
+    }
+    .dash-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-bright);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dash-card-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    /* 1. Topic Mastery Progress Bars */
+    .topic-item { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .topic-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; }
+    .progress-track {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease-in-out;
+    }
+
+    /* 2. Concept Heatmap Matrix */
+    .heatmap-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .heatmap-node {
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: rgba(15, 15, 35, 0.5);
+      transition: transform 0.15s, border-color 0.15s;
+      cursor: pointer;
+    }
+    .heatmap-node:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-cyan);
+    }
+    .heatmap-concept-name { font-size: 12px; font-weight: 600; color: var(--text-bright); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .heatmap-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+    .heatmap-status-pill {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    /* 3. Question-Type Breakdown */
+    .qtype-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .qtype-table th, .qtype-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--card-border); }
+    .qtype-table th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
+
+    /* 4. Trends / Activity / Sessions / Misconceptions */
+    .trend-sparkline {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 60px;
+      padding-top: 10px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .spark-bar {
+      flex: 1;
+      background: var(--accent-cyan);
+      border-radius: 3px 3px 0 0;
+      min-width: 8px;
+      transition: height 0.3s;
+    }
+    .stream-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
+    .stream-item {
+      background: rgba(15, 15, 35, 0.4);
+      border-left: 3px solid var(--accent-cyan);
+      padding: 8px 12px;
+      border-radius: 0 6px 6px 0;
+      font-size: 12px;
+    }
+    .alert-item {
+      background: rgba(233, 69, 96, 0.1);
+      border-left: 3px solid var(--accent-rose);
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .review-item {
+      background: rgba(245, 197, 66, 0.1);
+      border-left: 3px solid var(--accent-amber);
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 12px;
+    }
+    .recom-item {
+      background: rgba(139, 92, 246, 0.1);
+      border-left: 3px solid var(--accent-purple);
+      padding: 10px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 12px;
+    }
+
+    /* Buttons */
+    .dash-btn {
+      background: var(--accent-cyan);
+      color: #0f0f23;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .dash-btn:hover { opacity: 0.9; }
+    .dash-btn-retry { background: var(--accent-rose); color: white; }
+
+    /* ========================================================
+       8 MANDATORY UI STATES
+       1. loading
+       2. empty
+       3. success
+       4. partial_data
+       5. offline
+       6. api_error
+       7. permission_error
+       8. retry
+       ======================================================== */
+    .state-banner {
+      display: none;
+      padding: 14px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .state-banner.active { display: flex; }
+
+    /* Offline Banner */
+    #stateOffline {
+      background: rgba(83, 168, 182, 0.15);
+      border: 1px solid var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    /* Partial Data Banner */
+    #statePartialData {
+      background: rgba(245, 197, 66, 0.15);
+      border: 1px solid var(--accent-amber);
+      color: var(--accent-amber);
+    }
+
+    /* API Error Banner */
+    #stateApiError {
+      background: rgba(233, 69, 96, 0.15);
+      border: 1px solid var(--accent-rose);
+      color: var(--accent-rose);
+    }
+
+    /* Overlay Fullscreen Cards for major states: loading, empty, permission_error */
+    .state-modal {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin: 40px auto;
+      max-width: 560px;
+    }
+    .state-modal.active { display: flex; }
+
+    /* Loading Spinner */
+    .loading-spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(83, 168, 182, 0.2);
+      border-top-color: var(--accent-cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Hide success dashboard when error or empty is active */
+    #stateSuccess.hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard-container">
+
+    <!-- STATE BANNERS (Offline, Partial Data, API Error) -->
+    <div id="stateOffline" class="state-banner">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span>📡</span>
+        <strong>Offline Mode Active:</strong> Showing cached learning progress. Changes will automatically reconcile when reconnected.
+      </div>
+      <button class="dash-btn" onclick="StudentDashboardController.retry()">Sync Now</button>
+    </div>
+
+    <div id="statePartialData" class="state-banner">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span>⚠️</span>
+        <strong>Partial Data Available:</strong> Some learning metrics are calculating in the background. Displaying verified evidence.
+      </div>
+    </div>
+
+    <div id="stateApiError" class="state-banner">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span>❌</span>
+        <span id="apiErrorMessage">API Error: Unable to fetch student progress from server.</span>
+      </div>
+      <button id="btnRetryBanner" class="dash-btn dash-btn-retry" onclick="StudentDashboardController.retry()">Retry</button>
+    </div>
+
+    <!-- STATE 1: LOADING -->
+    <div id="stateLoading" class="state-modal">
+      <div class="loading-spinner"></div>
+      <h3 style="color: var(--text-bright);">Synchronizing Learning Progress...</h3>
+      <p style="color: var(--text-muted); font-size: 13px;">Retrieving Authoritative SLR metrics and evidence records from central platform.</p>
+    </div>
+
+    <!-- STATE 2: EMPTY (New Student Onboarding) -->
+    <div id="stateEmpty" class="state-modal">
+      <div style="font-size: 48px;">🌱</div>
+      <h3 style="color: var(--text-bright);">Welcome to Gayatri AI Learning</h3>
+      <p style="color: var(--text-muted); font-size: 13px; max-width: 440px;">
+        No learning activity recorded yet. Start your first NCERT Chemistry lesson or diagnostic quiz to generate your personalized mastery heatmap and recommendations.
+      </p>
+      <button class="dash-btn" onclick="StudentDashboardController.onStartLearning()">Begin First Lesson</button>
+    </div>
+
+    <!-- STATE 7: PERMISSION ERROR (403 Forbidden) -->
+    <div id="statePermissionError" class="state-modal">
+      <div style="font-size: 48px;">🔒</div>
+      <h3 style="color: var(--accent-rose);">Access Denied (403 Forbidden)</h3>
+      <p style="color: var(--text-muted); font-size: 13px; max-width: 440px;" id="permissionErrorMessage">
+        You do not have authorization to inspect this student's learning progress. Student data is cryptographically protected and strictly isolated.
+      </p>
+      <button class="dash-btn" onclick="StudentDashboardController.onBackToSafeView()">Return to My Profile</button>
+    </div>
+
+    <!-- STATE 3: SUCCESS (All 14 Dimensions Rendered) -->
+    <div id="stateSuccess" class="dashboard-container">
+
+      <!-- HEADER BANNER: Identity, Overall Mastery, Streak -->
+      <div class="dash-banner">
+        <div class="dash-student-info">
+          <div class="dash-avatar" id="dashAvatar">ST</div>
+          <div>
+            <div class="dash-name-wrap">
+              <span class="dash-name" id="dashStudentName">Student Profile</span>
+              <span class="dash-grade-pill" id="dashCourseName">Class 11 Chemistry</span>
+            </div>
+            <div class="dash-caption" id="dashGeneratedTime">Generated: Authoritative Central SLR</div>
+          </div>
+        </div>
+
+        <div class="dash-quick-stats">
+          <!-- 1. Overall Mastery -->
+          <div class="dash-stat-card">
+            <div class="dash-stat-lbl">Overall Mastery</div>
+            <div class="dash-stat-val" style="color: var(--accent-cyan);" id="statOverallMastery">0%</div>
+          </div>
+          <!-- 14. Learning Streak -->
+          <div class="dash-stat-card" id="cardLearningStreak">
+            <div class="dash-stat-lbl">Learning Streak</div>
+            <div class="dash-stat-val" style="color: var(--accent-amber);" id="statStreakDays">🔥 0 Days</div>
+          </div>
+          <!-- 13. Latest Session Summary -->
+          <div class="dash-stat-card" id="cardSessionSummary">
+            <div class="dash-stat-lbl">Latest Session</div>
+            <div class="dash-stat-val" style="color: var(--accent-green); font-size: 18px;" id="statLatestAccuracy">--</div>
+          </div>
+          <!-- Report Export Button -->
+          <div class="dash-stat-card" style="cursor: pointer; background: #1f2847;" onclick="StudentDashboardController.exportReport()" title="Export JSON Progress Report">
+            <div class="dash-stat-lbl">Report</div>
+            <div class="dash-stat-val" style="color: #8bb5e8; font-size: 14px;">📥 Export</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 1: 2. Topic Mastery & 3. Concept Heatmap Matrix -->
+      <div class="dash-grid-2">
+        <!-- 2. Topic Mastery -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>📚</span> Curriculum Topic Mastery</span>
+            <span class="dash-card-badge" id="topicCountBadge">0 Chapters</span>
+          </div>
+          <div id="topicMasteryGrid">
+            <!-- Dynamically injected topic bars -->
+          </div>
+        </div>
+
+        <!-- 3. Concept Heatmap -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>🗺️</span> Concept Mastery Heatmap</span>
+            <span class="dash-card-badge" id="heatmapCountBadge">0 Concepts</span>
+          </div>
+          <div class="heatmap-grid" id="conceptHeatmapGrid">
+            <!-- Dynamically injected heatmap nodes -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 2: 12. Policy Recommendations & 6. Weak Areas & 7. Misconceptions -->
+      <div class="dash-grid-3">
+        <!-- 12. Policy-driven Recommendations (No free-form LLM text) -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>🎯</span> Next Actions (Policy)</span>
+            <span class="dash-card-badge">Engine Verified</span>
+          </div>
+          <div class="stream-list" id="recommendationsList">
+            <!-- Dynamically injected recommendations -->
+          </div>
+        </div>
+
+        <!-- 6. Weak Areas (< 0.60 mastery) -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>⚠️</span> Needs Attention</span>
+            <span class="dash-card-badge" id="weakAreaBadge">0 Concepts</span>
+          </div>
+          <div class="stream-list" id="weakAreasList">
+            <!-- Dynamically injected weak areas -->
+          </div>
+        </div>
+
+        <!-- 7. Controlled Misconceptions -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>🔍</span> Diagnostic Misconceptions</span>
+            <span class="dash-card-badge" id="misconceptionBadge">0 Active</span>
+          </div>
+          <div class="stream-list" id="misconceptionsList">
+            <!-- Dynamically injected misconceptions -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ROW 3: 8. Accuracy Trends, 9. Mastery Trends, 10. Question-Type Performance -->
+      <div class="dash-grid-3">
+        <!-- 8. Accuracy Trends -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>📈</span> Accuracy Progression</span>
+            <span class="dash-card-badge">Rolling</span>
+          </div>
+          <div class="trend-sparkline" id="accuracyTrendsBox">
+            <!-- Sparkline bars -->
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); display:flex; justify-content:space-between;">
+            <span>Initial Turns</span>
+            <span id="latestAccPoint">Current: --</span>
+          </div>
+        </div>
+
+        <!-- 9. Mastery Trends -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>📊</span> Mastery Trajectory</span>
+            <span class="dash-card-badge">Bayesian BKT</span>
+          </div>
+          <div class="trend-sparkline" id="masteryTrendsBox">
+            <!-- Sparkline bars -->
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); display:flex; justify-content:space-between;">
+            <span>0.0 Baseline</span>
+            <span id="latestMasteryPoint">Current: --</span>
+          </div>
+        </div>
+
+        <!-- 10. Question-Type Performance -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>📝</span> Question-Type Performance</span>
+            <span class="dash-card-badge">Item Split</span>
+          </div>
+          <table class="qtype-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Attempts</th>
+                <th>Accuracy</th>
+              </tr>
+            </thead>
+            <tbody id="questionTypeBody">
+              <!-- Dynamically injected table rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ROW 4: 11. Review Due, 4. Recent Sessions, 5. Recent Activity -->
+      <div class="dash-grid-3">
+        <!-- 11. Review Due (Spaced Repetition Queue) -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>⏰</span> Spaced Review Queue</span>
+            <span class="dash-card-badge" id="reviewDueBadge">0 Due</span>
+          </div>
+          <div class="stream-list" id="reviewDueList">
+            <!-- Dynamically injected review items -->
+          </div>
+        </div>
+
+        <!-- 4. Recent Sessions -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>⏳</span> Recent Sessions</span>
+            <span class="dash-card-badge">Historical</span>
+          </div>
+          <div class="stream-list" id="recentSessionsList">
+            <!-- Dynamically injected sessions -->
+          </div>
+        </div>
+
+        <!-- 5. Recent Activity Timeline -->
+        <div class="dash-card">
+          <div class="dash-card-header">
+            <span class="dash-card-title"><span>📜</span> Activity Timeline</span>
+            <span class="dash-card-badge">Verified Events</span>
+          </div>
+          <div class="stream-list" id="recentActivityList">
+            <!-- Dynamically injected timeline items -->
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /stateSuccess -->
+
+  </div><!-- /dashboard-container -->
+
+  <script>
+    /**
+     * Gayatri AI - Student Progress Dashboard Controller (Phase 09)
+     * Handles all 14 canonical Section 18 dimensions and all 8 mandatory UI states:
+     * loading, empty, success, partial_data, offline, api_error, permission_error, retry.
+     */
+    const StudentDashboardController = {
+      state: 'loading', // loading | empty | success | partial_data | offline | api_error | permission_error
+      data: null,
+      studentId: 'student_chem_01',
+      courseId: 'crs-chem-101',
+      baseUrl: window.location.origin || 'http://127.0.0.1:8000',
+
+      init(studentId, courseId) {
+        if (studentId) this.studentId = studentId;
+        if (courseId) this.courseId = courseId;
+        this.fetchProgress();
+      },
+
+      /**
+       * Switch and render UI across the 8 mandatory states
+       */
+      setUIState(newState, meta = {}) {
+        this.state = newState;
+
+        const loadingEl = document.getElementById('stateLoading');
+        const emptyEl = document.getElementById('stateEmpty');
+        const permEl = document.getElementById('statePermissionError');
+        const successEl = document.getElementById('stateSuccess');
+        const offlineEl = document.getElementById('stateOffline');
+        const partialEl = document.getElementById('statePartialData');
+        const apiErrorEl = document.getElementById('stateApiError');
+
+        // Reset display
+        loadingEl.classList.remove('active');
+        emptyEl.classList.remove('active');
+        permEl.classList.remove('active');
+        successEl.classList.remove('hidden');
+
+        if (newState === 'loading') {
+          loadingEl.classList.add('active');
+          successEl.classList.add('hidden');
+        } else if (newState === 'empty') {
+          emptyEl.classList.add('active');
+          successEl.classList.add('hidden');
+        } else if (newState === 'permission_error') {
+          permEl.classList.add('active');
+          successEl.classList.add('hidden');
+          if (meta.message) {
+            document.getElementById('permissionErrorMessage').textContent = meta.message;
+          }
+        } else if (newState === 'api_error') {
+          apiErrorEl.classList.add('active');
+          if (meta.message) {
+            document.getElementById('apiErrorMessage').textContent = meta.message;
+          }
+        } else if (newState === 'offline') {
+          offlineEl.classList.add('active');
+          if (meta.data) this.renderProgress(meta.data);
+        } else if (newState === 'partial_data') {
+          partialEl.classList.add('active');
+          if (meta.data) this.renderProgress(meta.data);
+        } else if (newState === 'success') {
+          // Success renders all dimensions cleanly
+          if (meta.data) this.renderProgress(meta.data);
+        }
+      },
+
+      /**
+       * Fetch 14-dimension canonical progress from Central Platform API
+       */
+      async fetchProgress() {
+        this.setUIState('loading');
+        try {
+          const token = localStorage.getItem('access_token') || '';
+          const headers = { 'Accept': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
+          const res = await fetch(`${this.baseUrl}/api/v1/students/${this.studentId}/progress?course_id=${this.courseId}`, {
+            headers
+          });
+
+          if (res.status === 403) {
+            this.setUIState('permission_error', { message: '403 Forbidden: You do not have permission to view progress for this student.' });
+            return;
+          }
+
+          if (!res.ok) {
+            throw new Error(`Server returned HTTP ${res.status}: ${res.statusText}`);
+          }
+
+          const json = await res.json();
+          const report = json.data || json;
+
+          this.data = report;
+          // Store in local storage for resilient offline cache
+          try {
+            localStorage.setItem(`cache_progress_${this.studentId}`, JSON.stringify(report));
+          } catch (e) {}
+
+          // Check if brand new empty student
+          if (report.overall_mastery === 0.50 && (!report.concept_heatmap || report.concept_heatmap.length === 0) && (!report.recent_activity || report.recent_activity.length === 0)) {
+            this.setUIState('empty');
+            return;
+          }
+
+          // Check if partial data
+          const isPartial = !report.accuracy_trends || report.accuracy_trends.length === 0 || !report.topic_mastery || report.topic_mastery.length === 0;
+          if (isPartial) {
+            this.setUIState('partial_data', { data: report });
+          } else {
+            this.setUIState('success', { data: report });
+          }
+
+        } catch (err) {
+          // Try loading from offline cache
+          const cached = localStorage.getItem(`cache_progress_${this.studentId}`);
+          if (cached) {
+            try {
+              const cachedData = JSON.parse(cached);
+              this.setUIState('offline', { data: cachedData });
+              return;
+            } catch (e) {}
+          }
+
+          this.setUIState('api_error', { message: `API Connection Failed: ${err.message}. Check network or central platform availability.` });
+        }
+      },
+
+      /**
+       * Retry fetching progress (8. retry state handler)
+       */
+      retry() {
+        const apiErrorEl = document.getElementById('stateApiError');
+        if (apiErrorEl) apiErrorEl.classList.remove('active');
+        this.fetchProgress();
+      },
+
+      /**
+       * Render all 14 dimensions from report data
+       */
+      renderProgress(data) {
+        if (!data) return;
+
+        // 1. Overall Mastery
+        const pct = Math.round((data.overall_mastery || 0) * 100);
+        document.getElementById('statOverallMastery').textContent = `${pct}%`;
+
+        // 14. Learning Streak
+        const streak = data.learning_streak || { current_streak_days: 0 };
+        document.getElementById('statStreakDays').textContent = `🔥 ${streak.current_streak_days} Days`;
+
+        // 13. Latest Session Summary
+        const sess = data.session_summary;
+        if (sess) {
+          const sessPct = Math.round((sess.accuracy || 0) * 100);
+          document.getElementById('statLatestAccuracy').textContent = `${sessPct}% Acc`;
+        } else {
+          document.getElementById('statLatestAccuracy').textContent = `Active`;
+        }
+
+        // 2. Topic Mastery
+        const topics = data.topic_mastery || [];
+        document.getElementById('topicCountBadge').textContent = `${topics.length} Chapters`;
+        const topicGrid = document.getElementById('topicMasteryGrid');
+        topicGrid.innerHTML = '';
+        topics.forEach(t => {
+          const tPct = Math.round((t.mastery_score || 0) * 100);
+          const color = tPct >= 80 ? 'var(--accent-green)' : (tPct >= 65 ? 'var(--accent-cyan)' : 'var(--accent-amber)');
+          const item = document.createElement('div');
+          item.className = 'topic-item';
+          item.innerHTML = `
+            <div class="topic-header">
+              <span>${t.topic_name} (${t.concept_count} concepts)</span>
+              <span style="color: ${color}; font-weight:700;">${tPct}% • ${t.status}</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width: ${tPct}%; background: ${color};"></div>
+            </div>
+          `;
+          topicGrid.appendChild(item);
+        });
+
+        // 3. Concept Heatmap Matrix
+        const heatmap = data.concept_heatmap || [];
+        document.getElementById('heatmapCountBadge').textContent = `${heatmap.length} Concepts`;
+        const heatmapGrid = document.getElementById('conceptHeatmapGrid');
+        heatmapGrid.innerHTML = '';
+        heatmap.forEach(h => {
+          const hPct = Math.round((h.mastery_score || 0) * 100);
+          const node = document.createElement('div');
+          node.className = 'heatmap-node';
+          node.innerHTML = `
+            <div class="heatmap-concept-name" title="${h.concept_name}">${h.concept_name}</div>
+            <div class="heatmap-meta">
+              <span style="font-weight:700; color: ${h.color || 'var(--accent-cyan)'};">${hPct}%</span>
+              <span class="heatmap-status-pill" style="background: ${h.color || 'var(--accent-cyan)'}33; color: ${h.color || 'var(--accent-cyan)'};">${h.status}</span>
+            </div>
+          `;
+          heatmapGrid.appendChild(node);
+        });
+
+        // 12. Policy-driven Recommendations (No free-form LLM text)
+        const recoms = data.recommendations || [];
+        const recomList = document.getElementById('recommendationsList');
+        recomList.innerHTML = '';
+        if (recoms.length === 0) {
+          recomList.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">Mastery on track. No remediation needed.</div>';
+        } else {
+          recoms.forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'recom-item';
+            item.innerHTML = `
+              <div style="font-weight:700; color:var(--accent-purple); display:flex; justify-content:space-between;">
+                <span>${r.action_type || 'Practice'}</span>
+                <span>Priority ${r.priority || 1}</span>
+              </div>
+              <div style="margin-top:2px;">${r.reason || 'Curriculum policy recommends target concept reinforcement.'}</div>
+            `;
+            recomList.appendChild(item);
+          });
+        }
+
+        // 6. Weak Areas
+        const weak = data.weak_areas || [];
+        document.getElementById('weakAreaBadge').textContent = `${weak.length} Concepts`;
+        const weakList = document.getElementById('weakAreasList');
+        weakList.innerHTML = '';
+        if (weak.length === 0) {
+          weakList.innerHTML = '<div style="font-size:12px; color:var(--accent-green);">No weak areas detected! All concepts ≥ 60%.</div>';
+        } else {
+          weak.forEach(w => {
+            const item = document.createElement('div');
+            item.className = 'alert-item';
+            item.innerHTML = `
+              <div style="font-weight:700; color:var(--accent-rose);">${w.concept_name} (Gap: ${(w.mastery_gap * 100).toFixed(0)}%)</div>
+              <div>${w.recommended_action}</div>
+            `;
+            weakList.appendChild(item);
+          });
+        }
+
+        // 7. Misconceptions
+        const mis = data.misconceptions || [];
+        document.getElementById('misconceptionBadge').textContent = `${mis.length} Active`;
+        const misList = document.getElementById('misconceptionsList');
+        misList.innerHTML = '';
+        if (mis.length === 0) {
+          misList.innerHTML = '<div style="font-size:12px; color:var(--accent-green);">Zero persistent misconceptions logged.</div>';
+        } else {
+          mis.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'alert-item';
+            item.innerHTML = `
+              <div style="font-weight:700; color:var(--accent-rose);">${m.name || m.code} (x${m.frequency || 1})</div>
+              <div>${m.remediation || 'Review fundamentals and step-by-step sign convention.'}</div>
+            `;
+            misList.appendChild(item);
+          });
+        }
+
+        // 8. Accuracy Trends Sparkline
+        const accTrends = data.accuracy_trends || [];
+        const accBox = document.getElementById('accuracyTrendsBox');
+        accBox.innerHTML = '';
+        accTrends.forEach(p => {
+          const bar = document.createElement('div');
+          bar.className = 'spark-bar';
+          bar.style.height = `${Math.max(10, Math.round((p.accuracy || 0) * 50))}px`;
+          bar.title = `Accuracy: ${Math.round((p.accuracy || 0) * 100)}%`;
+          accBox.appendChild(bar);
+        });
+        if (accTrends.length > 0) {
+          const lastAcc = accTrends[accTrends.length - 1];
+          document.getElementById('latestAccPoint').textContent = `Current: ${Math.round((lastAcc.accuracy || 0) * 100)}%`;
+        }
+
+        // 9. Mastery Trends Sparkline
+        const masTrends = data.mastery_trends || [];
+        const masBox = document.getElementById('masteryTrendsBox');
+        masBox.innerHTML = '';
+        masTrends.forEach(p => {
+          const bar = document.createElement('div');
+          bar.className = 'spark-bar';
+          bar.style.background = 'var(--accent-green)';
+          bar.style.height = `${Math.max(10, Math.round((p.mastery || 0) * 50))}px`;
+          bar.title = `Mastery: ${Math.round((p.mastery || 0) * 100)}%`;
+          masBox.appendChild(bar);
+        });
+        if (masTrends.length > 0) {
+          const lastMas = masTrends[masTrends.length - 1];
+          document.getElementById('latestMasteryPoint').textContent = `Current: ${Math.round((lastMas.mastery || 0) * 100)}%`;
+        }
+
+        // 10. Question-Type Breakdown
+        const qtypes = data.question_type_performance || {};
+        const qtbody = document.getElementById('questionTypeBody');
+        qtbody.innerHTML = '';
+        Object.entries(qtypes).forEach(([qt, val]) => {
+          const row = document.createElement('tr');
+          const accPct = Math.round((val.accuracy || 0) * 100);
+          row.innerHTML = `
+            <td style="text-transform: capitalize; font-weight:600;">${qt.replace('_', ' ')}</td>
+            <td>${val.attempts}</td>
+            <td style="color: ${accPct >= 70 ? 'var(--accent-green)' : 'var(--accent-amber)'}; font-weight:700;">${accPct}%</td>
+          `;
+          qtbody.appendChild(row);
+        });
+
+        // 11. Review Due List
+        const reviews = data.review_due || [];
+        document.getElementById('reviewDueBadge').textContent = `${reviews.length} Due`;
+        const revList = document.getElementById('reviewDueList');
+        revList.innerHTML = '';
+        if (reviews.length === 0) {
+          revList.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">Spaced repetition schedule up to date.</div>';
+        } else {
+          reviews.forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'review-item';
+            item.innerHTML = `
+              <div style="font-weight:700; color:var(--accent-amber);">${r.concept_name}</div>
+              <div>Overdue by ${r.overdue_days} day(s) • Mastery: ${Math.round(r.current_mastery * 100)}%</div>
+            `;
+            revList.appendChild(item);
+          });
+        }
+
+        // 4. Recent Sessions List
+        const sessions = data.recent_sessions || [];
+        const sessList = document.getElementById('recentSessionsList');
+        sessList.innerHTML = '';
+        if (sessions.length === 0) {
+          sessList.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">No completed sessions yet.</div>';
+        } else {
+          sessions.forEach(s => {
+            const item = document.createElement('div');
+            item.className = 'stream-item';
+            item.innerHTML = `
+              <div style="font-weight:600; color:var(--text-bright);">${s.concept_id || 'Tutoring Session'}</div>
+              <div style="color:var(--text-muted);">Status: ${s.status} • Duration: ${s.duration_seconds}s</div>
+            `;
+            sessList.appendChild(item);
+          });
+        }
+
+        // 5. Recent Activity List
+        const acts = data.recent_activity || [];
+        const actList = document.getElementById('recentActivityList');
+        actList.innerHTML = '';
+        if (acts.length === 0) {
+          actList.innerHTML = '<div style="font-size:12px; color:var(--text-muted);">No activity logged yet.</div>';
+        } else {
+          acts.forEach(a => {
+            const item = document.createElement('div');
+            item.className = 'stream-item';
+            item.innerHTML = `
+              <div style="font-weight:600; color:var(--text-bright);">${a.event_type || 'Event'}</div>
+              <div style="color:var(--text-muted);">${a.summary || 'Learning action registered'}</div>
+            `;
+            actList.appendChild(item);
+          });
+        }
+      },
+
+      exportReport() {
+        if (!this.data) return;
+        const blob = new Blob([JSON.stringify(this.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `progress_report_${this.studentId}_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+
+      onStartLearning() {
+        window.location.hash = '#/tutor';
+      },
+
+      onBackToSafeView() {
+        this.studentId = 'student_chem_01';
+        this.fetchProgress();
+      }
+    };
+
+    // Auto-initialize when loaded directly in browser
+    window.addEventListener('DOMContentLoaded', () => {
+      StudentDashboardController.init();
+    });
+  </script>
+</body>
+</html>

@@ -10,7 +10,7 @@ Implements evidence-driven spaced review scheduling:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -104,12 +104,25 @@ class SpacedReviewScheduler:
         """Check if a review is due based on next_review_at ISO string."""
         if not next_review_at:
             return False
-        now = current_time or datetime.now()
         try:
-            due_dt = datetime.fromisoformat(next_review_at)
-            return now >= due_dt
-        except ValueError:
+            cleaned_str = next_review_at.replace("Z", "+00:00")
+            due_dt = datetime.fromisoformat(cleaned_str)
+        except (ValueError, TypeError):
             return False
+
+        if current_time is not None:
+            now = current_time
+            if due_dt.tzinfo is not None and now.tzinfo is None:
+                now = now.astimezone()
+            elif due_dt.tzinfo is None and now.tzinfo is not None:
+                due_dt = due_dt.astimezone()
+        else:
+            if due_dt.tzinfo is not None:
+                now = datetime.now(timezone.utc)
+            else:
+                now = datetime.now()
+
+        return now >= due_dt
 
     def get_review_record(
         self,
