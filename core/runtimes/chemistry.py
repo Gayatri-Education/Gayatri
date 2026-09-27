@@ -460,12 +460,15 @@ class ChemistryTutorRuntime:
                         concept_id=student.current_concept,
                     )
                 if active_tchr_insts:
-                    inst_bullet_list = "\n".join(f"  * {i.instruction_text}" for i in active_tchr_insts)
-                    policy_directive += (
-                        f"\n\n[PRIORITY TEACHER INSTRUCTIONS]:\n"
-                        f"The teacher has provided the following pedagogical guidance which you MUST respect:\n"
-                        f"{inst_bullet_list}"
-                    )
+                    if hasattr(tchr_engine, "format_prompt_directive"):
+                        policy_directive += f"\n\n{tchr_engine.format_prompt_directive(active_tchr_insts)}"
+                    else:
+                        inst_bullet_list = "\n".join(f"  * {i.instruction_text}" for i in active_tchr_insts)
+                        policy_directive += (
+                            f"\n\n[PRIORITY TEACHER INSTRUCTIONS]:\n"
+                            f"The teacher has provided the following pedagogical guidance which you MUST respect:\n"
+                            f"{inst_bullet_list}"
+                        )
             except Exception:
                 pass
 

@@ -8,6 +8,7 @@ Master Plan Section 13:
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from central_platform.api.schemas import (
@@ -17,6 +18,9 @@ from central_platform.api.schemas import (
     TeacherInstructionCreateRequest,
     TeacherInstructionResponse,
     TeacherInstructionToggleRequest,
+    TeacherInstructionUpdateRequest,
+    TeacherInstructionValidateRequest,
+    TeacherInstructionValidateResponse,
 )
 from central_platform.auth.dependencies import (
     enforce_resource_boundaries,
@@ -26,8 +30,11 @@ from central_platform.auth.dependencies import (
 from central_platform.models.schema import User, UserRole
 from central_platform.teacher.portal import TeacherPortalService
 from central_platform.teacher.instruction import (
+    InstructionStatus,
+    SafetyStatus,
     TeacherInstruction,
     TeacherInstructionEngine,
+    TeacherInstructionValidator,
 )
 from central_platform.teacher.intervention import (
     TeacherAlert,
@@ -90,12 +97,53 @@ async def get_teacher_dashboard(
     return ApiResponse(ok=True, data=data)
 
 
+def _to_instruction_response(i: TeacherInstruction) -> TeacherInstructionResponse:
+    return TeacherInstructionResponse(
+        instruction_id=i.instruction_id,
+        teacher_id=i.teacher_id,
+        student_id=i.student_id,
+        course_id=i.course_id,
+        instruction_text=i.instruction_text,
+        priority=i.priority,
+        concept_scope=i.concept_scope or "ALL",
+        scope_type=getattr(i, "scope_type", "STUDENT"),
+        is_active=i.is_active,
+        status=getattr(i, "status", InstructionStatus.ACTIVE.value),
+        start_at=getattr(i, "start_at", None),
+        expires_at=getattr(i, "expires_at", None),
+        safety_status=getattr(i, "safety_status", SafetyStatus.VALIDATED.value),
+        safety_reasons=getattr(i, "safety_reasons", []),
+        audit_trail=getattr(i, "audit_trail", []),
+        created_at=i.created_at,
+        updated_at=getattr(i, "updated_at", None),
+    )
+
+
+@router.post("/instructions/validate", response_model=ApiResponse[TeacherInstructionValidateResponse])
+async def validate_instruction(
+    req: TeacherInstructionValidateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Pre-flight policy and safety validation for a teacher directive against the 5 non-overridable invariants."""
+    val = TeacherInstructionValidator.validate(req.instruction)
+    return ApiResponse(
+        ok=True,
+        data=TeacherInstructionValidateResponse(
+            is_valid=val.is_valid,
+            safety_status=val.safety_status,
+            violations=val.violations,
+            sanitized_text=val.sanitized_text,
+            target_invariants=val.target_invariants,
+        ),
+    )
+
+
 @router.post("/instructions", response_model=ApiResponse[TeacherInstructionResponse], status_code=status.HTTP_201_CREATED)
 async def create_instruction(
     req: TeacherInstructionCreateRequest,
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Dispatch a pedagogical directive from teacher to student(s)."""
+    """Dispatch a pedagogical directive from teacher to student(s) with policy validation and audit logging."""
     if current_user:
         if current_user.role == UserRole.STUDENT:
             raise HTTPException(
@@ -111,41 +159,55 @@ async def create_instruction(
                     detail=f"Forbidden: student '{req.student_id}' is not assigned to this teacher",
                 )
 
+    # Validate against non-overridable invariants
+    val = TeacherInstructionValidator.validate(req.instruction)
+    if not val.is_valid:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Policy violation: {'; '.join(val.violations)}",
+        )
+
     inst_id = f"inst-{uuid.uuid4().hex[:6]}"
     teacher_id = current_user.id if current_user else "tchr-101"
+    
+    # Auto-infer scope type if not specified
+    if req.scope_type:
+        scope_type = req.scope_type
+    elif req.student_id in ("all", "*", ""):
+        scope_type = "CONCEPT" if req.concept_scope and req.concept_scope not in ("ALL", "*") else "COURSE"
+    else:
+        scope_type = "CONCEPT" if req.concept_scope and req.concept_scope not in ("ALL", "*") else "STUDENT"
+
     inst = TeacherInstruction(
         instruction_id=inst_id,
         teacher_id=teacher_id,
         student_id=req.student_id,
         course_id=req.course_id,
-        instruction_text=req.instruction,
+        instruction_text=val.sanitized_text,
         priority=req.priority,
         concept_scope=req.concept_scope,
+        scope_type=scope_type,
+        start_at=req.start_at or datetime.now(timezone.utc).isoformat(),
+        expires_at=req.expires_at,
+        status=InstructionStatus.ACTIVE.value,
         is_active=True,
+        safety_status=val.safety_status,
+        safety_reasons=val.violations,
     )
-    _instruction_engine.add_instruction(inst)
+    _instruction_engine.add_instruction(inst, actor_id=teacher_id)
 
-    data = TeacherInstructionResponse(
-        instruction_id=inst.instruction_id,
-        teacher_id=inst.teacher_id,
-        student_id=inst.student_id,
-        course_id=inst.course_id,
-        instruction_text=inst.instruction_text,
-        priority=inst.priority,
-        concept_scope=inst.concept_scope,
-        is_active=inst.is_active,
-        created_at=inst.created_at,
-    )
-    return ApiResponse(ok=True, data=data)
+    return ApiResponse(ok=True, data=_to_instruction_response(inst))
 
 
 @router.get("/instructions", response_model=ApiResponse[List[TeacherInstructionResponse]])
 async def get_instructions(
     student_id: Optional[str] = Query(default=None),
     course_id: Optional[str] = Query(default="crs-chem-101"),
+    status_filter: Optional[str] = Query(default=None, alias="status"),
+    active_only: bool = Query(default=False),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Get active instructions scoped to a student or course."""
+    """Get active instructions scoped to a student or course with optional filtering."""
     if current_user:
         if current_user.role == UserRole.STUDENT:
             # Student can only see instructions addressed to them or 'all'
@@ -162,26 +224,81 @@ async def get_instructions(
             course_id=course_id or "",
         )
     else:
-        insts = [
-            i for i in _instruction_engine._instructions.values()
-            if not course_id or i.course_id == course_id or i.course_id in ("all", "*")
-        ]
-
-    data = [
-        TeacherInstructionResponse(
-            instruction_id=i.instruction_id,
-            teacher_id=i.teacher_id,
-            student_id=i.student_id,
-            course_id=i.course_id,
-            instruction_text=i.instruction_text,
-            priority=i.priority,
-            concept_scope=i.concept_scope,
-            is_active=i.is_active,
-            created_at=i.created_at,
+        insts = _instruction_engine.get_all_instructions(
+            course_id=course_id,
+            student_id=student_id,
+            status_filter=status_filter,
+            active_only=active_only,
         )
-        for i in insts
-    ]
-    return ApiResponse(ok=True, data=data)
+
+    return ApiResponse(ok=True, data=[_to_instruction_response(i) for i in insts])
+
+
+@router.get("/instructions/{instruction_id}", response_model=ApiResponse[TeacherInstructionResponse])
+async def get_instruction_by_id(
+    instruction_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Get a single instruction by ID including its immutable audit trail."""
+    inst = _instruction_engine.get_instruction(instruction_id)
+    if not inst:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instruction not found")
+
+    if current_user and current_user.role == UserRole.STUDENT:
+        if inst.student_id not in (current_user.id, "all", "*"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students cannot view instructions for other students",
+            )
+
+    return ApiResponse(ok=True, data=_to_instruction_response(inst))
+
+
+@router.patch("/instructions/{instruction_id}", response_model=ApiResponse[TeacherInstructionResponse])
+async def update_instruction(
+    instruction_id: str,
+    req: TeacherInstructionUpdateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Update priority, scope, expiration, or status of an instruction."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot update instructions",
+        )
+
+    actor_id = current_user.id if current_user else "teacher"
+    updates = req.dict(exclude_none=True)
+    try:
+        updated = _instruction_engine.update_instruction(instruction_id, actor_id=actor_id, updates=updates)
+    except ValueError as err:
+        raise HTTPException(status_code=422, detail=str(err))
+
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instruction not found")
+
+    return ApiResponse(ok=True, data=_to_instruction_response(updated))
+
+
+@router.delete("/instructions/{instruction_id}", response_model=ApiResponse[dict])
+async def delete_or_revoke_instruction(
+    instruction_id: str,
+    reason: Optional[str] = Query(default="Revoked by teacher"),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Revoke a teacher instruction and record the revocation in its audit log."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot revoke teacher instructions",
+        )
+
+    actor_id = current_user.id if current_user else "teacher"
+    success = _instruction_engine.revoke_instruction(instruction_id, actor_id=actor_id, reason=reason)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instruction not found")
+
+    return ApiResponse(ok=True, data={"instruction_id": instruction_id, "status": "REVOKED", "revoked": True})
 
 
 @router.post("/instructions/toggle", response_model=ApiResponse[dict])

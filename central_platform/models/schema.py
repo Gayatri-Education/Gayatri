@@ -403,6 +403,12 @@ class TeacherInstructionRecord:
     concept_scope: str = "ALL"
     priority: int = 2
     is_active: bool = True
+    start_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    status: str = "ACTIVE"
+    safety_status: str = "VALIDATED"
+    safety_reasons: List[str] = field(default_factory=list)
+    audit_trail: List[dict] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:

@@ -126,6 +126,9 @@ class TeacherInstructionCreateRequest(BaseModel):
     course_id: str = Field(default="crs-chem-101")
     priority: int = Field(default=2, ge=1, le=5)
     concept_scope: str = Field(default="ALL")
+    start_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    scope_type: Optional[str] = None
 
 
 class TeacherInstructionResponse(BaseModel):
@@ -136,8 +139,36 @@ class TeacherInstructionResponse(BaseModel):
     instruction_text: str
     priority: int
     concept_scope: str
+    scope_type: str = "STUDENT"
     is_active: bool
+    status: str = "ACTIVE"
+    start_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    safety_status: str = "VALIDATED"
+    safety_reasons: List[str] = Field(default_factory=list)
+    audit_trail: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: str
+    updated_at: Optional[str] = None
+
+
+class TeacherInstructionUpdateRequest(BaseModel):
+    priority: Optional[int] = Field(default=None, ge=1, le=5)
+    concept_scope: Optional[str] = None
+    expires_at: Optional[str] = None
+    status: Optional[str] = None
+    instruction_text: Optional[str] = None
+
+
+class TeacherInstructionValidateRequest(BaseModel):
+    instruction: str = Field(..., min_length=1)
+
+
+class TeacherInstructionValidateResponse(BaseModel):
+    is_valid: bool
+    safety_status: str
+    violations: List[str] = Field(default_factory=list)
+    sanitized_text: str = ""
+    target_invariants: List[str] = Field(default_factory=list)
 
 
 class TeacherInstructionToggleRequest(BaseModel):
