@@ -32,6 +32,7 @@ Central platform APIs, sync pipelines, database operations, auth & RBAC, server 
 - `tests/test_phase09_student_progress.py`
 - `tests/test_phase10_teacher_portal_web.py`
 - `tests/test_phase11_teacher_instructions_platform.py`
+- `tests/test_phase12_teacher_intervention_platform.py`
 - `tests/test_server_live_sync.py`
 
 
@@ -95,5 +96,6 @@ pytest -k "rag or slm or security"
 | 2026-09-27 | Phase 09 Student Progress API + UI | FULL SUITE | 518 | 518 | 0 | 0 | `tests/test_phase09_student_progress.py` (10/10) | PASSED |
 | 2026-09-27 | Phase 10 Teacher Web Portal | FULL SUITE | 525 | 525 | 0 | 0 | `tests/test_phase10_teacher_portal_web.py` (7/7) | PASSED |
 | 2026-09-27 | Phase 11 Teacher AI Instructions | FULL SUITE | 536 | 536 | 0 | 0 | `tests/test_phase11_teacher_instructions_platform.py` (11/11) | PASSED |
+| 2026-09-27 | Phase 12 Teacher Intervention System | FULL SUITE | 546 | 546 | 0 | 0 | `tests/test_phase12_teacher_intervention_platform.py` (10/10) | PASSED |
 
 

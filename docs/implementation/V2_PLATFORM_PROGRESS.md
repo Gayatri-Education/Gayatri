@@ -3,10 +3,10 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 12  
-Overall Completion: 40.0% (12/30 Phases)  
-Last Verified Commit: d8d1271 (Phase 11)  
-Last Full Regression: 2026-09-27 (536/536 passed)  
+Current Phase: 13  
+Overall Completion: 43.3% (13/30 Phases)  
+Last Verified Commit: 7d9e786 (Phase 12)  
+Last Full Regression: 2026-09-27 (546/546 passed)  
 Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
@@ -29,7 +29,7 @@ Open P3: 0
 | 09 | Student Progress API + UI | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 4a3c131 |
 | 10 | Teacher Web Portal | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7c9ec5d |
 | 11 | Teacher AI Instructions | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | d8d1271 |
-| 12 | Teacher Intervention System | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 12 | Teacher Intervention System | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7d9e786 |
 | 13 | Teacher Copilot | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 14 | Admin Web Portal | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 15 | Plug-and-Play Curriculum | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -49,78 +49,70 @@ Open P3: 0
 | 29 | Final Audit | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 
 ## Current Phase
-
+ 
 ### Objective
-Execute Phase 11 (Teacher AI Instructions): Enable teachers to influence AI tutoring for specific students safely and deterministically without ever bypassing critical system safeguards. Implement scope (student, cohort, course, concept), priority, temporal bounds (start_at, expires_at), status lifecycle, immutable audit trail, policy validation enforcing 5 non-negotiable invariants (security, safety, system policy / anti-answer leakage, authorization, deterministic calculations), and AI context builder tutor prompt injection with invariant guardrails.
+Execute Phase 12 (Teacher Intervention System): Complete the teacher intervention system with full support for all Section 21 dimensions: statuses (OPEN, ACKNOWLEDGED, IN_PROGRESS, RESOLVED, DISMISSED), priorities (CRITICAL, HIGH, MEDIUM, LOW), trigger types (persistent_misconception, declining_performance, long_inactivity, repeated_failed_assessment, low_prerequisite_mastery, teacher_created), auditable evidence requirements (zero unbacked interventions), notes provenance, resolution documentation, chronological audit trails, trigger evaluator, REST API endpoints, and Teacher Web Portal UI.
 
 ### Implemented
-- Canonical Teacher Instruction entity (`central_platform/teacher/instruction.py` and `central_platform/models/schema.py`) covering all Section 20 fields (`instruction_id`, `teacher_id`, `student_id`, `course_id`, `instruction_text`, `concept_scope`, `scope_type`, `priority`, `start_at`, `expires_at`, `status`, `safety_status`, `safety_reasons`, `audit_trail`, `version`).
-- Robust Policy & Invariant Validation Engine (`TeacherInstructionValidator` in `central_platform/teacher/instruction.py`) enforcing zero tolerance for overrides on:
-  1. Security (prompt injection, jailbreak, system prompt reveal, code execution)
-  2. Safety (toxicity, slurs, harassment, abuse)
-  3. System Policy (anti-answer leakage, skipping questioning, giving direct solutions)
-  4. Authorization (privilege escalation, secret harvesting, data dumps)
-  5. Deterministic Calculations (forcing mastery scores, overriding stoichiometry / chemistry facts)
-- Enhanced `TeacherInstructionEngine` with student context resolution, temporal filtering (`start_at <= now <= expires_at`), priority hierarchy sorting, update/revocation tracking with immutable audit trail, and prompt directive generation.
-- Tutor prompt injection integration in `core/runtimes/chemistry.py` safely binding teacher instructions within explicit `[SYSTEM INVARIANT NOTE]` guardrails.
+- Canonical Teacher Intervention entity (`central_platform/teacher/intervention.py` and `central_platform/models/schema.py`) covering all Section 21 fields (`intervention_id`, `student_id`, `teacher_id`, `course_id`, `concept_id`, `trigger_type`, `trigger_evidence`, `priority`, `status`, `educator_notes`, `suggested_action`, `resolution_note`, `audit_trail`, `created_at`, `updated_at`, `resolved_at`).
+- Non-negotiable auditable evidence guarantee: Enforced rule that non-manual interventions MUST provide non-empty `trigger_evidence` linking to actual SLR metrics or learning event IDs (preventing ungrounded automated alerts).
+- Complete 5-state lifecycle management (`OPEN` -> `ACKNOWLEDGED` -> `IN_PROGRESS` -> `RESOLVED` / `DISMISSED`) with timestamped educator notes and immutable audit trail records for all state transitions.
+- Deterministic trigger evaluator (`TeacherInterventionEngine.evaluate_triggers_for_student()`) inspecting real student SLR data (mastery trends, misconception persistence, inactivity duration, assessment failures, and low prerequisite masteries).
 - Central REST API endpoints in `central_platform/api/routes/teachers.py`:
-  - `POST /teachers/instructions/validate` (pre-flight validation endpoint)
-  - `POST /teachers/instructions` (create directive with invariant validation, returning 422 if safety violated)
-  - `GET /teachers/instructions` (list directives with filtering by student, course, status, active_only)
-  - `GET /teachers/instructions/{id}` (fetch single directive with full audit trail)
-  - `PATCH /teachers/instructions/{id}` (update priority, scope, expiration, status with audit logging)
-  - `DELETE /teachers/instructions/{id}` (revoke directive with audit recording)
-  - `POST /teachers/instructions/toggle` (enable/disable active state)
-  - Strict RBAC: Student access is blocked with 403 Forbidden.
-- Teacher Web Portal UI (`app/ui/teacher_portal.html`) enhanced with interactive directive creation form, priority selectors, concept scope input, expiration presets (24h, 7d, 30d, Never), real-time policy safety violation alerts, and one-click Revoke actions.
-- Comprehensive Phase 11 test suite in `tests/test_phase11_teacher_instructions_platform.py` (11/11 passed, 0 failures, 0 warnings).
-- Full regression suite: 536/536 tests passing repository-wide (0 failures, 0 warnings).
+  - `POST /teachers/interventions` (201 Created)
+  - `GET /teachers/interventions` (filtered by student, status, priority, trigger_type)
+  - `GET /teachers/interventions/{intervention_id}` (detailed profile with notes and audit trail)
+  - `PATCH /teachers/interventions/{intervention_id}` (update status and priority with audit logging)
+  - `POST /teachers/interventions/{intervention_id}/notes` (append educator note)
+  - `POST /teachers/interventions/{intervention_id}/resolve` (resolve intervention with mandatory resolution note)
+  - `POST /teachers/interventions/{intervention_id}/dismiss` (dismiss intervention with mandatory justification note)
+  - `POST /teachers/interventions/evaluate` (evaluates SLR/events and generates actionable interventions)
+  - Strict RBAC: Student access is blocked with 403 Forbidden; students can only view their own interventions.
+- Teacher Web Portal UI (`app/ui/teacher_portal.html`) enhanced with Section 21 UI (status badges, priority indicators, create intervention modal/form, filter dropdowns, and inline Acknowledge/Start Work/Resolve/Dismiss actions).
+- Comprehensive Phase 12 test suite in `tests/test_phase12_teacher_intervention_platform.py` (10/10 passed, 0 failures, 0 warnings).
+- Full regression suite: 546/546 tests passing repository-wide (0 failures, 0 warnings).
 - Frozen baseline: 44/44 benchmarks passing (100.0%).
 
 ### Files Changed
-- `central_platform/teacher/instruction.py` (enhanced with Section 20 fields, validator, engine methods)
-- `central_platform/models/schema.py` (updated TeacherInstructionRecord with Section 20 fields)
-- `central_platform/api/schemas.py` (updated request/response schemas and validate request/response)
-- `central_platform/api/routes/teachers.py` (added validate, get_by_id, update, delete endpoints, 422 validation error handling)
-- `core/runtimes/chemistry.py` (integrated prompt directive formatting with invariant guardrails)
-- `app/ui/teacher_portal.html` (enhanced teacher directives UI with priority, scope, expiry, audit, and revoke)
-- `tests/test_phase11_teacher_instructions_platform.py` (created, 11 test cases)
+- `central_platform/teacher/intervention.py` (enhanced with Section 21 fields, evidence validation, 5 statuses, 6 triggers, evaluator)
+- `central_platform/models/schema.py` (updated InterventionRecord with Section 21 schema)
+- `central_platform/api/schemas.py` (updated request/response schemas for interventions)
+- `central_platform/api/routes/teachers.py` (added full intervention REST API routes and evaluation endpoint)
+- `app/ui/teacher_portal.html` (enhanced teacher interventions UI with badges, filters, note tracking, resolution actions)
+- `tests/test_phase12_teacher_intervention_platform.py` (created, 10 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase11_teacher_instructions_platform.py` (11 test cases covering: allowed pedagogical instructions, rejection of prompt injection, rejection of anti-answer leakage attempts, rejection of authorization escalation and calculation falsification, scoping isolation across student/cohort/concept, temporal expiration and auto-transition to EXPIRED, immutable audit trail lifecycle across create/update/revoke, prompt directive generation with invariant reminders, REST API pre-flight validation endpoint, REST API full CRUD and 422 error rejection, and RBAC 403 Forbidden enforcement against student tokens).
+- `tests/test_phase12_teacher_intervention_platform.py` (10 test cases covering: 5 intervention statuses, 6 trigger types, rejection of automated interventions lacking auditable trigger evidence, educator notes appending with timestamp and author, formal resolution requiring resolution notes and setting resolved_at, formal dismissal requiring dismissal notes, trigger evaluation engine across misconception/performance/inactivity/assessment/prerequisite signals, REST API CRUD and status transition operations, REST API evaluate endpoint, and RBAC 403 Forbidden enforcement against student mutations).
 
 ### Tests Passed
-- 536 / 536 pytest tests passed (0 failures, 0 warnings).
+- 546 / 546 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
 
 ### Security
-- Teacher instructions undergo deterministic invariant validation before creation or update; unsafe instructions are rejected with 422 Unprocessable Entity.
-- RBAC strictly prohibits students from creating, updating, revoking, or inspecting other students' instructions (403 Forbidden).
-- Tutor runtime injects directives wrapped with explicit invariant constraints ensuring LLM cannot be commanded to leak answers or violate policies.
+- Interventions require valid teacher or admin authentication to create, update status, append notes, resolve, or dismiss (students receive 403 Forbidden).
+- Automated interventions strictly require verifiable trigger evidence to prevent unbacked flagging of students.
 
 ### Frontend
-- Teacher portal single-page application (`app/ui/teacher_portal.html`) enhanced in the `instructions` subview with priority badges, concept scopes, expiration countdowns, validation error banners, and revocation controls.
+- Teacher portal single-page application (`app/ui/teacher_portal.html`) enhanced in the `interventions` subview with priority badges, status filters, interactive status progression buttons, resolution dialogs, and manual intervention creation.
 
 ### Bugs Found
 - 0 open bugs.
 
 ### Bugs Fixed
-- Expanded `CALC_PATTERNS` regex to detect compound terms like "mastery score" alongside standalone "mastery".
-- Replaced deprecated `status.HTTP_422_UNPROCESSABLE_ENTITY` with `422` to eliminate StarletteDeprecationWarning.
-- Added missing `datetime` and `timezone` imports in `central_platform/api/routes/teachers.py`.
+- Ensured resolution and dismissal endpoints strictly validate non-empty note payloads.
 
 ### Known Issues
 - None.
 
 ### Remaining Work
-- Phase 11 complete and verified. Ready to present and execute Phase 12 (Teacher Intervention System).
+- Phase 12 complete and verified. Ready to present and execute Phase 13 (Teacher Copilot).
 
 ### Commit
-- d8d1271 (Phase 11: Teacher AI Instructions)
+- 7d9e786 (Phase 12: Teacher Intervention System)
 
 ### Verification Evidence
-- `pytest` run output: 536 passed in 42.09s.
+- `pytest` run output: 546 passed in 39.94s.
 - `python scripts/run_frozen_baseline.py` output: 44/44 passed (100.0%).
 
