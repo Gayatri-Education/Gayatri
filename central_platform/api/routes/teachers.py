@@ -81,6 +81,11 @@ async def get_teacher_dashboard(
         chapter_averages=overview.chapter_averages,
         recent_alerts=[a.to_dict() for a in alerts],
         students=students,
+        students_active=overview.students_active or overview.active_students_today,
+        difficult_concepts=overview.difficult_concepts,
+        common_misconceptions=overview.common_misconceptions or overview.top_misconceptions,
+        recent_activity=overview.recent_activity,
+        intervention_alerts=overview.intervention_alerts or [a.to_dict() for a in alerts],
     )
     return ApiResponse(ok=True, data=data)
 
@@ -263,3 +268,157 @@ async def get_teacher_student_slr(
 
     slr = _slr_service.get_authoritative_slr(student_id, course_id=course_id)
     return ApiResponse(ok=True, data=slr.to_dict())
+
+
+@router.get("/students", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_students(
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve cohort roster for the teacher."""
+    if current_user:
+        if current_user.role == UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students are not authorized to access teacher endpoints",
+            )
+        enforce_resource_boundaries(current_user)
+
+    students = _portal_service.get_all_students(course_id)
+    return ApiResponse(ok=True, data=students)
+
+
+@router.get("/students/{student_id}", response_model=ApiResponse[Dict[str, Any]])
+async def get_teacher_student_detail(
+    student_id: str,
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve full Section 19 Student View from Authoritative SLR."""
+    if current_user:
+        if current_user.role == UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students cannot use teacher endpoints",
+            )
+        if current_user.role == UserRole.TEACHER:
+            db = get_db()
+            assigned = db.get_assigned_student_ids_for_teacher(current_user.id)
+            if assigned and student_id not in assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: student '{student_id}' is not assigned to this teacher",
+                )
+
+    detail = _portal_service.get_student_detail(student_id, course_id=course_id or "crs-chem-101")
+    return ApiResponse(ok=True, data=detail)
+
+
+@router.get("/students/{student_id}/timeline", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_student_timeline(
+    student_id: str,
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    return ApiResponse(ok=True, data=detail.data.get("learning_timeline", []))
+
+
+@router.get("/students/{student_id}/mastery", response_model=ApiResponse[Dict[str, Any]])
+async def get_teacher_student_mastery(
+    student_id: str,
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    return ApiResponse(ok=True, data=detail.data.get("mastery", {}))
+
+
+@router.get("/students/{student_id}/misconceptions", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_student_misconceptions(
+    student_id: str,
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    return ApiResponse(ok=True, data=detail.data.get("misconceptions", []))
+
+
+@router.get("/students/{student_id}/sessions", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_student_sessions(
+    student_id: str,
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    return ApiResponse(ok=True, data=detail.data.get("sessions", []))
+
+
+@router.get("/students/{student_id}/interventions", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_student_interventions(
+    student_id: str,
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    return ApiResponse(ok=True, data=detail.data.get("interventions", []))
+
+
+@router.get("/students/{student_id}/instructions", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_student_instructions(
+    student_id: str,
+    course_id: Optional[str] = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    return ApiResponse(ok=True, data=detail.data.get("teacher_instructions", []))
+
+
+@router.get("/assignments", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_assignments(
+    course_id: str = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot access teacher assignments management",
+        )
+    assignments = [
+        {"id": "asg-01", "title": "Thermodynamics First Law & Work", "unit": "Unit 6", "due_date": "2026-10-05", "completed_count": 8, "total_count": 12},
+        {"id": "asg-02", "title": "Hess's Law Enthalpy Cycles", "unit": "Unit 6", "due_date": "2026-10-12", "completed_count": 5, "total_count": 12},
+        {"id": "asg-03", "title": "Periodic Trends & Ionic Radii", "unit": "Unit 3", "due_date": "2026-10-18", "completed_count": 10, "total_count": 12},
+    ]
+    return ApiResponse(ok=True, data=assignments)
+
+
+@router.get("/assessments", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_assessments(
+    course_id: str = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot access teacher assessments management",
+        )
+    assessments = [
+        {"id": "asm-01", "name": "Diagnostic Quiz 1: Enthalpy & Work", "course_id": course_id, "items_count": 5, "average_score": 0.78, "status": "active"},
+        {"id": "asm-02", "name": "Mid-Term Assessment: Chemical Energetics", "course_id": course_id, "items_count": 10, "average_score": 0.65, "status": "draft"},
+    ]
+    return ApiResponse(ok=True, data=assessments)
+
+
+@router.get("/alerts", response_model=ApiResponse[List[Dict[str, Any]]])
+async def get_teacher_alerts(
+    course_id: str = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot access teacher alerts",
+        )
+    alerts = _intervention_engine.get_all_alerts(course_id=course_id)
+    return ApiResponse(ok=True, data=[a.to_dict() for a in alerts])
+

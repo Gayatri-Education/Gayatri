@@ -159,6 +159,12 @@ class TeacherDashboardResponse(BaseModel):
     chapter_averages: Dict[str, float]
     recent_alerts: List[Dict[str, Any]]
     students: List[Dict[str, Any]]
+    # Master Plan Section 19 Core Teacher Dimensions
+    students_active: int = 0
+    difficult_concepts: List[Dict[str, Any]] = Field(default_factory=list)
+    common_misconceptions: List[Dict[str, Any]] = Field(default_factory=list)
+    recent_activity: List[Dict[str, Any]] = Field(default_factory=list)
+    intervention_alerts: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # ── Curriculum & Courses ─────────────────────────────────────────────────

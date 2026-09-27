@@ -265,6 +265,17 @@ def create_app() -> FastAPI:
                 status_code=500,
             )
 
+    @app.get("/teacher", response_class=HTMLResponse, tags=["Dashboard UI"])
+    @app.get("/portal", response_class=HTMLResponse, tags=["Dashboard UI"])
+    async def get_teacher_portal_html():
+        """Serve the Master Plan Section 19 Teacher Web Portal browser SPA."""
+        import os
+        portal_path = os.path.join(os.path.dirname(__file__), "..", "..", "app", "ui", "teacher_portal.html")
+        if os.path.exists(portal_path):
+            with open(portal_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=200)
+        return HTMLResponse(content="<h1>Teacher Web Portal</h1>", status_code=200)
+
     return app
 
 
