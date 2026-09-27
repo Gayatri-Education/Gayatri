@@ -313,8 +313,13 @@ class BatchSyncEventsRequest(BaseModel):
 class BatchSyncEventsResponse(BaseModel):
     ok: bool = True
     synced_count: int
+    duplicate_count: int = 0
     failed_count: int = 0
+    acknowledged_ids: List[str] = Field(default_factory=list)
     status: str = "SYNCED"
+    latest_mastery: float = 0.50
+    server_timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
 
 
 # ── Student Actions & Learning Engine Bridge (Phase 07) ─────────────────

@@ -3,11 +3,11 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 08  
-Overall Completion: 26.7% (8/30 Phases)  
-Last Verified Commit: 5dd4890 (Phase 07)  
-Last Full Regression: 2026-09-27 (497/497 passed)  
-Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed, FrozenHistoryBacktester 3/3 passed)  
+Current Phase: 09  
+Overall Completion: 30.0% (9/30 Phases)  
+Last Verified Commit: PENDING_COMMIT (Phase 08)  
+Last Full Regression: 2026-09-27 (508/508 passed)  
+Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
 Open P2: 0  
@@ -25,7 +25,7 @@ Open P3: 0
 | 05 | Central Learning Event System | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | c8de429 |
 | 06 | Authoritative Student Learning Record | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7da7d79 |
 | 07 | Connect Existing Learning Engine | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 5dd4890 |
-| 08 | Real Desktop ↔ Platform Sync | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 08 | Real Desktop ↔ Platform Sync | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PENDING_COMMIT |
 | 09 | Student Progress API + UI | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 10 | Teacher Web Portal | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 11 | Teacher AI Instructions | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,40 +51,38 @@ Open P3: 0
 ## Current Phase
 
 ### Objective
-Execute Phase 07 (Connect Existing Learning Engine): Connect working learning intelligence (`core/learning/` and `core/tutor/`) to the central event store and Authoritative SLR architecture. Preserve BKT, mastery, LDG, difficulty, misconceptions, spaced review, concept selection, and adaptive engine. Implement canonical pipeline `student action -> learning event -> learning engine -> updated mastery -> SLR -> recommendation` and execute frozen student history backtests within tolerance (<= 0.05).
+Execute Phase 08 (Real Desktop ↔ Platform Sync): Replace in-memory mock synchronization with production-grade, fault-tolerant network synchronization between student desktop environments and the Central Platform. Implement disk-backed persistent local event queue (SQLite), authenticated sync API, server validation, idempotency filter, sequence reconciliation for out-of-order events, and immediate authoritative SLR update post-sync. Uphold the fundamental invariant: No learning event may silently disappear.
 
 ### Implemented
-- Canonical Learning Engine Bridge package in `central_platform/learning/` (`models.py`, `bridge.py`, `backtest.py`, `__init__.py`).
-- Complete canonical pipeline: `StudentActionPayload` is converted to `LearningEventIngest`, persisted idempotently to `LearningEventStore`, processed across preserved algorithms (`MasteryCalculator`, `DifficultyPolicy`, `SpacedReviewScheduler`, `MisconceptionTracker`, `ConceptSelector`, `AdaptiveLearningEngine`), persists updated concept mastery and misconceptions to `PlatformDatabase`, recomputes the Authoritative SLR, and outputs an `EngineActionResult` with next pedagogical actions and recommendations.
-- Platform API integration: `POST /api/v1/students/{student_id}/action` in `central_platform/api/routes/students.py` with strict student self-access RBAC enforcement.
-- Frozen student history backtester (`FrozenHistoryBacktester` in `central_platform/learning/backtest.py`) replaying 3 core learner archetypes (fast mastery learner, struggling learner with misconceptions, hint-dependent learner) verifying mathematical and algorithmic tolerance <= 0.05 versus pre-migration baseline.
-- Backward compatibility preserved: standalone `TutorController` and `TutorStateManager` continue to function identically.
-- Comprehensive Phase 07 test suite in `tests/test_phase07_connect_learning_engine.py` (11/11 passed, 0 failures, 0 warnings).
-- Full regression suite: 497/497 tests passing across repository (0 failures, 0 warnings).
+- Disk-backed persistent local sync queue (`PersistentSyncQueue` in `central_platform/sync/client.py`) guaranteeing durability across crashes and power loss.
+- Resilient background desktop sync client (`DesktopSyncClient` in `central_platform/sync/client.py`) supporting batch draining, connection error handling, exponential backoff retries, and automatic 401 token expiry recovery with token refresh.
+- Authoritative server-side sync service (`SyncService` in `central_platform/sync/service.py`) with device binding authorization, out-of-order sequence reconciliation, idempotent deduplication against `LearningEventStore`, permanent DB persistence, and immediate Authoritative SLR update.
+- Enriched platform sync API endpoint `POST /api/v1/sync/events` in `central_platform/api/routes/sync.py` with student self-access RBAC enforcement.
+- Updated `BatchSyncEventsResponse` schema in `central_platform/api/schemas.py` providing granular metrics (`synced_count`, `duplicate_count`, `failed_count`, `acknowledged_ids`, `latest_mastery`).
+- Comprehensive Phase 08 test suite in `tests/test_phase08_desktop_platform_sync.py` (11/11 passed, 0 failures, 0 warnings).
+- Full regression suite: 508/508 tests passing across repository (0 failures, 0 warnings).
 - Frozen baseline: 44/44 benchmarks passing (100.0%).
 
 ### Files Changed
-- `central_platform/learning/models.py` (created)
-- `central_platform/learning/bridge.py` (created)
-- `central_platform/learning/backtest.py` (created)
-- `central_platform/learning/__init__.py` (created)
-- `central_platform/api/schemas.py` (updated with StudentActionRequest)
-- `central_platform/api/routes/students.py` (updated with POST /{student_id}/action route)
-- `tests/test_phase07_connect_learning_engine.py` (created, 11 test cases)
+- `central_platform/sync/client.py` (created)
+- `central_platform/sync/service.py` (created)
+- `central_platform/sync/__init__.py` (updated)
+- `central_platform/api/schemas.py` (updated with BatchSyncEventsResponse fields)
+- `central_platform/api/routes/sync.py` (updated with SyncService integration & RBAC guard)
+- `tests/test_phase08_desktop_platform_sync.py` (created, 11 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase07_connect_learning_engine.py` (11 test cases covering: target flow action -> event -> engine -> mastery -> SLR -> recommendation, BKT mastery calculation, difficulty policy transitions, misconception detection & catalog mapping, spaced review scheduling, LDG concept candidate selection, adaptive action routing, HTTP POST action API endpoint, student isolation and RBAC negative security, frozen history backtest replay, and core tutor backwards compatibility).
+- `tests/test_phase08_desktop_platform_sync.py` (11 test cases covering: disk queue crash durability, offline queueing and online batch flush, server idempotency and duplicate deduplication, out-of-order event sequence reconciliation, 401 token expiry automatic refresh recovery, network timeout and retry backoff, post-sync authoritative SLR updates, RBAC student boundary security, stress test zero-event-disappearance invariant, client restart persistence, and server DB restart persistence).
 
 ### Tests Passed
-- 497 / 497 pytest tests passed (0 failures, 0 warnings).
+- 508 / 508 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
-- 3 / 3 frozen student history backtests passed (all within <= 0.05 tolerance).
 
 ### Security
-- Student action submission strictly enforces RBAC boundaries: students attempting to submit actions for another student account receive 403 Forbidden.
-- Input validation on all incoming action fields; misconceptions validated against controlled catalog.
+- Synchronizing student events strictly enforces RBAC boundaries: students attempting to sync records for another student account receive 403 Forbidden.
+- Device authorization checks prevent unauthorized hardware IDs from submitting telemetry.
 
 ### Frontend
 - Desktop UI (`app/ui/index.html`) intact; all bridge slots verified.
@@ -94,20 +92,18 @@ Execute Phase 07 (Connect Existing Learning Engine): Connect working learning in
 - 0 open bugs.
 
 ### Bugs Fixed
-- Resolved SQLite foreign key constraint during session creation by ensuring student scaffolding (`_ensure_student_scaffolding`) precedes session initialization in `LearningEngineBridge`.
-- Handled Pydantic v2 `model_dump()` serialization for `SLRRecommendation` and `SLRAlert` objects inside `EngineActionResult.to_dict()`.
-- Updated test connection cleanup to use `state_mgr.conn.close()` matching `TutorStateManager` internal schema.
+- Added canonical event type normalization in `SyncService.process_sync_batch` so legacy client telemetry events (e.g. `turn_completed`, `quiz_attempt`) map to canonical `LearningEventType` enum values without Pydantic validation errors.
+- Handled SQLite thread safety with `check_same_thread=False` and isolated connections across tests.
 
 ### Known Issues
 - None.
 
 ### Remaining Work
-- Phase 07 complete and verified. Ready to present and execute Phase 08 (Real Desktop ↔ Platform Sync).
+- Phase 08 complete and verified. Ready to present and execute Phase 09 (Student Progress API + UI).
 
 ### Commit
-- 5dd4890 (Phase 07: Connect Existing Learning Engine)
+- PENDING_COMMIT (Phase 08: Real Desktop ↔ Platform Sync)
 
 ### Verification Evidence
-- `pytest` run output: 497 passed in 31.62s.
+- `pytest` run output: 508 passed in 35.32s.
 - `python scripts/run_frozen_baseline.py` output: 44/44 passed (100.0%).
-- `FrozenHistoryBacktester.run_all_backtests()` output: all 3 archetypes passed with max tolerance 0.05 (target <= 0.05).

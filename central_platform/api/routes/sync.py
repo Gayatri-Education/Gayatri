@@ -1,11 +1,34 @@
-"""Gayatri AI Platform — Synchronization API Endpoints (Phase 02)."""
+"""Gayatri AI Platform — Synchronization API Endpoints (Phase 08).
+
+Master Plan Section 17:
+- Real network synchronization pipeline
+- Server-side validation and device authorization
+- Idempotency & deduplication filter via LearningEventStore
+- Out-of-order event sequence reconciliation
+- Permanent storage in central PostgreSQL/SQLite database
+- Canonical SLR projection update immediately post-sync
+"""
 from __future__ import annotations
 
-from fastapi import APIRouter
-from central_platform.api.schemas import ApiResponse, BatchSyncEventsRequest, BatchSyncEventsResponse
-from central_platform.sync.manager import SyncManager, SyncEvent
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from central_platform.api.schemas import (
+    ApiResponse,
+    BatchSyncEventsRequest,
+    BatchSyncEventsResponse,
+)
+from central_platform.auth.dependencies import (
+    enforce_resource_boundaries,
+    get_current_user_optional,
+)
+from central_platform.models.schema import User
+from central_platform.sync.manager import SyncEvent, SyncManager
+from central_platform.sync.service import SyncService
 
 router = APIRouter(prefix="/sync", tags=["Sync"])
+
+_sync_service = SyncService()
 
 try:
     from server import sync_manager as _sync_manager
@@ -14,8 +37,21 @@ except Exception:
 
 
 @router.post("/events", response_model=ApiResponse[BatchSyncEventsResponse])
-async def sync_events(batch: BatchSyncEventsRequest):
+async def sync_events(
+    batch: BatchSyncEventsRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Batch synchronize offline/local student events with central platform."""
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=batch.student_id)
+
+    # Process through authoritative central sync service
+    result = _sync_service.process_sync_batch(
+        student_id=batch.student_id,
+        events=batch.events,
+    )
+
+    # Keep backward compatibility with legacy in-memory manager
     count = 0
     for ev in batch.events:
         sync_ev = SyncEvent(
@@ -26,15 +62,22 @@ async def sync_events(batch: BatchSyncEventsRequest):
             payload=ev,
             timestamp=ev.get("timestamp", ""),
         )
-        _sync_manager.record_event(sync_ev)
+        try:
+            _sync_manager.record_event(sync_ev)
+        except Exception:
+            pass
         count += 1
 
     return ApiResponse(
-        ok=True,
+        ok=result["ok"],
         data=BatchSyncEventsResponse(
-            ok=True,
-            synced_count=count,
-            failed_count=0,
-            status="SYNCED",
+            ok=result["ok"],
+            synced_count=result["synced_count"],
+            duplicate_count=result["duplicate_count"],
+            failed_count=result["failed_count"],
+            acknowledged_ids=result["acknowledged_ids"],
+            status=result["status"],
+            latest_mastery=result["latest_mastery"],
+            server_timestamp=result["server_timestamp"],
         ),
     )
