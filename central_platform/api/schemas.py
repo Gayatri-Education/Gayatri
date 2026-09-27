@@ -482,3 +482,209 @@ class TeacherCopilotQueryResponse(BaseModel):
     course_id: Optional[str] = None
 
 
+# ── Admin Portal (Phase 14 / Section 23) ──────────────────────────────────
+
+class AdminDashboardResponse(BaseModel):
+    organizations_count: int = 0
+    total_users: int = 0
+    teachers_count: int = 0
+    students_count: int = 0
+    courses_count: int = 0
+    curricula_count: int = 0
+    classes_count: int = 0
+    cohorts_count: int = 0
+    enrollments_count: int = 0
+    active_models_count: int = 0
+    system_status: str = "HEALTHY"
+    kill_switch_active: bool = False
+    ai_policy_level: str = "strict"
+
+
+class AdminUserCreateRequest(BaseModel):
+    email: str
+    full_name: str
+    role: str  # SUPER_ADMIN, ORG_ADMIN, COURSE_ADMIN, TEACHER, STUDENT
+    organization_id: Optional[str] = None
+    password: Optional[str] = "TemporaryPass123!"
+
+
+class AdminUserUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    organization_id: Optional[str] = None
+
+
+class AdminUserResponse(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    role: str
+    organization_id: Optional[str] = None
+    is_active: bool = True
+    created_at: str
+    updated_at: str
+
+
+class AdminOrganizationCreateRequest(BaseModel):
+    name: str
+    slug: str
+    tier: Optional[str] = "STANDARD"
+    student_quota: Optional[int] = 250
+
+
+class AdminOrganizationResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    tier: str = "STANDARD"
+    student_quota: int = 250
+    created_at: str
+
+
+class AdminCourseCreateRequest(BaseModel):
+    code: str
+    title: str
+    description: Optional[str] = ""
+    organization_id: Optional[str] = None
+
+
+class AdminCourseResponse(BaseModel):
+    id: str
+    organization_id: Optional[str] = None
+    code: str
+    title: str
+    description: str = ""
+    created_at: str
+
+
+class AdminCurriculumCreateRequest(BaseModel):
+    course_id: str
+    title: str
+    version: str = "v1.0"
+    is_active: bool = True
+
+
+class AdminCurriculumResponse(BaseModel):
+    id: str
+    course_id: str
+    title: str
+    version: str
+    is_active: bool = True
+    created_at: str
+
+
+class AdminClassCreateRequest(BaseModel):
+    name: str
+    section: str
+    course_id: str
+    organization_id: Optional[str] = None
+
+
+class AdminClassResponse(BaseModel):
+    id: str
+    organization_id: Optional[str] = None
+    course_id: str
+    name: str
+    section: str
+    created_at: str
+
+
+class AdminCohortCreateRequest(BaseModel):
+    name: str
+    academic_year: str
+    class_group_id: str
+
+
+class AdminCohortResponse(BaseModel):
+    id: str
+    class_group_id: str
+    name: str
+    academic_year: str
+    created_at: str
+
+
+class AdminEnrollmentCreateRequest(BaseModel):
+    student_id: str
+    course_id: str
+    cohort_id: Optional[str] = None
+
+
+class AdminEnrollmentResponse(BaseModel):
+    id: str
+    student_id: str
+    course_id: str
+    cohort_id: Optional[str] = None
+    enrolled_at: str
+    is_active: bool = True
+
+
+class AdminAIProviderCreateRequest(BaseModel):
+    name: str
+    provider_type: str  # local, anthropic, openai, vllm, ollama
+    base_url: Optional[str] = ""
+    is_active: bool = True
+
+
+class AdminAIProviderResponse(BaseModel):
+    id: str
+    name: str
+    provider_type: str
+    base_url: str = ""
+    is_active: bool = True
+    created_at: str
+
+
+class AdminAIModelCreateRequest(BaseModel):
+    provider_id: str
+    model_name: str
+    context_window: Optional[int] = 8192
+    is_default: bool = False
+
+
+class AdminAIModelResponse(BaseModel):
+    id: str
+    provider_id: str
+    model_name: str
+    context_window: int = 8192
+    is_default: bool = False
+    created_at: str
+
+
+class AdminAIPolicyUpdateRequest(BaseModel):
+    ai_policy_level: Optional[str] = None  # strict, balanced, permissive
+    anti_answer_leakage: Optional[bool] = None
+    max_tokens_per_turn: Optional[int] = None
+    temperature: Optional[float] = None
+
+
+class AdminAIPolicyResponse(BaseModel):
+    ai_policy_level: str = "strict"
+    anti_answer_leakage: bool = True
+    max_tokens_per_turn: int = 1024
+    temperature: float = 0.2
+    updated_at: str
+
+
+class AdminFeatureFlagsUpdateRequest(BaseModel):
+    flags: Dict[str, bool]
+
+
+class AdminFeatureFlagsResponse(BaseModel):
+    flags: Dict[str, bool]
+    updated_at: str
+
+
+class AdminAuditEventResponse(BaseModel):
+    id: str
+    actor_id: str
+    actor_role: str
+    action: str
+    target_entity: str
+    target_id: str
+    organization_id: Optional[str] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+    timestamp: str
+
+
+

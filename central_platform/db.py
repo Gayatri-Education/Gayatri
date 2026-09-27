@@ -280,7 +280,7 @@ class PlatformDatabase:
                 return dict(r)
             return None
 
-    def suspend_user(self, user_id: str) -> bool:
+    def suspend_user(self, user_id: str, reason: Optional[str] = None) -> bool:
         """Suspend user account to prevent login."""
         now_iso = datetime.now(timezone.utc).isoformat()
         with self._get_connection() as conn:

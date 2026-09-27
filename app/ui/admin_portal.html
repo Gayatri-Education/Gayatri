@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gayatri AI — Multi-Tiered Admin Web Portal (Phase 14)</title>
+  <style>
+    :root {
+      --bg-dark: #0a0a18;
+      --sidebar-bg: #12122b;
+      --card-bg: #161633;
+      --card-border: #22224d;
+      --accent-purple: #9b59b6;
+      --accent-blue: #3498db;
+      --accent-cyan: #1abc9c;
+      --accent-green: #27c93f;
+      --accent-amber: #f39c12;
+      --accent-rose: #e74c3c;
+      --text-main: #e2e8f0;
+      --text-muted: #8c8ca8;
+      --text-bright: #ffffff;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: 250px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .brand {
+      padding: 16px 20px;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-bright);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-section {
+      padding: 12px 16px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+    .nav-links {
+      list-style: none;
+      overflow-y: auto;
+      flex: 1;
+      padding: 4px 8px;
+    }
+    .nav-links a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 12.5px;
+      font-weight: 500;
+      border-radius: 6px;
+      margin-bottom: 2px;
+      transition: all 0.15s ease;
+    }
+    .nav-links a:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-bright);
+    }
+    .nav-links a.active {
+      background: var(--accent-purple);
+      color: white;
+      font-weight: 600;
+    }
+
+    /* Main Content */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      height: 56px;
+      background: var(--sidebar-bg);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+    .page-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Kill Switch Alert Banner */
+    #killSwitchBanner {
+      display: none;
+      background: var(--accent-rose);
+      color: white;
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 700;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #killSwitchBanner.active { display: flex; }
+
+    /* Content Area */
+    .portal-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      position: relative;
+    }
+    .portal-view { display: none; }
+    .portal-view.active { display: block; }
+
+    /* Grid & Cards */
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .stat-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-bright);
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      background: rgba(0, 0, 0, 0.2);
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--card-border);
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Badges & Buttons */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10.5px;
+      font-weight: 600;
+    }
+    .badge-purple { background: rgba(155, 89, 182, 0.2); color: var(--accent-purple); border: 1px solid var(--accent-purple); }
+    .badge-green { background: rgba(39, 201, 63, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+    .badge-amber { background: rgba(243, 156, 18, 0.2); color: var(--accent-amber); border: 1px solid var(--accent-amber); }
+    .badge-rose { background: rgba(231, 76, 60, 0.2); color: var(--accent-rose); border: 1px solid var(--accent-rose); }
+    .badge-blue { background: rgba(52, 152, 219, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+    }
+    .btn-primary { background: var(--accent-purple); color: white; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { background: rgba(255, 255, 255, 0.08); color: white; border: 1px solid var(--card-border); }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
+    .btn-danger { background: var(--accent-rose); color: white; }
+
+    /* Modals */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: var(--sidebar-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      width: 460px;
+      max-width: 90vw;
+      padding: 24px;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-bright);
+      margin-bottom: 16px;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      background: #080816;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 13px;
+    }
+
+    /* Notifications & UI States */
+    #portalToast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--accent-purple);
+      color: white;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: none;
+      z-index: 2000;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar Navigation with 16 Pages -->
+  <aside>
+    <div class="brand">
+      <span>🛡️</span> Gayatri AI Admin
+    </div>
+
+    <div class="nav-links">
+      <div class="nav-section">Overview</div>
+      <a href="#/dashboard" id="nav-dashboard" class="active">📊 Dashboard</a>
+      <a href="#/analytics" id="nav-analytics">📈 Analytics</a>
+      <a href="#/audit" id="nav-audit">📜 Audit Trail</a>
+      <a href="#/system" id="nav-system">⚙️ System &amp; Health</a>
+
+      <div class="nav-section">Tenants &amp; Users</div>
+      <a href="#/organizations" id="nav-organizations">🏛️ Organizations</a>
+      <a href="#/users" id="nav-users">👥 All Users</a>
+      <a href="#/teachers" id="nav-teachers">👨‍🏫 Teachers</a>
+      <a href="#/students" id="nav-students">🎓 Students</a>
+      <a href="#/enrollments" id="nav-enrollments">📋 Enrollments</a>
+
+      <div class="nav-section">Academics</div>
+      <a href="#/courses" id="nav-courses">📚 Courses</a>
+      <a href="#/curricula" id="nav-curricula">🗺️ Curricula</a>
+      <a href="#/classes" id="nav-classes">🏫 Class Groups</a>
+      <a href="#/cohorts" id="nav-cohorts">🎯 Cohorts</a>
+
+      <div class="nav-section">AI &amp; Governance</div>
+      <a href="#/providers" id="nav-providers">🔌 AI Providers</a>
+      <a href="#/models" id="nav-models">🧠 AI Models</a>
+      <a href="#/ai-policies" id="nav-ai-policies">⚖️ AI Policies</a>
+    </div>
+  </aside>
+
+  <!-- Main View Area -->
+  <main>
+    <div id="killSwitchBanner">
+      <span>⚠️ EMERGENCY KILL SWITCH IS ACTIVE — AI TUTORING SERVICES ARE SUSPENDED</span>
+      <button class="btn btn-secondary" style="font-size:11px;" onclick="AdminApp.toggleKillSwitch(false)">Deactivate</button>
+    </div>
+
+    <header>
+      <div class="page-title" id="pageTitle">Platform Dashboard</div>
+      <div class="header-actions">
+        <span class="badge badge-purple" id="userRoleBadge">SUPER_ADMIN</span>
+        <button class="btn btn-secondary" onclick="AdminApp.refreshCurrentView()">🔄 Refresh</button>
+      </div>
+    </header>
+
+    <div class="portal-content">
+
+      <!-- 1. #/dashboard -->
+      <div id="view-dashboard" class="portal-view active">
+        <div class="grid-4" id="dashboardMetrics">
+          <div class="stat-card"><div class="stat-title">Organizations</div><div class="stat-value" id="statOrgs">-</div></div>
+          <div class="stat-card"><div class="stat-title">Total Users</div><div class="stat-value" id="statUsers">-</div></div>
+          <div class="stat-card"><div class="stat-title">Active Courses</div><div class="stat-value" id="statCourses">-</div></div>
+          <div class="stat-card"><div class="stat-title">Active AI Models</div><div class="stat-value" id="statModels">-</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Quick Administrative Actions</span>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalOrg')">➕ New Organization</button>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalUser')">➕ Provision User</button>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalCourse')">➕ Create Course</button>
+            <button class="btn btn-secondary" onclick="window.location.hash='#/system'">⚙️ System Status</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. #/organizations -->
+      <div id="view-organizations" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Registered Educational Institutions</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalOrg')">➕ Add Organization</button>
+          </div>
+          <table>
+            <thead><tr><th>Org ID</th><th>Name</th><th>Slug</th><th>Tier</th><th>Quota</th></tr></thead>
+            <tbody id="orgsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. #/users -->
+      <div id="view-users" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">All System Accounts</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalUser')">➕ Create User</button>
+          </div>
+          <table>
+            <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Tenant</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 4. #/teachers -->
+      <div id="view-teachers" class="portal-view">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Instructor Roster</span></div>
+          <table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Tenant</th><th>Status</th></tr></thead><tbody id="teachersTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 5. #/students -->
+      <div id="view-students" class="portal-view">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Enrolled Students</span></div>
+          <table><thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Tenant</th><th>Status</th></tr></thead><tbody id="studentsTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 6. #/courses -->
+      <div id="view-courses" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Course Catalog</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalCourse')">➕ Add Course</button>
+          </div>
+          <table><thead><tr><th>Code</th><th>Title</th><th>Description</th><th>Org ID</th></tr></thead><tbody id="coursesTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 7. #/curricula -->
+      <div id="view-curricula" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Curriculum Versions</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalCurriculum')">➕ Add Curriculum</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Course ID</th><th>Title</th><th>Version</th><th>Status</th></tr></thead><tbody id="curriculaTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 8. #/classes -->
+      <div id="view-classes" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Class Groups</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalClass')">➕ Add Class Group</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Name</th><th>Section</th><th>Course ID</th></tr></thead><tbody id="classesTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 9. #/cohorts -->
+      <div id="view-cohorts" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Student Cohorts</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalCohort')">➕ Add Cohort</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Name</th><th>Academic Year</th><th>Class Group ID</th></tr></thead><tbody id="cohortsTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 10. #/enrollments -->
+      <div id="view-enrollments" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Student Enrollments</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalEnrollment')">➕ Enroll Student</button>
+          </div>
+          <table><thead><tr><th>Enrollment ID</th><th>Student ID</th><th>Course ID</th><th>Cohort ID</th><th>Status</th><th>Actions</th></tr></thead><tbody id="enrollmentsTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 11. #/providers -->
+      <div id="view-providers" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">AI Backend Providers</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalProvider')">➕ Register Provider</button>
+          </div>
+          <table><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Base URL</th><th>Status</th></tr></thead><tbody id="providersTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 12. #/models -->
+      <div id="view-models" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Registered AI Inference Models</span>
+            <button class="btn btn-primary" onclick="AdminApp.openModal('modalModel')">➕ Register Model</button>
+          </div>
+          <table><thead><tr><th>Model ID</th><th>Provider</th><th>Context Window</th><th>Default</th><th>Status</th></tr></thead><tbody id="modelsTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 13. #/ai-policies -->
+      <div id="view-ai-policies" class="portal-view">
+        <div class="card">
+          <div class="card-header"><span class="card-title">AI Pedagogical Governance Policies</span></div>
+          <div style="max-width:500px; display:flex; flex-direction:column; gap:14px;">
+            <div class="form-group">
+              <label>Policy Strictness Level</label>
+              <select id="policyLevelSelect">
+                <option value="strict">Strict (Section 20 Invariants &amp; Anti-Answer Leakage)</option>
+                <option value="balanced">Balanced (Socratic with guided scaffolding)</option>
+                <option value="permissive">Permissive (Open exploration)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Anti-Answer Leakage Enforcement</label>
+              <input type="checkbox" id="policyLeakageCheck" checked style="width:20px; height:20px;">
+            </div>
+            <button class="btn btn-primary" onclick="AdminApp.saveAIPolicies()">Save Policy Config 💾</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 14. #/audit -->
+      <div id="view-audit" class="portal-view">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Authoritative Audit Trail</span></div>
+          <table><thead><tr><th>Event ID</th><th>Timestamp</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead><tbody id="auditTableBody"></tbody></table>
+        </div>
+      </div>
+
+      <!-- 15. #/analytics -->
+      <div id="view-analytics" class="portal-view">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Platform-Wide Usage &amp; Inference Telemetry</span></div>
+          <div class="grid-4" id="analyticsGrid"></div>
+        </div>
+      </div>
+
+      <!-- 16. #/system -->
+      <div id="view-system" class="portal-view">
+        <div class="card">
+          <div class="card-header"><span class="card-title">System Infrastructure &amp; Health Telemetry</span></div>
+          <div id="systemHealthDetails" style="font-size:13px; line-height:1.8;"></div>
+          <div style="margin-top:20px; border-top:1px solid var(--card-border); padding-top:16px;">
+            <strong style="color:var(--accent-rose);">Emergency Controls:</strong>
+            <div style="margin-top:8px;">
+              <button class="btn btn-danger" onclick="AdminApp.promptKillSwitch()">Toggle Emergency Kill Switch ⚠️</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /portal-content -->
+  </main>
+
+  <!-- Modals -->
+  <div class="modal-overlay" id="modalOrg">
+    <div class="modal-box">
+      <div class="modal-title">Create Educational Organization</div>
+      <div class="form-group"><label>Institution Name</label><input type="text" id="orgNameInput" placeholder="Delhi Science Academy"></div>
+      <div class="form-group"><label>Slug Identifier</label><input type="text" id="orgSlugInput" placeholder="dsa"></div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="AdminApp.closeModal('modalOrg')">Cancel</button>
+        <button class="btn btn-primary" onclick="AdminApp.submitOrg()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalUser">
+    <div class="modal-box">
+      <div class="modal-title">Provision New User Account</div>
+      <div class="form-group"><label>Full Name</label><input type="text" id="userFullNameInput"></div>
+      <div class="form-group"><label>Email Address</label><input type="email" id="userEmailInput"></div>
+      <div class="form-group">
+        <label>System Role</label>
+        <select id="userRoleSelect">
+          <option value="TEACHER">Teacher</option>
+          <option value="STUDENT">Student</option>
+          <option value="COURSE_ADMIN">Course Admin</option>
+          <option value="ORG_ADMIN">Organization Admin</option>
+          <option value="SUPER_ADMIN">Super Admin</option>
+        </select>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="AdminApp.closeModal('modalUser')">Cancel</button>
+        <button class="btn btn-primary" onclick="AdminApp.submitUser()">Create User</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalCourse">
+    <div class="modal-box">
+      <div class="modal-title">Create Course Entry</div>
+      <div class="form-group"><label>Course Code</label><input type="text" id="courseCodeInput" placeholder="CRS-CHEM-101"></div>
+      <div class="form-group"><label>Course Title</label><input type="text" id="courseTitleInput" placeholder="Class 11 Chemistry"></div>
+      <div class="form-group"><label>Description</label><input type="text" id="courseDescInput" placeholder="Comprehensive CBSE/NEET Chemistry"></div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="AdminApp.closeModal('modalCourse')">Cancel</button>
+        <button class="btn btn-primary" onclick="AdminApp.submitCourse()">Save Course</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="portalToast"></div>
+
+  <script>
+    /**
+     * Gayatri AI — Administrative Web Portal Controller (Phase 14 / Section 23)
+     */
+    const AdminApp = {
+      baseUrl: window.location.origin || 'http://127.0.0.1:8000',
+
+      init() {
+        window.addEventListener('hashchange', () => this.handleRoute());
+        this.handleRoute();
+        this.checkKillSwitch();
+      },
+
+      async apiGet(path) {
+        const token = localStorage.getItem('admin_token') || '';
+        const headers = { 'Accept': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        return json.data !== undefined ? json.data : json;
+      },
+
+      async apiPost(path, body) {
+        const token = localStorage.getItem('admin_token') || '';
+        const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        return json.data !== undefined ? json.data : json;
+      },
+
+      async apiPatch(path, body) {
+        const token = localStorage.getItem('admin_token') || '';
+        const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        return json.data !== undefined ? json.data : json;
+      },
+
+      toast(msg) {
+        const el = document.getElementById('portalToast');
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, 3000);
+      },
+
+      openModal(id) { document.getElementById(id).classList.add('active'); },
+      closeModal(id) { document.getElementById(id).classList.remove('active'); },
+
+      handleRoute() {
+        const hash = window.location.hash || '#/dashboard';
+        const page = hash.replace('#/', '').split('/')[0] || 'dashboard';
+
+        document.querySelectorAll('.nav-links a').forEach(el => el.classList.remove('active'));
+        const activeNav = document.getElementById(`nav-${page}`);
+        if (activeNav) activeNav.classList.add('active');
+
+        document.querySelectorAll('.portal-view').forEach(el => el.classList.remove('active'));
+        const activeView = document.getElementById(`view-${page}`);
+        if (activeView) activeView.classList.add('active');
+
+        const titleMap = {
+          dashboard: 'Platform Dashboard', organizations: 'Organizations & Tenants',
+          users: 'User Provisioning & Roles', teachers: 'Teacher Roster',
+          students: 'Enrolled Students', courses: 'Course Catalog',
+          curricula: 'Curriculum Versions', classes: 'Class Groups',
+          cohorts: 'Student Cohorts', enrollments: 'Active Enrollments',
+          providers: 'AI Backend Providers', models: 'AI Inference Models',
+          'ai-policies': 'AI Governance Policies', audit: 'Audit Trail',
+          analytics: 'Platform Usage & Telemetry', system: 'System Health & Emergency Controls',
+        };
+        document.getElementById('pageTitle').textContent = titleMap[page] || 'Administration';
+
+        this.loadViewData(page);
+      },
+
+      refreshCurrentView() {
+        const hash = window.location.hash || '#/dashboard';
+        const page = hash.replace('#/', '').split('/')[0] || 'dashboard';
+        this.loadViewData(page);
+        this.checkKillSwitch();
+      },
+
+      async checkKillSwitch() {
+        try {
+          const health = await this.apiGet('/system-health');
+          const banner = document.getElementById('killSwitchBanner');
+          if (health.kill_switch) banner.classList.add('active');
+          else banner.classList.remove('active');
+        } catch (e) {}
+      },
+
+      async loadViewData(page) {
+        try {
+          if (page === 'dashboard') await this.renderDashboard();
+          else if (page === 'organizations') await this.renderOrganizations();
+          else if (page === 'users') await this.renderUsers();
+          else if (page === 'teachers') await this.renderTeachers();
+          else if (page === 'students') await this.renderStudents();
+          else if (page === 'courses') await this.renderCourses();
+          else if (page === 'curricula') await this.renderCurricula();
+          else if (page === 'classes') await this.renderClasses();
+          else if (page === 'cohorts') await this.renderCohorts();
+          else if (page === 'enrollments') await this.renderEnrollments();
+          else if (page === 'providers') await this.renderProviders();
+          else if (page === 'models') await this.renderModels();
+          else if (page === 'ai-policies') await this.renderAIPolicies();
+          else if (page === 'audit') await this.renderAudit();
+          else if (page === 'analytics') await this.renderAnalytics();
+          else if (page === 'system') await this.renderSystem();
+        } catch (err) {
+          this.toast(`Error loading ${page}: ${err.message}`);
+        }
+      },
+
+      async renderDashboard() {
+        const d = await this.apiGet('/dashboard');
+        document.getElementById('statOrgs').textContent = d.organizations_count;
+        document.getElementById('statUsers').textContent = d.total_users;
+        document.getElementById('statCourses').textContent = d.courses_count;
+        document.getElementById('statModels').textContent = d.active_models_count;
+      },
+
+      async renderOrganizations() {
+        const orgs = await this.apiGet('/organizations');
+        const tbody = document.getElementById('orgsTableBody');
+        tbody.innerHTML = orgs.map(o => `<tr><td>${o.id || o.org_id}</td><td><strong>${o.name}</strong></td><td>${o.slug || '-'}</td><td><span class="badge badge-purple">${o.tier || 'STANDARD'}</span></td><td>${o.student_quota || 250}</td></tr>`).join('');
+      },
+
+      async renderUsers() {
+        const users = await this.apiGet('/users');
+        const tbody = document.getElementById('usersTableBody');
+        tbody.innerHTML = users.map(u => `<tr><td>${u.id}</td><td><strong>${u.full_name}</strong></td><td>${u.email}</td><td><span class="badge badge-blue">${u.role}</span></td><td>${u.organization_id || 'Global'}</td><td><span class="badge ${u.is_active ? 'badge-green' : 'badge-rose'}">${u.is_active ? 'Active' : 'Inactive'}</span></td><td><button class="btn btn-secondary" style="font-size:10px; padding:2px 8px;" onclick="AdminApp.toggleUserActive('${u.id}', ${!u.is_active})">${u.is_active ? 'Deactivate' : 'Activate'}</button></td></tr>`).join('');
+      },
+
+      async renderTeachers() {
+        const teachers = await this.apiGet('/teachers');
+        document.getElementById('teachersTableBody').innerHTML = teachers.map(t => `<tr><td>${t.id}</td><td><strong>${t.full_name}</strong></td><td>${t.email}</td><td>${t.organization_id || 'Global'}</td><td><span class="badge badge-green">Active</span></td></tr>`).join('');
+      },
+
+      async renderStudents() {
+        const students = await this.apiGet('/students');
+        document.getElementById('studentsTableBody').innerHTML = students.map(s => `<tr><td>${s.id}</td><td><strong>${s.full_name}</strong></td><td>${s.email}</td><td>${s.organization_id || 'Global'}</td><td><span class="badge badge-green">Active</span></td></tr>`).join('');
+      },
+
+      async renderCourses() {
+        const courses = await this.apiGet('/courses');
+        document.getElementById('coursesTableBody').innerHTML = courses.map(c => `<tr><td><strong>${c.code}</strong></td><td>${c.title}</td><td>${c.description || '-'}</td><td>${c.organization_id || 'Global'}</td></tr>`).join('');
+      },
+
+      async renderCurricula() {
+        const list = await this.apiGet('/curricula');
+        document.getElementById('curriculaTableBody').innerHTML = list.map(c => `<tr><td>${c.id}</td><td>${c.course_id}</td><td><strong>${c.title}</strong></td><td>${c.version}</td><td><span class="badge badge-green">Active</span></td></tr>`).join('');
+      },
+
+      async renderClasses() {
+        const list = await this.apiGet('/classes');
+        document.getElementById('classesTableBody').innerHTML = list.map(c => `<tr><td>${c.id}</td><td><strong>${c.name}</strong></td><td>Section ${c.section}</td><td>${c.course_id}</td></tr>`).join('');
+      },
+
+      async renderCohorts() {
+        const list = await this.apiGet('/cohorts');
+        document.getElementById('cohortsTableBody').innerHTML = list.map(c => `<tr><td>${c.id}</td><td><strong>${c.name}</strong></td><td>${c.academic_year}</td><td>${c.class_group_id}</td></tr>`).join('');
+      },
+
+      async renderEnrollments() {
+        const list = await this.apiGet('/enrollments');
+        document.getElementById('enrollmentsTableBody').innerHTML = list.map(e => `<tr><td>${e.id}</td><td>${e.student_id}</td><td>${e.course_id}</td><td>${e.cohort_id || 'Default'}</td><td><span class="badge badge-green">Active</span></td><td><button class="btn btn-secondary" style="font-size:10px;" onclick="AdminApp.revokeEnrollment('${e.id}')">Revoke</button></td></tr>`).join('');
+      },
+
+      async renderProviders() {
+        const list = await this.apiGet('/providers');
+        document.getElementById('providersTableBody').innerHTML = list.map(p => `<tr><td>${p.id}</td><td><strong>${p.name}</strong></td><td><span class="badge badge-purple">${p.provider_type}</span></td><td>${p.base_url || '-'}</td><td><span class="badge badge-green">Online</span></td></tr>`).join('');
+      },
+
+      async renderModels() {
+        const list = await this.apiGet('/models');
+        document.getElementById('modelsTableBody').innerHTML = list.map(m => `<tr><td><strong>${m.model_name || m.id}</strong></td><td>${m.provider_id}</td><td>${m.context_window} tokens</td><td>${m.is_default ? '⭐ Default' : '-'}</td><td><span class="badge badge-green">Active</span></td></tr>`).join('');
+      },
+
+      async renderAIPolicies() {
+        const p = await this.apiGet('/ai-policies');
+        document.getElementById('policyLevelSelect').value = p.ai_policy_level || 'strict';
+        document.getElementById('policyLeakageCheck').checked = p.anti_answer_leakage !== false;
+      },
+
+      async saveAIPolicies() {
+        const level = document.getElementById('policyLevelSelect').value;
+        const leakage = document.getElementById('policyLeakageCheck').checked;
+        await this.apiPost('/ai-policies', { ai_policy_level: level, anti_answer_leakage: leakage });
+        this.toast('AI Policies updated successfully!');
+      },
+
+      async renderAudit() {
+        const trail = await this.apiGet('/audit');
+        document.getElementById('auditTableBody').innerHTML = trail.map(t => `<tr><td>${t.id}</td><td>${t.timestamp.slice(0, 19).replace('T', ' ')}</td><td>${t.actor_id}</td><td><span class="badge badge-blue">${t.action}</span></td><td>${t.target_entity}:${t.target_id}</td><td>${JSON.stringify(t.details || {})}</td></tr>`).join('');
+      },
+
+      async renderAnalytics() {
+        const a = await this.apiGet('/analytics');
+        document.getElementById('analyticsGrid').innerHTML = Object.entries(a).map(([k, v]) => `<div class="stat-card"><div class="stat-title">${k.replace(/_/g, ' ')}</div><div class="stat-value">${v}</div></div>`).join('');
+      },
+
+      async renderSystem() {
+        const h = await this.apiGet('/system-health');
+        document.getElementById('systemHealthDetails').innerHTML = `
+          <div><strong>Core API Server:</strong> <span class="badge badge-green">${h.api_server}</span></div>
+          <div><strong>Central Database Layer:</strong> <span class="badge badge-green">${h.database}</span></div>
+          <div><strong>AI Gateway:</strong> <span class="badge badge-green">${h.ai_gateway}</span></div>
+          <div><strong>Desktop Sync Service:</strong> <span class="badge badge-green">${h.sync_service}</span></div>
+          <div><strong>Emergency Kill Switch:</strong> <span class="badge ${h.kill_switch ? 'badge-rose' : 'badge-green'}">${h.kill_switch ? 'ACTIVE' : 'NOMINAL'}</span></div>
+        `;
+      },
+
+      async promptKillSwitch() {
+        const confirmed = confirm('WARNING: Are you sure you want to toggle the emergency AI kill switch?');
+        if (confirmed) {
+          const health = await this.apiGet('/system-health');
+          await this.toggleKillSwitch(!health.kill_switch);
+        }
+      },
+
+      async toggleKillSwitch(active) {
+        await this.apiPost(`/kill-switch?active=${active}&reason=AdminManualToggle`, {});
+        this.toast(`Kill switch ${active ? 'ACTIVATED' : 'DEACTIVATED'}`);
+        this.refreshCurrentView();
+      },
+
+      async toggleUserActive(userId, active) {
+        await this.apiPatch(`/users/${userId}`, { is_active: active });
+        this.toast('User updated successfully');
+        this.renderUsers();
+      },
+
+      async revokeEnrollment(id) {
+        const res = await fetch(`${this.baseUrl}/api/v1/admin/enrollments/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          this.toast('Enrollment revoked');
+          this.renderEnrollments();
+        }
+      },
+
+      async submitOrg() {
+        const name = document.getElementById('orgNameInput').value;
+        const slug = document.getElementById('orgSlugInput').value;
+        if (!name || !slug) return alert('Name and Slug required');
+        await this.apiPost('/organizations', { name, slug });
+        this.closeModal('modalOrg');
+        this.toast('Organization created');
+        this.renderOrganizations();
+      },
+
+      async submitUser() {
+        const full_name = document.getElementById('userFullNameInput').value;
+        const email = document.getElementById('userEmailInput').value;
+        const role = document.getElementById('userRoleSelect').value;
+        if (!full_name || !email) return alert('Name and email required');
+        await this.apiPost('/users', { full_name, email, role });
+        this.closeModal('modalUser');
+        this.toast('User provisioned');
+        this.renderUsers();
+      },
+
+      async submitCourse() {
+        const code = document.getElementById('courseCodeInput').value;
+        const title = document.getElementById('courseTitleInput').value;
+        const description = document.getElementById('courseDescInput').value;
+        if (!code || !title) return alert('Code and title required');
+        await this.apiPost('/courses', { code, title, description });
+        this.closeModal('modalCourse');
+        this.toast('Course created');
+        this.renderCourses();
+      }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => AdminApp.init());
+  </script>
+</body>
+</html>
