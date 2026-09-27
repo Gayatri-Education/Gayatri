@@ -159,6 +159,9 @@ class CurriculumVersion:
     curriculum_id: str
     version_num: str
     change_log: str = ""
+    status: str = "draft"
+    published_at: Optional[str] = None
+    schema_data: str = "{}"
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
@@ -171,6 +174,7 @@ class Module:
     curriculum_id: str
     title: str
     sequence_order: int = 1
+    subject_id: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:

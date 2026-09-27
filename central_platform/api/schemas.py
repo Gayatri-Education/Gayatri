@@ -276,6 +276,74 @@ class CurriculumResponse(BaseModel):
     total_concepts: int
 
 
+# ── Plug-and-Play Curriculum (Phase 15 / Section 24) ──────────────────────
+
+class CurriculumHierarchyResponse(BaseModel):
+    curriculum_id: str
+    version_id: Optional[str] = None
+    course_id: str
+    course_title: Optional[str] = ""
+    title: str
+    version: str
+    status: str = "draft"
+    subjects: List[Dict[str, Any]] = Field(default_factory=list)
+    modules: List[Dict[str, Any]] = Field(default_factory=list)
+    total_modules: int = 0
+    total_topics: int = 0
+    total_concepts: int = 0
+
+
+class CurriculumValidationResponse(BaseModel):
+    is_valid: bool
+    errors: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    concept_count: int = 0
+    cycle_nodes: List[str] = Field(default_factory=list)
+    orphan_prerequisites: List[str] = Field(default_factory=list)
+    dag_depth: int = 0
+
+
+class CurriculumImportRequest(BaseModel):
+    course_id: str
+    package: Dict[str, Any]
+    publish: bool = False
+
+
+class CurriculumImportResponse(BaseModel):
+    curriculum_id: str
+    version_id: str
+    version: str
+    title: str
+    status: str
+    concept_count: int
+
+
+class CurriculumVersionCreateRequest(BaseModel):
+    version_num: str
+    change_log: str = ""
+    base_version_id: Optional[str] = None
+
+
+class CurriculumVersionPublishResponse(BaseModel):
+    version_id: str
+    version_num: str
+    status: str
+    published_at: str
+
+
+class CurriculumExportResponse(BaseModel):
+    curriculum_id: str
+    version_id: Optional[str] = None
+    version: str
+    title: str
+    course_id: Optional[str] = None
+    course_code: Optional[str] = None
+    status: str = "draft"
+    published_at: Optional[str] = None
+    concepts: List[Dict[str, Any]] = Field(default_factory=list)
+    modules: List[Dict[str, Any]] = Field(default_factory=list)
+
+
 # ── Sessions & Learning Events ───────────────────────────────────────────
 
 class SessionStartRequest(BaseModel):

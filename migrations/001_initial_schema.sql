@@ -114,6 +114,9 @@ CREATE TABLE IF NOT EXISTS curriculum_versions (
     curriculum_id TEXT NOT NULL,
     version_num TEXT NOT NULL,
     change_log TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',
+    published_at TEXT,
+    schema_data TEXT DEFAULT '{}',
     created_at TEXT NOT NULL,
     FOREIGN KEY(curriculum_id) REFERENCES curricula(id) ON DELETE CASCADE
 );
@@ -123,6 +126,7 @@ CREATE TABLE IF NOT EXISTS modules (
     curriculum_id TEXT NOT NULL,
     title TEXT NOT NULL,
     sequence_order INTEGER NOT NULL DEFAULT 1,
+    subject_id TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY(curriculum_id) REFERENCES curricula(id) ON DELETE CASCADE
 );

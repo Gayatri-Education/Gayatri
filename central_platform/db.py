@@ -478,7 +478,16 @@ class PlatformDatabase:
     def create_curriculum(self, curriculum: Curriculum) -> Curriculum:
         with self._get_connection() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO curricula (id, course_id, title, version, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?);",
+                """
+                INSERT INTO curricula (id, course_id, title, version, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    course_id=excluded.course_id,
+                    title=excluded.title,
+                    version=excluded.version,
+                    is_active=excluded.is_active,
+                    created_at=excluded.created_at;
+                """,
                 (curriculum.id, curriculum.course_id, curriculum.title, curriculum.version, 1 if curriculum.is_active else 0, curriculum.created_at),
             )
         return curriculum
@@ -514,11 +523,156 @@ class PlatformDatabase:
                 )
             return None
 
+    def create_curriculum_version(self, cv: CurriculumVersion) -> CurriculumVersion:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO curriculum_versions 
+                (id, curriculum_id, version_num, change_log, status, published_at, schema_data, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    curriculum_id=excluded.curriculum_id,
+                    version_num=excluded.version_num,
+                    change_log=excluded.change_log,
+                    status=excluded.status,
+                    published_at=excluded.published_at,
+                    schema_data=excluded.schema_data,
+                    created_at=excluded.created_at;
+                """,
+                (cv.id, cv.curriculum_id, cv.version_num, cv.change_log, cv.status, cv.published_at, cv.schema_data, cv.created_at),
+            )
+        return cv
+
+    def get_curriculum_version(self, version_id: str) -> Optional[CurriculumVersion]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM curriculum_versions WHERE id = ?;", (version_id,)).fetchone()
+            if r:
+                return CurriculumVersion(
+                    id=r["id"],
+                    curriculum_id=r["curriculum_id"],
+                    version_num=r["version_num"],
+                    change_log=r["change_log"] or "",
+                    status=r["status"] if "status" in r.keys() else "draft",
+                    published_at=r["published_at"] if "published_at" in r.keys() else None,
+                    schema_data=r["schema_data"] if "schema_data" in r.keys() else "{}",
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def get_curriculum_versions(self, curriculum_id: str) -> List[CurriculumVersion]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM curriculum_versions WHERE curriculum_id = ? ORDER BY created_at DESC;",
+                (curriculum_id,),
+            ).fetchall()
+            return [
+                CurriculumVersion(
+                    id=r["id"],
+                    curriculum_id=r["curriculum_id"],
+                    version_num=r["version_num"],
+                    change_log=r["change_log"] or "",
+                    status=r["status"] if "status" in r.keys() else "draft",
+                    published_at=r["published_at"] if "published_at" in r.keys() else None,
+                    schema_data=r["schema_data"] if "schema_data" in r.keys() else "{}",
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def update_curriculum_version_status(self, version_id: str, status: str, published_at: Optional[str] = None) -> bool:
+        with self._get_connection() as conn:
+            if published_at:
+                c = conn.execute(
+                    "UPDATE curriculum_versions SET status = ?, published_at = ? WHERE id = ?;",
+                    (status, published_at, version_id),
+                )
+            else:
+                c = conn.execute(
+                    "UPDATE curriculum_versions SET status = ? WHERE id = ?;",
+                    (status, version_id),
+                )
+            return c.rowcount > 0
+
+    def update_curriculum_version_schema(self, version_id: str, schema_data: str) -> bool:
+        with self._get_connection() as conn:
+            c = conn.execute(
+                "UPDATE curriculum_versions SET schema_data = ? WHERE id = ?;",
+                (schema_data, version_id),
+            )
+            return c.rowcount > 0
+
+    def get_subjects_by_course(self, course_id: str) -> List[Subject]:
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT * FROM subjects WHERE course_id = ? ORDER BY name ASC;", (course_id,)).fetchall()
+            return [
+                Subject(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    name=r["name"],
+                    code=r["code"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_modules_by_curriculum(self, curriculum_id: str) -> List[Module]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM modules WHERE curriculum_id = ? ORDER BY sequence_order ASC;",
+                (curriculum_id,),
+            ).fetchall()
+            return [
+                Module(
+                    id=r["id"],
+                    curriculum_id=r["curriculum_id"],
+                    title=r["title"],
+                    sequence_order=int(r["sequence_order"]),
+                    subject_id=r["subject_id"] if "subject_id" in r.keys() else None,
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_topics_by_module(self, module_id: str) -> List[Topic]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM topics WHERE module_id = ? ORDER BY sequence_order ASC;",
+                (module_id,),
+            ).fetchall()
+            return [
+                Topic(
+                    id=r["id"],
+                    module_id=r["module_id"],
+                    title=r["title"],
+                    sequence_order=int(r["sequence_order"]),
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_concepts_by_topic(self, topic_id: str) -> List[Concept]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM concepts WHERE topic_id = ? ORDER BY difficulty ASC;",
+                (topic_id,),
+            ).fetchall()
+            return [
+                Concept(
+                    id=r["id"],
+                    topic_id=r["topic_id"],
+                    name=r["name"],
+                    description=r["description"],
+                    difficulty=float(r["difficulty"]),
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
     def create_module(self, mod: Module) -> Module:
         with self._get_connection() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO modules (id, curriculum_id, title, sequence_order, created_at) VALUES (?, ?, ?, ?, ?);",
-                (mod.id, mod.curriculum_id, mod.title, mod.sequence_order, mod.created_at),
+                "INSERT OR REPLACE INTO modules (id, curriculum_id, title, sequence_order, subject_id, created_at) VALUES (?, ?, ?, ?, ?, ?);",
+                (mod.id, mod.curriculum_id, mod.title, mod.sequence_order, mod.subject_id, mod.created_at),
             )
         return mod
 
