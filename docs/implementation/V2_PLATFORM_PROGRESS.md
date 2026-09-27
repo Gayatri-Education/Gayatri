@@ -3,10 +3,10 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 02  
-Overall Completion: 6.7% (2/30 Phases)  
-Last Verified Commit: 3bf6727  
-Last Full Regression: 2026-09-27 (411/411 passed)  
+Current Phase: 05  
+Overall Completion: 16.7% (5/30 Phases)  
+Last Verified Commit: phase-04 pending  
+Last Full Regression: 2026-09-27 (465/465 passed)  
 Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
@@ -21,7 +21,7 @@ Open P3: 0
 | 01 | Stabilize the Core Tutor | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | e754ed5 |
 | 02 | Real Platform API | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | a6c3417 |
 | 03 | PostgreSQL Central Data Layer | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 086ca24 |
-| 04 | Authentication + RBAC | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 04 | Authentication + RBAC | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | pending |
 | 05 | Central Learning Event System | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 06 | Authoritative Student Learning Record | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 07 | Connect Existing Learning Engine | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,35 +51,48 @@ Open P3: 0
 ## Current Phase
 
 ### Objective
-Execute Phase 03 (PostgreSQL Central Data Layer): Elevate central persistence to an enterprise-grade relational architecture covering all 29 Section 12 entities, foreign key constraints, indexes, timestamps, soft-deletion, audit logging, migration management, and rollback capabilities.
+Execute Phase 04 (Authentication + RBAC): Implement production-grade cryptographic JWT token lifecycles, PBKDF2-HMAC-SHA256 password hashing with unique salts, 5 canonical roles, multi-tenant organization scoping, and enforce all 8 Master Plan Section 13 negative security tests.
 
 ### Implemented
-- Expanded domain schema models in `central_platform/models/schema.py` and `central_platform/models/__init__.py` for all 29 Section 12 entities: organizations, users, roles, permissions, role_permissions, courses, subjects, curricula, curriculum_versions, modules, topics, concepts, prerequisites, class_groups, cohorts, enrollments, sessions, learning_events, student_learning_records, mastery_states, misconceptions, student_misconceptions, assessments, assessment_items, assessment_attempts, teacher_instructions, interventions, assignments, notifications, ai_providers, ai_models, ai_execution_logs, audit_logs.
-- Forward production DDL migration `migrations/001_initial_schema.sql` with tables, foreign key cascades, and composite indexes.
-- Rollback DDL migration `migrations/001_initial_schema_down.sql` with clean teardown.
-- Python migration runner `scripts/migrate_db.py` supporting `up`, `down`, `status`, and SHA256 integrity verification.
-- Modernized `PlatformDatabase` in `central_platform/db.py` providing transactional CRUD operations, soft-delete filtering, multi-tenant isolation, and automatic migration execution.
-- Phase 03 test suite in `tests/test_phase03_postgresql_data_layer.py` (15 test cases).
-- Regression suite: 448/448 tests passing across repository with 0 failures, 0 warnings.
+- Cryptographic JWT session generation and validation in `central_platform/auth/tokens.py` with signed access tokens, long-lived refresh tokens, expiration enforcement, and revocation blacklisting.
+- PBKDF2-HMAC-SHA256 password hashing with random 16-byte cryptographic salts and constant-time comparison in `central_platform/rbac/engine.py`.
+- Role verification and permission matrices for 5 canonical roles: `SUPER_ADMIN`, `ORG_ADMIN`, `COURSE_ADMIN`, `TEACHER`, `STUDENT`.
+- FastAPI security dependencies and guards in `central_platform/auth/dependencies.py` (`get_current_user`, `require_roles`, `require_permission`, `enforce_resource_boundaries`).
+- Production authentication endpoints in `central_platform/api/routes/auth.py` (`/login`, `/me`, `/refresh`, `/logout`, `/password-reset`).
+- Strict tenant and resource isolation in `students.py`, `teachers.py`, `admin.py`, `sessions.py`, and `users.py`.
+- Phase 04 test suite in `tests/test_phase04_auth_rbac.py` verifying all 17 security scenarios, including all 8 Section 13 negative security tests.
+- Full regression suite: 465/465 tests passing across the repository with 0 failures, 0 warnings.
 - Frozen baseline: 44/44 benchmarks passing (100%).
 - Live sync verification: 5/5 gates passing (100%).
 
 ### Files Changed
-- `central_platform/models/schema.py` (updated)
-- `central_platform/models/__init__.py` (updated)
-- `migrations/001_initial_schema.sql` (created)
-- `migrations/001_initial_schema_down.sql` (created)
-- `scripts/migrate_db.py` (created)
-- `central_platform/db.py` (updated)
-- `tests/test_phase03_postgresql_data_layer.py` (created, 15 test cases)
+- `central_platform/auth/tokens.py` (created)
+- `central_platform/auth/dependencies.py` (created)
+- `central_platform/auth/__init__.py` (created)
+- `central_platform/rbac/engine.py` (updated)
+- `central_platform/rbac/__init__.py` (updated)
+- `central_platform/db.py` (updated with user auth, salted passwords, and account state methods)
+- `central_platform/models/schema.py` (updated with case-insensitive UserRole handling)
+- `central_platform/api/schemas.py` (updated with auth requests and refresh tokens)
+- `central_platform/api/routes/auth.py` (upgraded with production JWT & PBKDF2 workflows)
+- `central_platform/api/routes/students.py` (enforced student self-access boundaries)
+- `central_platform/api/routes/teachers.py` (enforced teacher cohort boundaries & blocked student intrusion)
+- `central_platform/api/routes/admin.py` (enforced admin role gates & blocked cross-org access)
+- `central_platform/api/routes/sessions.py` (blocked session hijacking and student_id spoofing)
+- `central_platform/api/routes/users.py` (blocked unauthorized user creation and cross-org provisioning)
+- `central_platform/api/middleware.py` (added detail alias in HTTP exception responses)
+- `migrations/001_initial_schema.sql` (added user_credentials table and index)
+- `migrations/001_initial_schema_down.sql` (added user_credentials rollback drop)
+- `scripts/migrate_db.py` (preserved initial schema description for migration 001)
+- `tests/test_phase04_auth_rbac.py` (created, 17 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase03_postgresql_data_layer.py` (15 test cases covering migrations, checksums, rollback, soft-deletion, multi-tenant isolation, curriculum hierarchy, prerequisites, sessions, events, SLR, mastery, misconceptions, assessments, directives, AI governance, and audit trails).
+- `tests/test_phase04_auth_rbac.py` (17 test cases covering PBKDF2 hashing, tamper resistance, JWT minting/decoding, refresh token validation, expiration, revocation blacklist, DB credentials lifecycle, API login/me/refresh/logout flow, missing token 401, and all 8 Section 13 negative security tests).
 
 ### Tests Passed
-- 448 / 448 pytest tests passed (0 failures, 0 warnings).
+- 465 / 465 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
 - 5 / 5 live synchronization gates passed (100%).
 

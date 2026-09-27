@@ -1,9 +1,15 @@
-"""Gayatri AI Platform — Teachers API Endpoints (Phase 02)."""
+"""Gayatri AI Platform — Teachers API Endpoints (Phase 04).
+
+Master Plan Section 13:
+- Role-based gatekeeping (TEACHER, ORG_ADMIN, SUPER_ADMIN)
+- Student access blocked (student -> teacher 403 Forbidden)
+- Teacher cohort and assignment resource scoping (teacher -> unrelated student 403 Forbidden)
+"""
 from __future__ import annotations
 
 import uuid
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from central_platform.api.schemas import (
     AlertResolveRequest,
     ApiResponse,
@@ -12,6 +18,12 @@ from central_platform.api.schemas import (
     TeacherInstructionResponse,
     TeacherInstructionToggleRequest,
 )
+from central_platform.auth.dependencies import (
+    enforce_resource_boundaries,
+    get_current_user_optional,
+    get_db,
+)
+from central_platform.models.schema import User, UserRole
 from central_platform.teacher.portal import TeacherPortalService
 from central_platform.teacher.instruction import (
     TeacherInstruction,
@@ -40,8 +52,19 @@ except Exception:
 
 
 @router.get("/dashboard", response_model=ApiResponse[TeacherDashboardResponse])
-async def get_teacher_dashboard(course_id: str = "crs-chem-101"):
+async def get_teacher_dashboard(
+    course_id: str = "crs-chem-101",
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Retrieve full teacher dashboard analytics, alerts, and student roster."""
+    if current_user:
+        if current_user.role == UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students are not authorized to access teacher dashboard",
+            )
+        enforce_resource_boundaries(current_user)
+
     overview = _portal_service.get_dashboard_overview(course_id)
     students = _portal_service.get_all_students(course_id)
     alerts = _intervention_engine.get_all_alerts(course_id=course_id)
@@ -60,12 +83,31 @@ async def get_teacher_dashboard(course_id: str = "crs-chem-101"):
 
 
 @router.post("/instructions", response_model=ApiResponse[TeacherInstructionResponse], status_code=status.HTTP_201_CREATED)
-async def create_instruction(req: TeacherInstructionCreateRequest):
+async def create_instruction(
+    req: TeacherInstructionCreateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Dispatch a pedagogical directive from teacher to student(s)."""
+    if current_user:
+        if current_user.role == UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students cannot create teacher instructions",
+            )
+        if current_user.role == UserRole.TEACHER and req.student_id not in ("all", "*"):
+            db = get_db()
+            assigned = db.get_assigned_student_ids_for_teacher(current_user.id)
+            if assigned and req.student_id not in assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: student '{req.student_id}' is not assigned to this teacher",
+                )
+
     inst_id = f"inst-{uuid.uuid4().hex[:6]}"
+    teacher_id = current_user.id if current_user else "tchr-101"
     inst = TeacherInstruction(
         instruction_id=inst_id,
-        teacher_id="tchr-101",
+        teacher_id=teacher_id,
         student_id=req.student_id,
         course_id=req.course_id,
         instruction_text=req.instruction,
@@ -93,8 +135,19 @@ async def create_instruction(req: TeacherInstructionCreateRequest):
 async def get_instructions(
     student_id: Optional[str] = Query(default=None),
     course_id: Optional[str] = Query(default="crs-chem-101"),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get active instructions scoped to a student or course."""
+    if current_user:
+        if current_user.role == UserRole.STUDENT:
+            # Student can only see instructions addressed to them or 'all'
+            if student_id and student_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: students may only view their own instructions",
+                )
+            student_id = current_user.id
+
     if student_id:
         insts = _instruction_engine.get_instructions_for_student(
             student_id=student_id,
@@ -124,8 +177,16 @@ async def get_instructions(
 
 
 @router.post("/instructions/toggle", response_model=ApiResponse[dict])
-async def toggle_instruction(req: TeacherInstructionToggleRequest):
+async def toggle_instruction(
+    req: TeacherInstructionToggleRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Enable or disable a teacher instruction."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot toggle teacher instructions",
+        )
     success = _instruction_engine.toggle_instruction(req.instruction_id, req.active)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instruction not found")
@@ -133,15 +194,41 @@ async def toggle_instruction(req: TeacherInstructionToggleRequest):
 
 
 @router.post("/alerts/resolve", response_model=ApiResponse[dict])
-async def resolve_alert(req: AlertResolveRequest):
+async def resolve_alert(
+    req: AlertResolveRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Resolve an intervention alert."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot resolve intervention alerts",
+        )
     success = _intervention_engine.resolve_alert(req.alert_id, req.resolution_note)
     return ApiResponse(ok=True, data={"alert_id": req.alert_id, "resolved": success})
 
 
 @router.get("/copilot/briefing", response_model=ApiResponse[Dict[str, Any]])
-async def get_copilot_briefing(student_id: Optional[str] = None):
+async def get_copilot_briefing(
+    student_id: Optional[str] = None,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Generate diagnostic AI Copilot briefing for a student or cohort."""
+    if current_user:
+        if current_user.role == UserRole.STUDENT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students cannot access teacher copilot briefing",
+            )
+        if current_user.role == UserRole.TEACHER and student_id:
+            db = get_db()
+            assigned = db.get_assigned_student_ids_for_teacher(current_user.id)
+            if assigned and student_id not in assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: student '{student_id}' is not assigned to this teacher",
+                )
+
     if student_id:
         resp = _copilot.query(f"What are the weaknesses of student {student_id}?")
     else:

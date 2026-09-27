@@ -1,13 +1,25 @@
-"""Gayatri AI Platform — Students API Endpoints (Phase 02)."""
+"""Gayatri AI Platform — Students API Endpoints (Phase 04).
+
+Master Plan Section 13:
+- Student learning profiles & diagnostics
+- Real-time telemetry snapshot submission
+- Authoritative Student Learning Record (SLR) summary
+- Strict student self-access & cross-student boundary enforcement
+"""
 from __future__ import annotations
 
-from typing import Any, Dict
-from fastapi import APIRouter, HTTPException, status
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, HTTPException, status
 from central_platform.api.schemas import (
     ApiResponse,
     StudentProfileResponse,
     StudentSnapshotRequest,
 )
+from central_platform.auth.dependencies import (
+    enforce_resource_boundaries,
+    get_current_user_optional,
+)
+from central_platform.models.schema import User, UserRole
 from central_platform.teacher.portal import TeacherPortalService
 
 router = APIRouter(prefix="/students", tags=["Students"])
@@ -19,8 +31,14 @@ except Exception:
 
 
 @router.get("/{student_id}", response_model=ApiResponse[StudentProfileResponse])
-async def get_student_profile(student_id: str):
+async def get_student_profile(
+    student_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Retrieve full student learning profile and active diagnostics."""
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=student_id)
+
     students = _portal_service.get_all_students("crs-chem-101")
     matched = next((s for s in students if s["student_id"] == student_id), None)
     if not matched:
@@ -60,8 +78,14 @@ async def get_student_profile(student_id: str):
 
 
 @router.post("/snapshot", response_model=ApiResponse[dict])
-async def update_student_snapshot(snapshot: StudentSnapshotRequest):
+async def update_student_snapshot(
+    snapshot: StudentSnapshotRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Push local student telemetry, mastery, and misconceptions to platform."""
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=snapshot.student_id)
+
     # Update central portal service roster
     _portal_service.update_student_snapshot(
         student_id=snapshot.student_id,
@@ -84,9 +108,15 @@ async def update_student_snapshot(snapshot: StudentSnapshotRequest):
 
 
 @router.get("/{student_id}/slr", response_model=ApiResponse[Dict[str, Any]])
-async def get_student_learning_record(student_id: str):
+async def get_student_learning_record(
+    student_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
     """Get canonical Student Learning Record (SLR) summary."""
-    profile = await get_student_profile(student_id)
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=student_id)
+
+    profile = await get_student_profile(student_id, current_user=current_user)
     return ApiResponse(
         ok=True,
         data={

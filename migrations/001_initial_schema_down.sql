@@ -32,6 +32,7 @@ DROP TABLE IF EXISTS courses;
 DROP TABLE IF EXISTS role_permissions;
 DROP TABLE IF EXISTS permissions;
 DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS user_credentials;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS organizations;
 DELETE FROM schema_migrations WHERE version = '001';

@@ -39,6 +39,18 @@ CREATE INDEX IF NOT EXISTS idx_users_org ON users(organization_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
+CREATE TABLE IF NOT EXISTS user_credentials (
+    user_id TEXT PRIMARY KEY,
+    password_hash TEXT NOT NULL,
+    salt_hex TEXT NOT NULL,
+    is_suspended INTEGER NOT NULL DEFAULT 0,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    password_reset_token TEXT,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_user_credentials_user ON user_credentials(user_id);
+
 CREATE TABLE IF NOT EXISTS roles (
     id TEXT PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,

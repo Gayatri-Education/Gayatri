@@ -18,6 +18,15 @@ class UserRole(str, Enum):
     TEACHER = "teacher"
     STUDENT = "student"
 
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
+
 
 class AlertSeverity(str, Enum):
     INFO = "info"

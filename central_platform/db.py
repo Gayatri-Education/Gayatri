@@ -14,8 +14,9 @@ import json
 import os
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
+
+from central_platform.rbac.engine import hash_password, verify_password
 
 from central_platform.models.schema import (
     AIExecutionLog,
@@ -231,6 +232,152 @@ class PlatformDatabase:
                 (now_iso, user_id),
             )
             return cursor.rowcount > 0
+
+    def get_user_by_email(self, email: str, include_deleted: bool = False) -> Optional[User]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM users WHERE email = ?"
+            if not include_deleted:
+                sql += " AND is_deleted = 0"
+            r = conn.execute(sql, (email.strip().lower(),)).fetchone()
+            if not r:
+                r = conn.execute(sql.replace("email = ?", "LOWER(email) = LOWER(?)"), (email.strip(),)).fetchone()
+            if r:
+                return User(
+                    id=r["id"],
+                    email=r["email"],
+                    full_name=r["full_name"],
+                    role=UserRole(r["role"]),
+                    organization_id=r["organization_id"],
+                    is_active=bool(r["is_active"]),
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                    is_deleted=bool(r["is_deleted"]),
+                    deleted_at=r["deleted_at"],
+                )
+            return None
+
+    def set_user_password(self, user_id: str, password: str) -> None:
+        """Hash and persist password with salt in user_credentials."""
+        password_hash, salt_hex = hash_password(password)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO user_credentials 
+                (user_id, password_hash, salt_hex, is_suspended, failed_login_attempts, password_reset_token, updated_at)
+                VALUES (?, ?, ?, 0, 0, NULL, ?);
+                """,
+                (user_id, password_hash, salt_hex, now_iso),
+            )
+
+    def get_user_credentials(self, user_id: str) -> Optional[Dict[str, Any]]:
+        with self._get_connection() as conn:
+            r = conn.execute(
+                "SELECT * FROM user_credentials WHERE user_id = ?;",
+                (user_id,),
+            ).fetchone()
+            if r:
+                return dict(r)
+            return None
+
+    def suspend_user(self, user_id: str) -> bool:
+        """Suspend user account to prevent login."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            c = conn.execute(
+                "UPDATE user_credentials SET is_suspended = 1, updated_at = ? WHERE user_id = ?;",
+                (now_iso, user_id),
+            )
+            return c.rowcount > 0
+
+    def unsuspend_user(self, user_id: str) -> bool:
+        """Unsuspend user account and clear failed login attempts."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            c = conn.execute(
+                "UPDATE user_credentials SET is_suspended = 0, failed_login_attempts = 0, updated_at = ? WHERE user_id = ?;",
+                (now_iso, user_id),
+            )
+            return c.rowcount > 0
+
+    def set_password_reset_token(self, email: str, token: str) -> bool:
+        """Set a one-time password reset token for the given email."""
+        user = self.get_user_by_email(email)
+        if not user:
+            return False
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            c = conn.execute(
+                "UPDATE user_credentials SET password_reset_token = ?, updated_at = ? WHERE user_id = ?;",
+                (token, now_iso, user.id),
+            )
+            return c.rowcount > 0
+
+    def reset_password_with_token(self, token: str, new_password: str) -> bool:
+        """Reset password using a valid one-time reset token."""
+        with self._get_connection() as conn:
+            r = conn.execute(
+                "SELECT user_id FROM user_credentials WHERE password_reset_token = ?;",
+                (token,),
+            ).fetchone()
+            if not r:
+                return False
+            user_id = r["user_id"]
+        self.set_user_password(user_id, new_password)
+        return True
+
+    def authenticate_user(self, email_or_identifier: str, password: str) -> Optional[User]:
+        """Authenticate user by email or user_id, checking password hash and account status."""
+        user = self.get_user_by_email(email_or_identifier)
+        if not user:
+            user = self.get_user(email_or_identifier)
+        if not user or not user.is_active or user.is_deleted:
+            return None
+
+        creds = self.get_user_credentials(user.id)
+        if not creds:
+            return None
+
+        if creds["is_suspended"]:
+            return None
+
+        if verify_password(password, creds["password_hash"], creds["salt_hex"]):
+            now_iso = datetime.now(timezone.utc).isoformat()
+            with self._get_connection() as conn:
+                conn.execute(
+                    "UPDATE user_credentials SET failed_login_attempts = 0, updated_at = ? WHERE user_id = ?;",
+                    (now_iso, user.id),
+                )
+            return user
+        else:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            with self._get_connection() as conn:
+                conn.execute(
+                    "UPDATE user_credentials SET failed_login_attempts = failed_login_attempts + 1, updated_at = ? WHERE user_id = ?;",
+                    (now_iso, user.id),
+                )
+            return None
+
+    def get_assigned_student_ids_for_teacher(self, teacher_id: str) -> Set[str]:
+        """Resolve all student IDs assigned to courses or class groups taught by the teacher."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT e.student_id 
+                FROM enrollments e
+                JOIN class_groups cg ON e.course_id = cg.course_id
+                WHERE e.is_active = 1;
+                """
+            ).fetchall()
+            student_ids = {r["student_id"] for r in rows}
+            t_rows = conn.execute(
+                "SELECT DISTINCT student_id FROM teacher_instructions WHERE teacher_id = ?;",
+                (teacher_id,),
+            ).fetchall()
+            for tr in t_rows:
+                if tr["student_id"] and tr["student_id"] != "all":
+                    student_ids.add(tr["student_id"])
+            return student_ids
 
     def create_role(self, role: Role) -> Role:
         with self._get_connection() as conn:

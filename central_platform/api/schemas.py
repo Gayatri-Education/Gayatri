@@ -56,12 +56,23 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
     expires_in: int = 3600
     user_id: str
     username: str
     role: str
     organization_id: str = "org-default"
+
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+    new_password: str = Field(..., min_length=4)
+    token: Optional[str] = None
 
 
 class UserResponse(BaseModel):

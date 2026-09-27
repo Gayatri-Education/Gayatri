@@ -93,21 +93,43 @@ def rollback_migration_file(conn: sqlite3.Connection, sql_path: Path, version: s
 def run_all_migrations(conn: sqlite3.Connection) -> List[str]:
     """Discover and apply all pending migrations in order."""
     applied_versions = []
-    # Currently migration 001
-    mig_001 = MIGRATIONS_DIR / "001_initial_schema.sql"
-    if mig_001.exists():
-        if apply_migration_file(conn, mig_001, "001", "Initial Authoritative Platform Schema"):
-            applied_versions.append("001")
+    if not MIGRATIONS_DIR.exists():
+        return applied_versions
+
+    forward_scripts = sorted([
+        f for f in MIGRATIONS_DIR.glob("*.sql")
+        if not f.name.endswith("_down.sql")
+    ])
+
+    for script in forward_scripts:
+        parts = script.name.split("_", 1)
+        version = parts[0]
+        if version == "001":
+            desc = "Initial Authoritative Platform Schema"
+        else:
+            desc = parts[1].replace(".sql", "").replace("_", " ").title() if len(parts) > 1 else f"Migration {version}"
+        if apply_migration_file(conn, script, version, desc):
+            applied_versions.append(version)
+
     return applied_versions
 
 
 def rollback_all_migrations(conn: sqlite3.Connection) -> List[str]:
     """Rollback migrations in reverse order."""
     rolled_back = []
-    down_001 = MIGRATIONS_DIR / "001_initial_schema_down.sql"
-    if down_001.exists():
-        if rollback_migration_file(conn, down_001, "001"):
-            rolled_back.append("001")
+    if not MIGRATIONS_DIR.exists():
+        return rolled_back
+
+    down_scripts = sorted([
+        f for f in MIGRATIONS_DIR.glob("*_down.sql")
+    ], reverse=True)
+
+    for script in down_scripts:
+        parts = script.name.split("_", 1)
+        version = parts[0]
+        if rollback_migration_file(conn, script, version):
+            rolled_back.append(version)
+
     return rolled_back
 
 

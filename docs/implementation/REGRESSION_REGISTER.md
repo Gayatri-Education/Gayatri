@@ -24,6 +24,7 @@ Core student tutor runtime, adaptive algorithms, BKT, LDG, assessment grading, a
 Central platform APIs, sync pipelines, database operations, auth & RBAC, server live synchronization, and teacher workflows.
 - `tests/test_phase02_platform_api.py`
 - `tests/test_phase03_postgresql_data_layer.py`
+- `tests/test_phase04_auth_rbac.py`
 - `tests/test_server_live_sync.py`
 - `tests/test_teacher_dashboard_bridge.py`
 - `tests/test_phase2_central_platform.py`
@@ -75,3 +76,6 @@ pytest -k "rag or slm or security"
 | 2026-09-26 | Pre-Phase 00 Baseline | FULL SUITE | 411 | 411 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
 | 2026-09-27 | Phase 00 Verification | FULL SUITE | 411 | 411 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
 | 2026-09-27 | Phase 01 Frozen Baseline | BENCHMARK + PYTEST | 455 | 455 | 0 | 0 | `scripts/run_frozen_baseline.py` (44/44) | PASSED |
+| 2026-09-27 | Phase 02 Platform API | FULL SUITE | 433 | 433 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
+| 2026-09-27 | Phase 03 PostgreSQL Data | FULL SUITE | 448 | 448 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
+| 2026-09-27 | Phase 04 Auth & RBAC | FULL SUITE | 465 | 465 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
