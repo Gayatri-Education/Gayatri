@@ -633,30 +633,107 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             payload_str = json.dumps(event.payload) if isinstance(event.payload, dict) else str(event.payload)
             conn.execute(
-                "INSERT OR REPLACE INTO learning_events (id, session_id, student_id, concept_id, event_type, payload, score, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?);",
-                (event.id, event.session_id, event.student_id, event.concept_id, event.event_type, payload_str, event.score, event.created_at),
+                """
+                INSERT OR IGNORE INTO learning_events 
+                (id, session_id, student_id, organization_id, course_id, concept_id, event_type, source, payload, score, schema_version, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    event.id,
+                    event.session_id,
+                    event.student_id,
+                    event.organization_id,
+                    event.course_id,
+                    event.concept_id or "",
+                    event.event_type,
+                    event.source or "student_desktop",
+                    payload_str,
+                    event.score,
+                    event.schema_version or "1.0.0",
+                    event.created_at,
+                ),
             )
         return event
+
+    def get_learning_event(self, event_id: str) -> Optional[LearningEvent]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM learning_events WHERE id = ?;", (event_id,)).fetchone()
+            if r:
+                return self._row_to_learning_event(r)
+            return None
 
     def get_learning_events_for_session(self, session_id: str) -> List[LearningEvent]:
         with self._get_connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM learning_events WHERE session_id = ? ORDER BY created_at ASC;",
+                "SELECT * FROM learning_events WHERE session_id = ? ORDER BY created_at ASC, id ASC;",
                 (session_id,),
             ).fetchall()
-            return [
-                LearningEvent(
-                    id=r["id"],
-                    session_id=r["session_id"],
-                    student_id=r["student_id"],
-                    concept_id=r["concept_id"],
-                    event_type=r["event_type"],
-                    payload=json.loads(r["payload"]) if r["payload"].startswith("{") else {},
-                    score=float(r["score"]) if r["score"] is not None else None,
-                    created_at=r["created_at"],
-                )
-                for r in rows
-            ]
+            return [self._row_to_learning_event(r) for r in rows]
+
+    def query_learning_events(
+        self,
+        student_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        course_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        event_type: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[LearningEvent]:
+        query = "SELECT * FROM learning_events WHERE 1=1"
+        params: List[Any] = []
+        if student_id:
+            query += " AND student_id = ?"
+            params.append(student_id)
+        if organization_id:
+            query += " AND organization_id = ?"
+            params.append(organization_id)
+        if course_id:
+            query += " AND course_id = ?"
+            params.append(course_id)
+        if session_id:
+            query += " AND session_id = ?"
+            params.append(session_id)
+        if event_type:
+            query += " AND event_type = ?"
+            params.append(event_type)
+        if since:
+            query += " AND created_at >= ?"
+            params.append(since)
+        if until:
+            query += " AND created_at <= ?"
+            params.append(until)
+        query += " ORDER BY created_at ASC, id ASC LIMIT ?;"
+        params.append(limit)
+
+        with self._get_connection() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+            return [self._row_to_learning_event(r) for r in rows]
+
+    def _row_to_learning_event(self, r: sqlite3.Row) -> LearningEvent:
+        keys = r.keys()
+        payload_data = {}
+        raw_payload = r["payload"]
+        if raw_payload and raw_payload.startswith("{"):
+            try:
+                payload_data = json.loads(raw_payload)
+            except Exception:
+                payload_data = {}
+        return LearningEvent(
+            id=r["id"],
+            session_id=r["session_id"],
+            student_id=r["student_id"],
+            concept_id=r["concept_id"] if "concept_id" in keys else "",
+            event_type=r["event_type"],
+            organization_id=r["organization_id"] if "organization_id" in keys else None,
+            course_id=r["course_id"] if "course_id" in keys else None,
+            source=r["source"] if "source" in keys and r["source"] else "student_desktop",
+            payload=payload_data,
+            score=float(r["score"]) if r["score"] is not None else None,
+            schema_version=r["schema_version"] if "schema_version" in keys and r["schema_version"] else "1.0.0",
+            created_at=r["created_at"],
+        )
 
     # ── 5. Student Learning Records & Mastery ────────────────────────────────
 

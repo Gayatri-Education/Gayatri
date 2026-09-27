@@ -213,16 +213,23 @@ CREATE TABLE IF NOT EXISTS learning_events (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     student_id TEXT NOT NULL,
-    concept_id TEXT NOT NULL,
+    organization_id TEXT,
+    course_id TEXT,
+    concept_id TEXT NOT NULL DEFAULT '',
     event_type TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'student_desktop',
     payload TEXT NOT NULL DEFAULT '{}',
     score REAL,
+    schema_version TEXT NOT NULL DEFAULT '1.0.0',
     created_at TEXT NOT NULL,
     FOREIGN KEY(session_id) REFERENCES sessions(id) ON DELETE CASCADE,
     FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_learning_events_session ON learning_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_learning_events_student ON learning_events(student_id);
+CREATE INDEX IF NOT EXISTS idx_learning_events_org ON learning_events(organization_id);
+CREATE INDEX IF NOT EXISTS idx_learning_events_type ON learning_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_learning_events_created ON learning_events(created_at);
 
 -- 5. Student Learning Records & Mastery
 CREATE TABLE IF NOT EXISTS student_learning_records (

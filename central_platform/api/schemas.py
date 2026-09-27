@@ -201,11 +201,18 @@ class LearningEventSchema(BaseModel):
     event_id: str
     student_id: str
     session_id: str
-    turn_id: str
-    concept_id: str
+    event_type: str = "question_attempted"
+    organization_id: str = "org-default"
+    course_id: str = "crs-chem-101"
+    source: str = "student_desktop"
+    payload: Dict[str, Any] = Field(default_factory=dict)
+    schema_version: str = "1.0.0"
+    turn_id: str = "turn-01"
+    concept_id: str = ""
     correctness: str = "correct"
     hint_used: int = 0
     difficulty: float = 0.5
+    score: Optional[float] = None
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     misconception_code: str = ""
 

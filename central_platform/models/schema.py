@@ -274,14 +274,24 @@ class LearningEvent:
     id: str
     session_id: str
     student_id: str
-    concept_id: str
-    event_type: str
+    concept_id: str = ""
+    event_type: str = "question_attempted"
+    organization_id: Optional[str] = None
+    course_id: Optional[str] = None
+    source: str = "student_desktop"
     payload: Dict[str, Any] = field(default_factory=dict)
     score: Optional[float] = None
+    schema_version: str = "1.0.0"
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+    @property
+    def event_id(self) -> str:
+        return self.id
+
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d["event_id"] = self.id
+        return d
 
 
 # ── 5. Student Learning Records & Mastery ────────────────────────────────

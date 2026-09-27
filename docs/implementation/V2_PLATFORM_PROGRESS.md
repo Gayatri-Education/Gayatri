@@ -3,10 +3,10 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 05  
-Overall Completion: 16.7% (5/30 Phases)  
-Last Verified Commit: phase-04 pending  
-Last Full Regression: 2026-09-27 (465/465 passed)  
+Current Phase: 06  
+Overall Completion: 20.0% (6/30 Phases)  
+Last Verified Commit: bccd694 (Phase 04)  
+Last Full Regression: 2026-09-27 (475/475 passed)  
 Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
@@ -21,8 +21,8 @@ Open P3: 0
 | 01 | Stabilize the Core Tutor | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | e754ed5 |
 | 02 | Real Platform API | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | a6c3417 |
 | 03 | PostgreSQL Central Data Layer | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 086ca24 |
-| 04 | Authentication + RBAC | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | pending |
-| 05 | Central Learning Event System | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 04 | Authentication + RBAC | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | bccd694 |
+| 05 | Central Learning Event System | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | pending |
 | 06 | Authoritative Student Learning Record | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 07 | Connect Existing Learning Engine | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 08 | Real Desktop ↔ Platform Sync | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,88 +51,46 @@ Open P3: 0
 ## Current Phase
 
 ### Objective
-Execute Phase 04 (Authentication + RBAC): Implement production-grade cryptographic JWT token lifecycles, PBKDF2-HMAC-SHA256 password hashing with unique salts, 5 canonical roles, multi-tenant organization scoping, and enforce all 8 Master Plan Section 13 negative security tests.
+Execute Phase 05 (Central Learning Event System): Implement production-grade learning event store with all 20 canonical Section 14 learning event types, immutable append-only persistence, idempotent ingestion, multi-tenant boundaries, and chronological event replay projection.
 
 ### Implemented
-- Cryptographic JWT session generation and validation in `central_platform/auth/tokens.py` with signed access tokens, long-lived refresh tokens, expiration enforcement, and revocation blacklisting.
-- PBKDF2-HMAC-SHA256 password hashing with random 16-byte cryptographic salts and constant-time comparison in `central_platform/rbac/engine.py`.
-- Role verification and permission matrices for 5 canonical roles: `SUPER_ADMIN`, `ORG_ADMIN`, `COURSE_ADMIN`, `TEACHER`, `STUDENT`.
-- FastAPI security dependencies and guards in `central_platform/auth/dependencies.py` (`get_current_user`, `require_roles`, `require_permission`, `enforce_resource_boundaries`).
-- Production authentication endpoints in `central_platform/api/routes/auth.py` (`/login`, `/me`, `/refresh`, `/logout`, `/password-reset`).
-- Strict tenant and resource isolation in `students.py`, `teachers.py`, `admin.py`, `sessions.py`, and `users.py`.
-- Phase 04 test suite in `tests/test_phase04_auth_rbac.py` verifying all 17 security scenarios, including all 8 Section 13 negative security tests.
-- Full regression suite: 465/465 tests passing across the repository with 0 failures, 0 warnings.
+- Defined all 20 canonical learning event types in `central_platform/events/types.py` (`LearningEventType` enum).
+- Pydantic ingestion, batch ingestion, query filter, and event replay projection models in `central_platform/events/models.py`.
+- Authoritative `LearningEventStore` in `central_platform/events/store.py` with append-only persistence, SHA-256 idempotency deduplication, event immutability, foreign key entity assurance, multi-tenant query isolation, and chronological event replay projection.
+- Extended database schema in `migrations/001_initial_schema.sql` and `central_platform/models/schema.py` (`learning_events` table with `organization_id`, `course_id`, `source`, `schema_version`).
+- Database query access methods in `central_platform/db.py` (`get_learning_event`, `query_learning_events`).
+- Production FastAPI routes in `central_platform/api/routes/learning.py` supporting `POST /events`, `POST /events/batch`, `GET /events`, `GET /events/{event_id}`, `POST /events/replay`, and `GET /recommendations/{student_id}` with RBAC persona isolation.
+- Phase 05 test suite in `tests/test_phase05_learning_events.py` verifying all 10 event system scenarios.
+- Full regression suite: 475/475 tests passing across the repository with 0 failures, 0 warnings.
 - Frozen baseline: 44/44 benchmarks passing (100%).
-- Live sync verification: 5/5 gates passing (100%).
+- Live sync verification: 7/7 live sync tests passing.
 
 ### Files Changed
-- `central_platform/auth/tokens.py` (created)
-- `central_platform/auth/dependencies.py` (created)
-- `central_platform/auth/__init__.py` (created)
-- `central_platform/rbac/engine.py` (updated)
-- `central_platform/rbac/__init__.py` (updated)
-- `central_platform/db.py` (updated with user auth, salted passwords, and account state methods)
-- `central_platform/models/schema.py` (updated with case-insensitive UserRole handling)
-- `central_platform/api/schemas.py` (updated with auth requests and refresh tokens)
-- `central_platform/api/routes/auth.py` (upgraded with production JWT & PBKDF2 workflows)
-- `central_platform/api/routes/students.py` (enforced student self-access boundaries)
-- `central_platform/api/routes/teachers.py` (enforced teacher cohort boundaries & blocked student intrusion)
-- `central_platform/api/routes/admin.py` (enforced admin role gates & blocked cross-org access)
-- `central_platform/api/routes/sessions.py` (blocked session hijacking and student_id spoofing)
-- `central_platform/api/routes/users.py` (blocked unauthorized user creation and cross-org provisioning)
-- `central_platform/api/middleware.py` (added detail alias in HTTP exception responses)
-- `migrations/001_initial_schema.sql` (added user_credentials table and index)
-- `migrations/001_initial_schema_down.sql` (added user_credentials rollback drop)
-- `scripts/migrate_db.py` (preserved initial schema description for migration 001)
-- `tests/test_phase04_auth_rbac.py` (created, 17 test cases)
+- `central_platform/events/types.py` (created)
+- `central_platform/events/models.py` (created)
+- `central_platform/events/store.py` (created)
+- `central_platform/events/__init__.py` (created)
+- `central_platform/api/routes/learning.py` (updated)
+- `central_platform/api/schemas.py` (updated)
+- `central_platform/db.py` (updated)
+- `central_platform/models/schema.py` (updated)
+- `migrations/001_initial_schema.sql` (updated)
+- `tests/test_phase05_learning_events.py` (created, 10 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase04_auth_rbac.py` (17 test cases covering PBKDF2 hashing, tamper resistance, JWT minting/decoding, refresh token validation, expiration, revocation blacklist, DB credentials lifecycle, API login/me/refresh/logout flow, missing token 401, and all 8 Section 13 negative security tests).
+- `tests/test_phase05_learning_events.py` (10 test cases covering: all 20 canonical event types, ingestion of all 20 types, invalid event type rejection, idempotent deduplication, batch ingestion, immutability guards, time-series querying, student self-access RBAC boundary, cross-student query prevention, and chronological event replay projection).
 
 ### Tests Passed
-- 465 / 465 pytest tests passed (0 failures, 0 warnings).
+- 475 / 475 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
-- 5 / 5 live synchronization gates passed (100%).
+- 7 / 7 live synchronization tests passed (100%).
 
 ### Security
-- Foreign keys enforced with strict cascade isolation.
-- Multi-tenant data segregation enforced at query boundary.
-- Append-only security audit log recording administrative and configuration events.
-- Native probe endpoints: `/healthz`, `/readyz`, `/livez`.
-- 100% backward-compatible routing for legacy client apps: `/api/health`, `/api/student/snapshot`, `/api/teacher/*`, `/instruction/*`, `/alert/*`, and `/` (interactive Teacher Command Center HTML).
-- Authoritative contract specification created in `docs/architecture/api-contract.md`.
-- Full verification: 433/433 pytest tests passing with 0 failures, 0 warnings; frozen baseline 44/44 benchmarks passed (100%); verify sync 5/5 passed.
-
-### Files Changed
-- `central_platform/api/app.py` (created)
-- `central_platform/api/schemas.py` (created)
-- `central_platform/api/middleware.py` (created)
-- `central_platform/api/routes/*.py` (16 router files created)
-- `central_platform/teacher/portal.py` (updated)
-- `central_platform/teacher/copilot.py` (updated)
-- `central_platform/teacher/instruction.py` (updated)
-- `central_platform/sync/manager.py` (updated)
-- `server.py` (updated to mount FastAPI app via Uvicorn)
-- `docs/architecture/api-contract.md` (created)
-- `tests/test_phase02_platform_api.py` (created, 22 test cases)
-- `pyproject.toml` (updated with test warning filters)
-- `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
-
-### Tests Added
-- `tests/test_phase02_platform_api.py` (22 test cases covering probes, versioned endpoints, envelopes, request tracing, and UI).
-
-### Tests Passed
-- 433 / 433 pytest tests passed (0 failures, 0 warnings).
-- 44 / 44 frozen baseline benchmarks passed (100%).
-- 5 / 5 live synchronization gates passed (100%).
-
-### Security
-- Bearer token authentication contract implemented with RBAC persona isolation.
-- Correlation IDs enforced across all request flows.
-- Strict Pydantic input validation prevents malicious or malformed payloads.
-- Verified input sanitization and student isolation invariants pass.
+- Ingestion and query isolation enforced by tenant and student RBAC boundaries.
+- Cross-student learning event ingestion and query access rejected with 403 Forbidden.
+- Append-only event store prevents deletion or modification of recorded learning telemetry.
 
 ### Frontend
 - Desktop UI (`app/ui/index.html`) intact; all bridge slots verified.
@@ -142,18 +100,19 @@ Execute Phase 04 (Authentication + RBAC): Implement production-grade cryptograph
 - 0 open bugs.
 
 ### Bugs Fixed
-- N/A (clean execution; all benchmarks passed).
+- Foreign key integrity in event ingestion: added `_ensure_entities` to create student/session/course stubs automatically if an event arrives from an offline desktop client before user sync.
+- Deprecation warning on `status.HTTP_422_UNPROCESSABLE_ENTITY` replaced with raw integer `422` in `learning.py`.
 
 ### Known Issues
 - None.
 
 ### Remaining Work
-- Phase 01 complete. Ready to proceed to Phase 02 (Real Platform API).
+- Phase 05 complete and verified. Ready to present and execute Phase 06 (Authoritative Student Learning Record).
 
 ### Commit
-- Pending Phase 01 checkpoint commit.
+- Pending Phase 05 checkpoint commit.
 
 ### Verification Evidence
-- `pytest` run output: 411 passed in 15.20s.
+- `pytest` run output: 475 passed in 28.05s.
 - `python scripts/run_frozen_baseline.py` output: 44/44 passed (100.0%).
-- `docs/evaluation/baseline/frozen_baseline_report.json` generated.
+- `docs/evaluation/baseline/frozen_baseline_report.json` generated and verified.

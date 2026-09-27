@@ -1,0 +1,281 @@
+"""Authoritative Learning Event Store and Replay Projection Engine (Phase 05).
+
+Master Plan Section 14:
+- Append-only immutable persistence
+- Idempotent ingestion and deduplication by event_id
+- Multi-tenant and student-scoped time-series querying
+- Chronological event replay projection for mastery, misconceptions, and hints
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+from central_platform.db import PlatformDatabase
+from central_platform.events.models import (
+    BatchLearningEventIngest,
+    LearningEventFilter,
+    LearningEventIngest,
+    ReplayProjectionResult,
+)
+from central_platform.events.types import LearningEventType
+from central_platform.models.schema import (
+    Course,
+    LearningEvent,
+    Organization,
+    Session,
+    SessionStatus,
+    User,
+    UserRole,
+)
+
+
+class LearningEventStore:
+    """Authoritative event store managing immutable learning events and state projection."""
+
+    def __init__(self, db: Optional[PlatformDatabase] = None):
+        self.db = db or PlatformDatabase()
+
+    def _ensure_entities(
+        self,
+        student_id: str,
+        session_id: str,
+        organization_id: Optional[str] = None,
+        course_id: Optional[str] = None,
+    ) -> None:
+        """Ensure parent foreign key entities exist before appending event."""
+        org_id = organization_id or "org-default"
+        try:
+            if not self.db.get_organization(org_id):
+                self.db.create_organization(Organization(id=org_id, name="Default Organization", slug=f"slug-{org_id}"))
+        except Exception:
+            pass
+
+        try:
+            if not self.db.get_user(student_id):
+                self.db.create_user(
+                    User(
+                        id=student_id,
+                        email=f"{student_id}@student.gayatri.ai",
+                        full_name=student_id,
+                        role=UserRole.STUDENT,
+                        organization_id=org_id,
+                    )
+                )
+        except Exception:
+            pass
+
+        c_id = course_id or "crs-chem-101"
+        try:
+            if not self.db.get_course(c_id):
+                self.db.create_course(
+                    Course(
+                        id=c_id,
+                        organization_id=org_id,
+                        code="CHEM101",
+                        title="Chemistry",
+                    )
+                )
+        except Exception:
+            pass
+
+        try:
+            if not self.db.get_session(session_id):
+                self.db.create_session(
+                    Session(
+                        id=session_id,
+                        student_id=student_id,
+                        course_id=c_id,
+                        concept_id="",
+                        status=SessionStatus.ACTIVE,
+                    )
+                )
+        except Exception:
+            pass
+
+    def ingest_event(self, req: LearningEventIngest) -> Tuple[LearningEvent, bool]:
+        """Ingest a single learning event with idempotent deduplication by event_id.
+        
+        Returns:
+            Tuple[LearningEvent, bool]: (event, was_inserted). was_inserted is False if deduplicated.
+        """
+        existing = self.db.get_learning_event(req.event_id)
+        if existing is not None:
+            # Idempotent deduplication: event already stored
+            return existing, False
+
+        # Ensure parent entities for relational foreign key constraints
+        self._ensure_entities(
+            student_id=req.student_id,
+            session_id=req.session_id,
+            organization_id=req.organization_id,
+            course_id=req.course_id,
+        )
+
+        # Extract score or concept from root or payload
+        score_val = req.score if req.score is not None else req.payload.get("score")
+        if score_val is not None:
+            try:
+                score_val = float(score_val)
+            except (ValueError, TypeError):
+                score_val = None
+
+        concept_id_val = req.concept_id or req.payload.get("concept_id") or ""
+        event_type_str = req.event_type.value if isinstance(req.event_type, LearningEventType) else str(req.event_type)
+
+        event = LearningEvent(
+            id=req.event_id,
+            session_id=req.session_id,
+            student_id=req.student_id,
+            concept_id=concept_id_val,
+            event_type=event_type_str,
+            organization_id=req.organization_id,
+            course_id=req.course_id,
+            source=req.source,
+            payload=dict(req.payload),
+            score=score_val,
+            schema_version=req.schema_version,
+            created_at=req.timestamp,
+        )
+        self.db.record_learning_event(event)
+        return event, True
+
+    def ingest_batch(self, batch: BatchLearningEventIngest) -> Dict[str, Any]:
+        """Ingest a collection of events idempotently."""
+        total = len(batch.events)
+        inserted = 0
+        deduplicated = 0
+        results = []
+
+        for req in batch.events:
+            event, was_new = self.ingest_event(req)
+            if was_new:
+                inserted += 1
+            else:
+                deduplicated += 1
+            results.append({"event_id": event.id, "status": "RECORDED" if was_new else "DEDUPLICATED"})
+
+        return {
+            "total": total,
+            "inserted": inserted,
+            "deduplicated": deduplicated,
+            "events": results,
+        }
+
+    def get_event(self, event_id: str) -> Optional[LearningEvent]:
+        """Retrieve individual event by unique identifier."""
+        return self.db.get_learning_event(event_id)
+
+    def query_events(self, filter_params: LearningEventFilter) -> List[LearningEvent]:
+        """Query learning events using filters with chronological ordering."""
+        return self.db.query_learning_events(
+            student_id=filter_params.student_id,
+            organization_id=filter_params.organization_id,
+            course_id=filter_params.course_id,
+            session_id=filter_params.session_id,
+            event_type=filter_params.event_type,
+            since=filter_params.since,
+            until=filter_params.until,
+            limit=filter_params.limit,
+        )
+
+    def update_event(self, event_id: str, updates: Dict[str, Any]) -> None:
+        """Infallible immutability guard: updates are strictly forbidden."""
+        raise PermissionError("Learning events are immutable and cannot be updated.")
+
+    def delete_event(self, event_id: str) -> None:
+        """Infallible immutability guard: deletions are strictly forbidden."""
+        raise PermissionError("Learning events are immutable and cannot be deleted.")
+
+    def replay_events(
+        self,
+        student_id: str,
+        organization_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> ReplayProjectionResult:
+        """Chronologically replay the complete event stream to project student state."""
+        events = self.db.query_learning_events(
+            student_id=student_id,
+            organization_id=organization_id,
+            session_id=session_id,
+            limit=5000,
+        )
+
+        total_events = len(events)
+        current_mastery = 0.50  # Baseline neutral prior
+        concepts_introduced: Set[str] = set()
+        concepts_mastered: Set[str] = set()
+        active_misconceptions: Set[str] = set()
+        recovered_misconceptions: Set[str] = set()
+        questions_attempted = 0
+        questions_correct = 0
+        hints_used = 0
+        teacher_instructions_count = 0
+        last_timestamp = None
+
+        for ev in events:
+            last_timestamp = ev.created_at
+            etype = ev.event_type.lower()
+            p = ev.payload or {}
+
+            # Concept trajectory
+            if ev.concept_id:
+                if etype in ("concept_introduced", "concept_reinforced", "question_attempted"):
+                    concepts_introduced.add(ev.concept_id)
+                if etype == "concept_mastered":
+                    concepts_mastered.add(ev.concept_id)
+
+            # Questions & Answers
+            if etype in ("question_attempted",):
+                questions_attempted += 1
+
+            if etype in ("answer_submitted", "answer_corrected"):
+                correctness = str(p.get("correctness", "")).lower()
+                is_correct = correctness == "correct" or (ev.score is not None and ev.score >= 0.7)
+                if is_correct:
+                    questions_correct += 1
+                    # Incremental BKT-style mastery gain
+                    current_mastery = min(1.0, current_mastery + 0.05)
+                else:
+                    current_mastery = max(0.05, current_mastery - 0.03)
+
+            # Hints
+            if etype in ("hint_requested", "hint_used"):
+                hints_used += 1
+                current_mastery = max(0.05, current_mastery - 0.01)
+
+            # Misconceptions
+            if etype == "misconception_detected":
+                misc_code = p.get("misconception_code") or ev.concept_id
+                if misc_code:
+                    active_misconceptions.add(misc_code)
+                    current_mastery = max(0.05, current_mastery - 0.04)
+
+            if etype == "misconception_recovered":
+                misc_code = p.get("misconception_code") or ev.concept_id
+                if misc_code:
+                    active_misconceptions.discard(misc_code)
+                    recovered_misconceptions.add(misc_code)
+                    current_mastery = min(1.0, current_mastery + 0.06)
+
+            # Directives
+            if etype in ("teacher_instruction_created", "teacher_intervention_created"):
+                teacher_instructions_count += 1
+
+        resolved_org = organization_id or (events[0].organization_id if events and events[0].organization_id else "org-default")
+
+        return ReplayProjectionResult(
+            student_id=student_id,
+            organization_id=resolved_org,
+            total_events=total_events,
+            current_mastery=round(current_mastery, 4),
+            concepts_introduced=sorted(list(concepts_introduced)),
+            concepts_mastered=sorted(list(concepts_mastered)),
+            active_misconceptions=sorted(list(active_misconceptions)),
+            recovered_misconceptions=sorted(list(recovered_misconceptions)),
+            questions_attempted=questions_attempted,
+            questions_correct=questions_correct,
+            hints_used=hints_used,
+            teacher_instructions_count=teacher_instructions_count,
+            last_event_timestamp=last_timestamp,
+        )
