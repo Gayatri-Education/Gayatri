@@ -23,6 +23,7 @@ Core student tutor runtime, adaptive algorithms, BKT, LDG, assessment grading, a
 ### 1.2 `PLATFORM_REGRESSION`
 Central platform APIs, sync pipelines, database operations, auth & RBAC, server live synchronization, and teacher workflows.
 - `tests/test_phase02_platform_api.py`
+- `tests/test_phase03_postgresql_data_layer.py`
 - `tests/test_server_live_sync.py`
 - `tests/test_teacher_dashboard_bridge.py`
 - `tests/test_phase2_central_platform.py`

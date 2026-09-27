@@ -1,0 +1,37 @@
+-- Gayatri AI Central Platform — Production DDL Rollback 001
+-- Safe Reverse Migration for 001_initial_schema.sql
+
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS ai_execution_logs;
+DROP TABLE IF EXISTS ai_models;
+DROP TABLE IF EXISTS ai_providers;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS assignments;
+DROP TABLE IF EXISTS interventions;
+DROP TABLE IF EXISTS teacher_instructions;
+DROP TABLE IF EXISTS assessment_attempts;
+DROP TABLE IF EXISTS assessment_items;
+DROP TABLE IF EXISTS assessments;
+DROP TABLE IF EXISTS student_misconceptions;
+DROP TABLE IF EXISTS misconceptions;
+DROP TABLE IF EXISTS mastery_states;
+DROP TABLE IF EXISTS student_learning_records;
+DROP TABLE IF EXISTS learning_events;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS cohorts;
+DROP TABLE IF EXISTS class_groups;
+DROP TABLE IF EXISTS prerequisites;
+DROP TABLE IF EXISTS concepts;
+DROP TABLE IF EXISTS topics;
+DROP TABLE IF EXISTS modules;
+DROP TABLE IF EXISTS curriculum_versions;
+DROP TABLE IF EXISTS curricula;
+DROP TABLE IF EXISTS subjects;
+DROP TABLE IF EXISTS courses;
+DROP TABLE IF EXISTS role_permissions;
+DROP TABLE IF EXISTS permissions;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS organizations;
+DELETE FROM schema_migrations WHERE version = '001';

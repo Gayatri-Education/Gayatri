@@ -35,7 +35,7 @@ data/*.db
 data/**/*.db
 data/uploads/
 logs/
-models/
+/models/
 *.db
 *.sqlite
 *.sqlite3
