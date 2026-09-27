@@ -21,6 +21,13 @@ from central_platform.api.schemas import (
     TeacherInstructionUpdateRequest,
     TeacherInstructionValidateRequest,
     TeacherInstructionValidateResponse,
+    TeacherInterventionCreateRequest,
+    TeacherInterventionDismissRequest,
+    TeacherInterventionEvaluateRequest,
+    TeacherInterventionNoteRequest,
+    TeacherInterventionResolveRequest,
+    TeacherInterventionResponse,
+    TeacherInterventionUpdateRequest,
 )
 from central_platform.auth.dependencies import (
     enforce_resource_boundaries,
@@ -37,7 +44,13 @@ from central_platform.teacher.instruction import (
     TeacherInstructionValidator,
 )
 from central_platform.teacher.intervention import (
+    AlertSeverity,
+    AlertStatus,
+    InterventionPriority,
+    InterventionStatus,
+    InterventionTriggerType,
     TeacherAlert,
+    TeacherIntervention,
     TeacherInterventionEngine,
 )
 from central_platform.teacher.copilot import TeacherCopilot
@@ -333,6 +346,234 @@ async def resolve_alert(
     return ApiResponse(ok=True, data={"alert_id": req.alert_id, "resolved": success})
 
 
+# ── Teacher Intervention Endpoints (Section 21) ─────────────────────────
+
+def _to_intervention_response(itv: TeacherIntervention) -> TeacherInterventionResponse:
+    return TeacherInterventionResponse(
+        intervention_id=itv.intervention_id,
+        student_id=itv.student_id,
+        course_id=itv.course_id,
+        reason=itv.reason,
+        priority=itv.priority,
+        assigned_teacher=itv.assigned_teacher,
+        trigger_type=itv.trigger_type,
+        trigger_evidence=itv.trigger_evidence,
+        created_at=itv.created_at,
+        due_at=itv.due_at,
+        status=itv.status,
+        resolution=itv.resolution,
+        teacher_notes=itv.teacher_notes,
+        audit_trail=itv.audit_trail,
+        resolved_at=itv.resolved_at,
+        resolved_by=itv.resolved_by,
+        dismissed_at=itv.dismissed_at,
+        dismissed_by=itv.dismissed_by,
+        dismissal_reason=itv.dismissal_reason,
+    )
+
+
+@router.post("/interventions", response_model=ApiResponse[TeacherInterventionResponse], status_code=status.HTTP_201_CREATED)
+async def create_intervention(
+    req: TeacherInterventionCreateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Create a new teacher intervention."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot create interventions",
+        )
+    teacher_id = current_user.id if current_user else (req.assigned_teacher or "tchr-101")
+    itv_id = f"itv-{uuid.uuid4().hex[:6]}"
+    itv = TeacherIntervention(
+        intervention_id=itv_id,
+        student_id=req.student_id,
+        course_id=req.course_id,
+        reason=req.reason,
+        priority=req.priority.upper(),
+        assigned_teacher=teacher_id,
+        trigger_type=req.trigger_type,
+        trigger_evidence=req.trigger_evidence,
+        due_at=req.due_at,
+        status=InterventionStatus.OPEN.value,
+    )
+    try:
+        _intervention_engine.create_intervention(itv, actor_id=teacher_id)
+    except ValueError as err:
+        raise HTTPException(status_code=422, detail=str(err))
+
+    return ApiResponse(ok=True, data=_to_intervention_response(itv))
+
+
+@router.get("/interventions", response_model=ApiResponse[List[TeacherInterventionResponse]])
+async def get_interventions(
+    course_id: Optional[str] = Query(default=None),
+    student_id: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None),
+    priority: Optional[str] = Query(default=None),
+    assigned_teacher: Optional[str] = Query(default=None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """List teacher interventions matching query criteria."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        if student_id and student_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students can only view their own interventions",
+            )
+        student_id = current_user.id
+
+    itvs = _intervention_engine.get_interventions(
+        course_id=course_id,
+        student_id=student_id,
+        status=status,
+        priority=priority,
+        assigned_teacher=assigned_teacher,
+    )
+    return ApiResponse(ok=True, data=[_to_intervention_response(i) for i in itvs])
+
+
+@router.get("/interventions/{intervention_id}", response_model=ApiResponse[TeacherInterventionResponse])
+async def get_intervention_by_id(
+    intervention_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve full intervention profile with notes and audit trail."""
+    itv = _intervention_engine.get_intervention(intervention_id)
+    if not itv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention not found")
+    if current_user and current_user.role == UserRole.STUDENT:
+        if itv.student_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students cannot view other students' interventions",
+            )
+    return ApiResponse(ok=True, data=_to_intervention_response(itv))
+
+
+@router.patch("/interventions/{intervention_id}", response_model=ApiResponse[TeacherInterventionResponse])
+async def update_intervention(
+    intervention_id: str,
+    req: TeacherInterventionUpdateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Update priority, due date, status, or assigned teacher on an intervention."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot update interventions",
+        )
+    actor_id = current_user.id if current_user else "teacher"
+    itv = _intervention_engine.get_intervention(intervention_id)
+    if not itv:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention not found")
+
+    if req.status:
+        try:
+            _intervention_engine.transition_intervention_status(intervention_id, req.status.upper(), actor_id=actor_id)
+        except ValueError as err:
+            raise HTTPException(status_code=422, detail=str(err))
+    if req.priority:
+        itv.priority = req.priority.upper()
+    if req.due_at is not None:
+        itv.due_at = req.due_at
+    if req.assigned_teacher is not None:
+        itv.assigned_teacher = req.assigned_teacher
+
+    return ApiResponse(ok=True, data=_to_intervention_response(itv))
+
+
+@router.post("/interventions/{intervention_id}/notes", response_model=ApiResponse[TeacherInterventionResponse])
+async def add_intervention_note(
+    intervention_id: str,
+    req: TeacherInterventionNoteRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Append a pedagogical note to an intervention."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot add teacher notes",
+        )
+    actor_id = current_user.id if current_user else "teacher"
+    updated = _intervention_engine.add_note(intervention_id, author_id=actor_id, text=req.text)
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention not found")
+    return ApiResponse(ok=True, data=_to_intervention_response(updated))
+
+
+@router.post("/interventions/{intervention_id}/resolve", response_model=ApiResponse[TeacherInterventionResponse])
+async def resolve_intervention(
+    intervention_id: str,
+    req: TeacherInterventionResolveRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Formally resolve an intervention with mandatory resolution note."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot resolve interventions",
+        )
+    actor_id = current_user.id if current_user else "teacher"
+    try:
+        updated = _intervention_engine.resolve_intervention(intervention_id, actor_id=actor_id, resolution_note=req.resolution_note)
+    except ValueError as err:
+        raise HTTPException(status_code=422, detail=str(err))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention not found")
+    return ApiResponse(ok=True, data=_to_intervention_response(updated))
+
+
+@router.post("/interventions/{intervention_id}/dismiss", response_model=ApiResponse[TeacherInterventionResponse])
+async def dismiss_intervention(
+    intervention_id: str,
+    req: TeacherInterventionDismissRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Dismiss an intervention with mandatory justification reason."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot dismiss interventions",
+        )
+    actor_id = current_user.id if current_user else "teacher"
+    try:
+        updated = _intervention_engine.dismiss_intervention(intervention_id, actor_id=actor_id, reason=req.reason)
+    except ValueError as err:
+        raise HTTPException(status_code=422, detail=str(err))
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention not found")
+    return ApiResponse(ok=True, data=_to_intervention_response(updated))
+
+
+@router.post("/interventions/evaluate", response_model=ApiResponse[List[TeacherInterventionResponse]])
+async def evaluate_interventions(
+    req: TeacherInterventionEvaluateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Evaluate SLR data and events to trigger interventions with concrete evidence."""
+    if current_user and current_user.role == UserRole.STUDENT:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: students cannot evaluate interventions",
+        )
+    slr = _slr_service.get_slr(req.student_id, req.course_id)
+    events = []
+    try:
+        from central_platform.events.store import LearningEventStore
+        store = LearningEventStore(db=get_db())
+        events = store.get_events_for_student(req.student_id, course_id=req.course_id)
+    except Exception:
+        pass
+    generated = _intervention_engine.evaluate_triggers_for_student(
+        student_id=req.student_id,
+        course_id=req.course_id,
+        slr=slr,
+        recent_events=events,
+    )
+    return ApiResponse(ok=True, data=[_to_intervention_response(i) for i in generated])
+
+
 @router.get("/copilot/briefing", response_model=ApiResponse[Dict[str, Any]])
 async def get_copilot_briefing(
     student_id: Optional[str] = None,
@@ -478,6 +719,9 @@ async def get_teacher_student_interventions(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    itvs = _intervention_engine.get_interventions(course_id=course_id, student_id=student_id)
+    if itvs:
+        return ApiResponse(ok=True, data=[i.to_dict() for i in itvs])
     return ApiResponse(ok=True, data=detail.data.get("interventions", []))
 
 
@@ -537,5 +781,19 @@ async def get_teacher_alerts(
             detail="Forbidden: students cannot access teacher alerts",
         )
     alerts = _intervention_engine.get_all_alerts(course_id=course_id)
-    return ApiResponse(ok=True, data=[a.to_dict() for a in alerts])
+    itvs = _intervention_engine.get_interventions(course_id=course_id)
+    combined = [a.to_dict() for a in alerts] + [
+        {
+            "alert_id": i.intervention_id,
+            "student_id": i.student_id,
+            "course_id": i.course_id,
+            "alert_type": i.trigger_type,
+            "severity": i.priority.lower(),
+            "message": i.reason,
+            "status": i.status.lower(),
+            "created_at": i.created_at,
+        }
+        for i in itvs
+    ]
+    return ApiResponse(ok=True, data=combined)
 

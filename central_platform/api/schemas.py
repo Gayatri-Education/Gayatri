@@ -181,6 +181,65 @@ class AlertResolveRequest(BaseModel):
     resolution_note: str = Field(default="Resolved by teacher directive")
 
 
+# ── Teacher Interventions (Section 21) ──────────────────────────────────
+
+class TeacherInterventionCreateRequest(BaseModel):
+    student_id: str
+    course_id: str = Field(default="crs-chem-101")
+    reason: str = Field(..., min_length=5)
+    priority: str = Field(default="MEDIUM")
+    assigned_teacher: Optional[str] = None
+    due_at: Optional[str] = None
+    trigger_type: str = Field(default="teacher_created")
+    trigger_evidence: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TeacherInterventionResponse(BaseModel):
+    intervention_id: str
+    student_id: str
+    course_id: str
+    reason: str
+    priority: str
+    assigned_teacher: Optional[str] = None
+    trigger_type: str
+    trigger_evidence: Dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+    due_at: Optional[str] = None
+    status: str
+    resolution: Optional[str] = None
+    teacher_notes: List[Dict[str, Any]] = Field(default_factory=list)
+    audit_trail: List[Dict[str, Any]] = Field(default_factory=list)
+    resolved_at: Optional[str] = None
+    resolved_by: Optional[str] = None
+    dismissed_at: Optional[str] = None
+    dismissed_by: Optional[str] = None
+    dismissal_reason: Optional[str] = None
+
+
+class TeacherInterventionUpdateRequest(BaseModel):
+    priority: Optional[str] = None
+    due_at: Optional[str] = None
+    assigned_teacher: Optional[str] = None
+    status: Optional[str] = None
+
+
+class TeacherInterventionNoteRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+
+
+class TeacherInterventionResolveRequest(BaseModel):
+    resolution_note: str = Field(..., min_length=3)
+
+
+class TeacherInterventionDismissRequest(BaseModel):
+    reason: str = Field(..., min_length=3)
+
+
+class TeacherInterventionEvaluateRequest(BaseModel):
+    student_id: str
+    course_id: str = Field(default="crs-chem-101")
+
+
 class TeacherDashboardResponse(BaseModel):
     total_students: int
     active_today: int

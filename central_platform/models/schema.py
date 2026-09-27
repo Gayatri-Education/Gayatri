@@ -424,6 +424,19 @@ class InterventionRecord:
     alert_type: str = "learning_gap"
     message: str = ""
     status: AlertStatus = AlertStatus.ACTIVE
+    reason: str = ""
+    priority: str = "MEDIUM"
+    assigned_teacher: Optional[str] = None
+    due_at: Optional[str] = None
+    resolution: Optional[str] = None
+    teacher_notes: List[dict] = field(default_factory=list)
+    trigger_type: str = "teacher_created"
+    trigger_evidence: dict = field(default_factory=dict)
+    audit_trail: List[dict] = field(default_factory=list)
+    resolved_by: Optional[str] = None
+    dismissed_at: Optional[str] = None
+    dismissed_by: Optional[str] = None
+    dismissal_reason: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     resolved_at: Optional[str] = None
 

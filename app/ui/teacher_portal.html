@@ -959,12 +959,79 @@
             `;
           } else if (subView === 'interventions') {
             container.innerHTML = `
-              <h4 style="color:var(--text-bright); margin-bottom:12px;">Pedagogical Interventions</h4>
-              ${(stu.interventions || []).map(iv => `
-                <div style="padding:8px 0; border-bottom:1px solid var(--card-border); font-size:12px;">
-                  <strong>${iv.intervention_type || 'Intervention'}</strong>: ${iv.reason || 'Targeted assistance'}
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h4 style="color:var(--text-bright); margin:0;">Pedagogical Interventions & Escalations</h4>
+                <span class="portal-badge badge-info" style="font-size:10px;">Section 21 Verified</span>
+              </div>
+              <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">
+                Multi-status educator interventions tracked with concrete SLR evidence across 5 lifecycle stages: OPEN, ACKNOWLEDGED, IN_PROGRESS, RESOLVED, DISMISSED.
+              </p>
+              <div style="background:rgba(255,255,255,0.02); border:1px solid var(--card-border); padding:12px; border-radius:8px; margin-bottom:16px;">
+                <div style="display:flex; gap:8px; margin-bottom:8px;">
+                  <input type="text" id="newInterventionReason" placeholder="Describe the learning obstacle or intervention rationale..." style="flex:1; background:#0f0f23; border:1px solid var(--card-border); color:white; padding:8px 10px; border-radius:6px; font-size:12px;" />
                 </div>
-              `).join('') || '<div style="font-size:12px; color:var(--text-muted);">No interventions applied.</div>'}
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:11px;">
+                  <div>
+                    <label style="color:var(--text-muted); margin-right:4px;">Priority:</label>
+                    <select id="newInterventionPriority" style="background:#0f0f23; border:1px solid var(--card-border); color:white; padding:4px 8px; border-radius:4px; font-size:11px;">
+                      <option value="CRITICAL">Critical</option>
+                      <option value="HIGH">High</option>
+                      <option value="MEDIUM" selected>Medium</option>
+                      <option value="LOW">Low</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="color:var(--text-muted); margin-right:4px;">Due In:</label>
+                    <select id="newInterventionDue" style="background:#0f0f23; border:1px solid var(--card-border); color:white; padding:4px 8px; border-radius:4px; font-size:11px;">
+                      <option value="1d">24 Hours</option>
+                      <option value="3d" selected>3 Days</option>
+                      <option value="7d">7 Days</option>
+                    </select>
+                  </div>
+                  <button class="portal-btn" style="margin-left:auto; padding:6px 14px; font-size:11px;" onclick="TeacherApp.submitIntervention('${studentId}')">Create Intervention</button>
+                </div>
+              </div>
+              <div id="interventionsList">
+                ${(stu.interventions || []).map(iv => {
+                  const priColor = iv.priority === 'CRITICAL' ? 'var(--accent-red)' : (iv.priority === 'HIGH' ? 'var(--accent-rose)' : 'var(--accent-yellow)');
+                  const isClosed = iv.status === 'RESOLVED' || iv.status === 'DISMISSED';
+                  return `
+                    <div style="padding:10px; background:rgba(255,255,255,0.02); border-left:3px solid ${isClosed ? 'var(--accent-green)' : priColor}; border-radius:0 6px 6px 0; margin-bottom:8px; font-size:12px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <div style="display:flex; gap:6px; align-items:center;">
+                          <span class="portal-badge" style="background:rgba(255,255,255,0.05); color:${priColor}; font-size:10px;">${iv.priority || 'MEDIUM'}</span>
+                          <span class="portal-badge ${isClosed ? 'badge-good' : 'badge-warning'}" style="font-size:10px;">${iv.status || 'OPEN'}</span>
+                          <span class="portal-badge badge-neutral" style="font-size:10px;">${iv.trigger_type || 'teacher_created'}</span>
+                        </div>
+                        ${!isClosed ? `
+                          <div style="display:flex; gap:6px;">
+                            ${iv.status === 'OPEN' ? `
+                              <button style="background:none; border:none; color:var(--accent-cyan); cursor:pointer; font-size:11px; text-decoration:underline;" onclick="TeacherApp.transitionIntervention('${iv.intervention_id || iv.id}', 'ACKNOWLEDGED', '${studentId}')">Acknowledge</button>
+                            ` : ''}
+                            ${iv.status === 'ACKNOWLEDGED' ? `
+                              <button style="background:none; border:none; color:var(--accent-blue); cursor:pointer; font-size:11px; text-decoration:underline;" onclick="TeacherApp.transitionIntervention('${iv.intervention_id || iv.id}', 'IN_PROGRESS', '${studentId}')">Start Work</button>
+                            ` : ''}
+                            <button style="background:none; border:none; color:var(--accent-green); cursor:pointer; font-size:11px; text-decoration:underline;" onclick="TeacherApp.resolveInterventionModal('${iv.intervention_id || iv.id}', '${studentId}')">Resolve</button>
+                            <button style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:11px; text-decoration:underline;" onclick="TeacherApp.dismissInterventionModal('${iv.intervention_id || iv.id}', '${studentId}')">Dismiss</button>
+                          </div>
+                        ` : ''}
+                      </div>
+                      <div style="color:var(--text-bright); margin-bottom:4px;">
+                        <strong>Reason:</strong> ${iv.reason || iv.message || 'Targeted pedagogical assistance required'}
+                      </div>
+                      ${iv.resolution ? `
+                        <div style="color:var(--accent-green); font-size:11px; margin-bottom:4px;">
+                          <strong>Resolution:</strong> ${iv.resolution}
+                        </div>
+                      ` : ''}
+                      <div style="font-size:10px; color:var(--text-muted); display:flex; justify-content:space-between;">
+                        <span>Created: ${iv.created_at ? iv.created_at.substring(0, 16).replace('T', ' ') : 'N/A'}</span>
+                        <span>Due: ${iv.due_at ? iv.due_at.substring(0, 10) : 'Open'}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('') || '<div style="font-size:12px; color:var(--text-muted); padding:12px; text-align:center;">No interventions recorded for this student.</div>'}
+              </div>
             `;
           } else if (subView === 'instructions') {
             container.innerHTML = `
@@ -1117,6 +1184,102 @@
           this.renderStudentDetail(studentId, 'instructions');
         } catch (e) {
           alert(`Failed to revoke instruction: ${e.message}`);
+        }
+      },
+
+      async submitIntervention(studentId) {
+        const input = document.getElementById('newInterventionReason');
+        const priEl = document.getElementById('newInterventionPriority');
+        const dueEl = document.getElementById('newInterventionDue');
+        const reason = input ? input.value.trim() : '';
+        if (!reason) return;
+
+        let dueAt = null;
+        if (dueEl && dueEl.value) {
+          const now = new Date();
+          if (dueEl.value === '1d') now.setDate(now.getDate() + 1);
+          else if (dueEl.value === '3d') now.setDate(now.getDate() + 3);
+          else if (dueEl.value === '7d') now.setDate(now.getDate() + 7);
+          dueAt = now.toISOString();
+        }
+
+        try {
+          const token = localStorage.getItem('teacher_token') || '';
+          await fetch(`${this.baseUrl}/api/v1/teachers/interventions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              student_id: studentId,
+              course_id: this.courseId,
+              reason: reason,
+              priority: priEl ? priEl.value : 'MEDIUM',
+              due_at: dueAt,
+              trigger_type: 'teacher_created',
+              trigger_evidence: { source: 'teacher_portal_manual' }
+            })
+          });
+          input.value = '';
+          this.renderStudentDetail(studentId, 'interventions');
+        } catch (e) {
+          alert(`Failed to create intervention: ${e.message}`);
+        }
+      },
+
+      async transitionIntervention(interventionId, newStatus, studentId) {
+        try {
+          const token = localStorage.getItem('teacher_token') || '';
+          await fetch(`${this.baseUrl}/api/v1/teachers/interventions/${interventionId}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ status: newStatus })
+          });
+          this.renderStudentDetail(studentId, 'interventions');
+        } catch (e) {
+          alert(`Failed to update status: ${e.message}`);
+        }
+      },
+
+      async resolveInterventionModal(interventionId, studentId) {
+        const note = prompt('Enter resolution summary / action taken to resolve this learning blocker:');
+        if (!note || !note.trim()) return;
+        try {
+          const token = localStorage.getItem('teacher_token') || '';
+          await fetch(`${this.baseUrl}/api/v1/teachers/interventions/${interventionId}/resolve`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ resolution_note: note.trim() })
+          });
+          this.renderStudentDetail(studentId, 'interventions');
+        } catch (e) {
+          alert(`Failed to resolve intervention: ${e.message}`);
+        }
+      },
+
+      async dismissInterventionModal(interventionId, studentId) {
+        const reason = prompt('Enter justification reason for dismissing this intervention:');
+        if (!reason || !reason.trim()) return;
+        try {
+          const token = localStorage.getItem('teacher_token') || '';
+          await fetch(`${this.baseUrl}/api/v1/teachers/interventions/${interventionId}/dismiss`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ reason: reason.trim() })
+          });
+          this.renderStudentDetail(studentId, 'interventions');
+        } catch (e) {
+          alert(`Failed to dismiss intervention: ${e.message}`);
         }
       },
 
