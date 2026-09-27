@@ -588,10 +588,38 @@
       <div id="view-copilot" class="portal-view">
         <div class="portal-card" style="border-left:4px solid var(--accent-purple);">
           <div class="portal-card-header">
-            <span class="portal-card-title"><span>🤖</span> AI Teacher Copilot — Cohort Diagnostic Briefing</span>
+            <span class="portal-card-title"><span>🤖</span> AI Teacher Copilot — Pedagogical Diagnostic Assistant</span>
             <button class="portal-btn portal-btn-secondary" onclick="TeacherApp.loadCopilot()">🔄 Refresh Synthesis</button>
           </div>
-          <div id="copilotBriefingContent" style="font-size:13px; line-height:1.6; color:var(--text-main); margin-top:8px;">
+          
+          <!-- Copilot Controls -->
+          <div style="margin-top:14px; display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <label style="font-size:12px; color:var(--text-muted); font-weight:600;">Diagnostic Scope:</label>
+              <select id="copilotStudentSelect" style="background:#0f0f23; border:1px solid var(--card-border); color:white; padding:6px 12px; border-radius:6px; font-size:12px;" onchange="TeacherApp.loadCopilot()">
+                <option value="">Whole Cohort</option>
+              </select>
+            </div>
+
+            <!-- Quick Inquiry Pills -->
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="portal-btn portal-btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="TeacherApp.setCopilotQuery('Why is this student struggling?')">🔍 Why is this student struggling?</button>
+              <button class="portal-btn portal-btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="TeacherApp.setCopilotQuery('What concepts are weak?')">📉 What concepts are weak?</button>
+              <button class="portal-btn portal-btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="TeacherApp.setCopilotQuery('What changed recently?')">⏱️ What changed recently?</button>
+              <button class="portal-btn portal-btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="TeacherApp.setCopilotQuery('Which students need intervention?')">🚨 Which students need intervention?</button>
+              <button class="portal-btn portal-btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="TeacherApp.setCopilotQuery('What should I assign?')">📝 What should I assign?</button>
+              <button class="portal-btn portal-btn-secondary" style="font-size:11px; padding:4px 10px;" onclick="TeacherApp.setCopilotQuery('Summarize this student\'s last week')">📅 Summarize this student's last week</button>
+            </div>
+
+            <!-- Custom Query Input -->
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="copilotQueryInput" placeholder="Ask Copilot a pedagogical question..." style="flex:1; background:#0f0f23; border:1px solid var(--card-border); color:white; padding:8px 12px; border-radius:6px; font-size:13px;" onkeydown="if(event.key==='Enter') TeacherApp.sendCopilotQuery()" />
+              <button class="portal-btn portal-btn-primary" onclick="TeacherApp.sendCopilotQuery()">Ask Copilot 🚀</button>
+            </div>
+          </div>
+
+          <!-- Copilot Output Content -->
+          <div id="copilotBriefingContent" style="font-size:13px; line-height:1.6; color:var(--text-main); margin-top:16px;">
             <!-- Populated via API -->
           </div>
         </div>
@@ -695,6 +723,25 @@
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, { headers });
+        if (res.status === 403) {
+          this.setUIState('permission_error', { message: '403 Forbidden: Teacher authorization required to access this resource.' });
+          throw new Error('403 Forbidden');
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        return json.data || json;
+      },
+
+      async apiPost(path, body) {
+        const token = localStorage.getItem('teacher_token') || '';
+        const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body)
+        });
         if (res.status === 403) {
           this.setUIState('permission_error', { message: '403 Forbidden: Teacher authorization required to access this resource.' });
           throw new Error('403 Forbidden');
@@ -1333,27 +1380,119 @@
 
       async renderCopilot() {
         document.getElementById('view-copilot').classList.add('active');
-        document.getElementById('pageTitle').textContent = 'AI Teacher Copilot Briefing';
+        document.getElementById('pageTitle').textContent = 'AI Teacher Copilot';
+        this.populateCopilotStudentSelect();
         this.loadCopilot();
+      },
+
+      populateCopilotStudentSelect() {
+        const sel = document.getElementById('copilotStudentSelect');
+        if (!sel) return;
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="">Whole Cohort</option>';
+        if (this.studentsCache && this.studentsCache.length > 0) {
+          this.studentsCache.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = `${s.name} (${s.id})`;
+            if (s.id === currentVal || s.id === this.currentStudentId) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        }
+      },
+
+      setCopilotQuery(promptText) {
+        const input = document.getElementById('copilotQueryInput');
+        if (input) input.value = promptText;
+        const sel = document.getElementById('copilotStudentSelect');
+        if (sel && promptText.includes('intervention') && !promptText.includes('this student')) {
+          sel.value = '';
+        }
+        this.sendCopilotQuery();
+      },
+
+      async sendCopilotQuery() {
+        const input = document.getElementById('copilotQueryInput');
+        const query = (input && input.value) ? input.value.trim() : 'Summarize overall cohort progress and critical misconceptions.';
+        const sel = document.getElementById('copilotStudentSelect');
+        const studentId = (sel && sel.value) ? sel.value : null;
+
+        this.setUIState('loading');
+        try {
+          const resp = await this.apiPost('/copilot/query', {
+            query: query,
+            student_id: studentId,
+            course_id: this.courseId,
+            time_window_days: 7
+          });
+          this.setUIState('success');
+          this.renderCopilotResult(resp, query, studentId);
+        } catch (err) {
+          if (err.message !== '403 Forbidden') this.setUIState('api_error', { message: err.message });
+        }
       },
 
       async loadCopilot() {
         this.setUIState('loading');
         try {
-          const briefing = await this.apiGet(`/copilot/briefing`);
+          const sel = document.getElementById('copilotStudentSelect');
+          const studentId = (sel && sel.value) ? sel.value : null;
+          const url = studentId ? `/copilot/briefing?student_id=${studentId}` : `/copilot/briefing`;
+          const briefing = await this.apiGet(url);
           this.setUIState('success');
-          const container = document.getElementById('copilotBriefingContent');
-          container.innerHTML = `
-            <div style="margin-bottom:12px; font-weight:700; color:var(--accent-purple);">
-              Query: "${briefing.query || 'Cohort Synthesis'}"
-            </div>
-            <div style="background:rgba(15,15,35,0.6); padding:16px; border-radius:8px; border:1px solid var(--card-border);">
-              ${briefing.answer || 'Empirical Cohort Synthesis generated from student mastery records.'}
-            </div>
-          `;
+          this.renderCopilotResult(briefing, briefing.query || 'Cohort Synthesis', studentId);
         } catch (err) {
           if (err.message !== '403 Forbidden') this.setUIState('api_error', { message: err.message });
         }
+      },
+
+      renderCopilotResult(data, query, studentId) {
+        const container = document.getElementById('copilotBriefingContent');
+        if (!container) return;
+
+        const conf = typeof data.confidence === 'number' ? data.confidence : 0.90;
+        let confBadge = '';
+        if (conf >= 0.90) {
+          confBadge = `<span style="background:rgba(39,201,63,0.15); color:var(--accent-green); border:1px solid var(--accent-green); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;">🎯 High Confidence (${Math.round(conf * 100)}%)</span>`;
+        } else if (conf >= 0.50) {
+          confBadge = `<span style="background:rgba(245,197,66,0.15); color:var(--accent-amber); border:1px solid var(--accent-amber); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;">⚡ Medium Confidence (${Math.round(conf * 100)}%)</span>`;
+        } else {
+          confBadge = `<span style="background:rgba(233,69,96,0.15); color:var(--accent-rose); border:1px solid var(--accent-rose); padding:3px 8px; border-radius:12px; font-size:11px; font-weight:700;">⚠️ Low / Insufficient Evidence (${Math.round(conf * 100)}%)</span>`;
+        }
+
+        const evidence = data.evidence || [];
+        const evidenceHtml = (evidence.length > 0)
+          ? `<div style="margin-top:12px; background:rgba(0,0,0,0.25); border:1px solid var(--card-border); border-radius:6px; padding:10px;">
+               <div style="font-weight:700; font-size:12px; color:var(--accent-cyan); margin-bottom:6px;">📊 Verifiable Empirical Evidence (${evidence.length} points):</div>
+               <ul style="padding-left:18px; margin:0; font-size:12px; color:var(--text-main);">
+                 ${evidence.map(e => `<li><strong>[${(e.category || '').toUpperCase()}]</strong> ${e.description || e.summary || ''} ${e.metric_value !== null && e.metric_value !== undefined ? `<em>(score: ${e.metric_value})</em>` : ''}</li>`).join('')}
+               </ul>
+             </div>`
+          : '';
+
+        const actionHtml = data.recommended_action
+          ? `<div style="margin-top:12px; background:rgba(155,89,182,0.1); border:1px solid var(--accent-purple); border-radius:6px; padding:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+               <div>
+                 <strong style="color:var(--accent-purple); font-size:12px;">💡 Recommended Pedagogical Action:</strong>
+                 <div style="font-size:12px; margin-top:4px;">${data.recommended_action}</div>
+               </div>
+               ${studentId ? `<button class="portal-btn portal-btn-primary" style="font-size:11px; padding:6px 12px;" onclick="window.location.hash='#/students/${studentId}/interventions'">Take Action ⚡</button>` : ''}
+             </div>`
+          : '';
+
+        container.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div style="font-weight:700; color:var(--accent-purple); font-size:13px;">
+              Query: "${query}"
+            </div>
+            ${confBadge}
+          </div>
+          <div style="background:rgba(15,15,35,0.7); padding:16px; border-radius:8px; border:1px solid var(--card-border); white-space:pre-line;">
+            ${data.answer || data.summary || 'Synthesis complete.'}
+          </div>
+          ${actionHtml}
+          ${evidenceHtml}
+        `;
       },
 
       async renderAlerts() {

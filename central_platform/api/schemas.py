@@ -436,3 +436,49 @@ class StudentActionRequest(BaseModel):
     misconception_code: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+
+# ── Teacher Copilot (Phase 13 / Section 22) ───────────────────────────────
+
+class CopilotEvidenceItemSchema(BaseModel):
+    evidence_id: str
+    category: str
+    concept_id: Optional[str] = None
+    metric_value: Optional[float] = None
+    description: str = ""
+    timestamp: Optional[str] = None
+
+
+class CopilotSourceRecordSchema(BaseModel):
+    record_id: str
+    record_type: str
+    timestamp: str = ""
+    summary: str = ""
+
+
+class CopilotCitationSchema(BaseModel):
+    evidence_id: str
+    category: str
+    summary: str
+
+
+class TeacherCopilotQueryRequest(BaseModel):
+    query: str
+    student_id: Optional[str] = None
+    course_id: Optional[str] = None
+    time_window_days: Optional[int] = 7
+
+
+class TeacherCopilotQueryResponse(BaseModel):
+    answer: str
+    evidence: List[CopilotEvidenceItemSchema] = Field(default_factory=list)
+    source_records: List[CopilotSourceRecordSchema] = Field(default_factory=list)
+    confidence: float = 1.0
+    recommended_action: str = ""
+    citations: List[CopilotCitationSchema] = Field(default_factory=list)
+    summary: Optional[str] = None
+    recommended_focus_concept: Optional[str] = None
+    query: Optional[str] = None
+    student_id: Optional[str] = None
+    course_id: Optional[str] = None
+
+
