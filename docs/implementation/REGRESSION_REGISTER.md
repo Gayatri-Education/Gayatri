@@ -72,3 +72,4 @@ pytest -k "rag or slm or security"
 |---|---|---|---|---|---|---|---|---|
 | 2026-09-26 | Pre-Phase 00 Baseline | FULL SUITE | 411 | 411 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
 | 2026-09-27 | Phase 00 Verification | FULL SUITE | 411 | 411 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
+| 2026-09-27 | Phase 01 Frozen Baseline | BENCHMARK + PYTEST | 455 | 455 | 0 | 0 | `scripts/run_frozen_baseline.py` (44/44) | PASSED |

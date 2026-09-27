@@ -3,11 +3,11 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 00  
-Overall Completion: 3.3% (1/30 Phases)  
-Last Verified Commit: 1481123  
+Current Phase: 01  
+Overall Completion: 6.7% (2/30 Phases)  
+Last Verified Commit: b671b26  
 Last Full Regression: 2026-09-27 (411/411 passed)  
-Last Full Backtest: 2026-09-27 (scripts/verify_sync.py 5/5 passed)  
+Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
 Open P2: 0  
@@ -18,7 +18,7 @@ Open P3: 0
 | Phase | Description | Status | Unit | Integration | Regression | Backtest | Security | Frontend | Docs | Debug | Commit |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 00 | Truth Reset / Repo Reconciliation | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 1481123 |
-| 01 | Stabilize the Core Tutor | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 01 | Stabilize the Core Tutor | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | pending |
 | 02 | Real Platform API | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 03 | PostgreSQL Central Data Layer | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 04 | Authentication + RBAC | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,64 +51,65 @@ Open P3: 0
 ## Current Phase
 
 ### Objective
-Execute Phase 00 (Truth Reset / Repository Reconciliation): Inventory every directory, entry point, database, service, test suite, and module; classify them according to the Master Plan schema; establish authoritative tracking and registers in `docs/implementation/`; generate `docs/architecture/current-state.md` with the complete Capability Gap Matrix; and freeze the reproducible baseline test suite.
+Execute Phase 01 (Stabilize the Core Tutor): Protect and freeze all existing working AI tutor intelligence without redesigning; verify the 13 core tutor capabilities; execute and freeze the four core benchmarks (Chemistry, RAG, Adaptive, and Misconception); publish the authoritative baseline reports in `docs/evaluation/baseline/`; and establish the regression lock.
 
 ### Implemented
-- Deep catalog of all 14 repository dimensions.
-- Module classification across `ACTIVE`, `LEGACY`, `DUPLICATE`, `PROTOTYPE`, `INTEGRATION_PENDING`, `UNUSED`.
-- Authoritative documentation infrastructure:
-  - `docs/implementation/V2_PLATFORM_MASTER_PLAN.md`
-  - `docs/implementation/V2_PLATFORM_PROGRESS.md`
-  - `docs/implementation/DEBUGGING_REGISTER.md`
-  - `docs/implementation/REGRESSION_REGISTER.md`
-  - `docs/implementation/DECISION_LOG.md`
-  - `docs/architecture/current-state.md` with Capability Gap Matrix.
-- Baseline test freezing: 411/411 tests passing (0 failures, 0 warnings).
-- Baseline sync script verification: 5/5 gates passing (`scripts/verify_sync.py`).
+- Automated frozen benchmark runner: `scripts/run_frozen_baseline.py`.
+- 4 benchmark suites executed with 100% accuracy:
+  - Chemistry Benchmark: 21/21 passed (equation balancing, numerical precision, MCQ grading, anti-leakage).
+  - RAG Benchmark: 7/7 passed (atomic retrieval, concept enrichment, citation formatting).
+  - Adaptive Benchmark: 7/7 passed (mastery growth, misconception penalty, multi-factor calculation, spaced review).
+  - Misconception Benchmark: 9/9 passed (18-item catalog completeness, pattern detection, remediation coverage).
+- Authoritative baseline artifacts created:
+  - `docs/evaluation/baseline/frozen_baseline_report.json`
+  - `docs/evaluation/baseline/README.md`
+- Regression verification: 411/411 pytest suite tests passing with 0 warnings.
+- Verified 13 core tutor dimensions: student session, question answering, answer evaluation, adaptive learning, mastery transitions, misconceptions catalog, spaced review, RAG, chemistry tools, local inference, provider abstraction, session recovery, security.
 
 ### Files Changed
-- `docs/implementation/V2_PLATFORM_MASTER_PLAN.md` (created)
-- `docs/implementation/V2_PLATFORM_PROGRESS.md` (created)
-- `docs/implementation/DEBUGGING_REGISTER.md` (created)
-- `docs/implementation/REGRESSION_REGISTER.md` (created)
-- `docs/implementation/DECISION_LOG.md` (created)
-- `docs/architecture/current-state.md` (updated with comprehensive inventory and gap matrix)
+- `scripts/run_frozen_baseline.py` (created)
+- `docs/evaluation/baseline/frozen_baseline_report.json` (created)
+- `docs/evaluation/baseline/README.md` (created)
+- `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
+- `docs/implementation/REGRESSION_REGISTER.md` (updated)
 
 ### Tests Added
-- Baseline test verification protocol (`scripts/verify_sync.py` + full pytest suite).
+- Automated frozen baseline benchmark runner (`scripts/run_frozen_baseline.py`).
 
 ### Tests Passed
-- 411 / 411 pytest suite tests passing.
-- 5 / 5 `scripts/verify_sync.py` gates passing.
+- 44 / 44 benchmark cases passed (100.0%).
+- 411 / 411 pytest suite tests passed (0 failures, 0 warnings).
 
 ### Backtests
-- Chemistry tutor runtime prompt compilation test passing.
-- NCERT RAG retrieval and citation formatter test passing.
-- BKT mastery calculation and spaced review scheduling test passing.
+- Chemistry Benchmark: 21/21 passed (100%).
+- RAG Benchmark: 7/7 passed (100%).
+- Adaptive Learning Benchmark: 7/7 passed (100%).
+- Misconception Benchmark: 9/9 passed (100%).
 
 ### Security
-- Verified input sanitization and anti-leakage invariants pass.
-- Verified teacher instruction student isolation tests pass.
+- Verified anti-answer leakage sanitizer removes answers before client transmission.
+- Verified input sanitization and student isolation invariants pass.
 
 ### Frontend
-- Student Desktop UI (`app/ui/index.html`) loaded and verified.
-- Teacher Command Center HTML (`server.py`) verified with mastery distributions, alerts, roster, and directive injector.
+- Desktop UI (`app/ui/index.html`) intact; all bridge slots verified.
+- Teacher Command Center (`server.py`) intact; all sync routes verified.
 
 ### Bugs Found
-- 0 open bugs. (Historical bugs BUG-0001 and BUG-0002 resolved and cataloged in `DEBUGGING_REGISTER.md`).
+- 0 open bugs.
 
 ### Bugs Fixed
-- N/A for Phase 00 (clean baseline verified).
+- N/A (clean execution; all benchmarks passed).
 
 ### Known Issues
 - None.
 
 ### Remaining Work
-- Phase 00 complete. Ready to proceed to Phase 01 (Stabilize the Core Tutor).
+- Phase 01 complete. Ready to proceed to Phase 02 (Real Platform API).
 
 ### Commit
-- Pending Phase 00 checkpoint commit.
+- Pending Phase 01 checkpoint commit.
 
 ### Verification Evidence
-- `pytest` run output: 411 passed in 11.40s.
-- `python scripts/verify_sync.py` output: 5/5 gates passed.
+- `pytest` run output: 411 passed in 15.20s.
+- `python scripts/run_frozen_baseline.py` output: 44/44 passed (100.0%).
+- `docs/evaluation/baseline/frozen_baseline_report.json` generated.
