@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from central_platform.api.schemas import (
     ApiResponse,
+    StudentActionRequest,
     StudentProfileResponse,
     StudentSnapshotRequest,
 )
@@ -19,6 +20,8 @@ from central_platform.auth.dependencies import (
     enforce_resource_boundaries,
     get_current_user_optional,
 )
+from central_platform.learning.bridge import LearningEngineBridge
+from central_platform.learning.models import StudentActionPayload
 from central_platform.models.schema import User, UserRole
 from central_platform.slr.service import SLRService
 from central_platform.teacher.portal import TeacherPortalService
@@ -26,6 +29,7 @@ from central_platform.teacher.portal import TeacherPortalService
 router = APIRouter(prefix="/students", tags=["Students"])
 
 _slr_service = SLRService()
+_engine_bridge = LearningEngineBridge()
 
 try:
     from server import portal as _portal_service
@@ -126,3 +130,46 @@ async def get_student_learning_record(
         ok=True,
         data=slr_dict,
     )
+
+
+@router.post("/{student_id}/action", response_model=ApiResponse[Dict[str, Any]])
+async def submit_student_action(
+    student_id: str,
+    action_req: StudentActionRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Process student learning action through the canonical Phase 07 learning pipeline.
+
+    Flow: student action -> learning event -> learning engine -> updated mastery -> SLR -> recommendation.
+    """
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=student_id)
+
+    payload = StudentActionPayload(
+        concept_id=action_req.concept_id,
+        action_type=action_req.action_type,
+        course_id=action_req.course_id,
+        session_id=action_req.session_id,
+        turn_id=action_req.turn_id,
+        question_id=action_req.question_id,
+        student_answer=action_req.student_answer,
+        correctness=action_req.correctness,
+        score=action_req.score,
+        hint_level=action_req.hint_level,
+        difficulty=action_req.difficulty,
+        response_time_ms=action_req.response_time_ms,
+        misconception_code=action_req.misconception_code,
+        metadata=action_req.metadata,
+    )
+
+    action_result = _engine_bridge.process_student_action(
+        student_id=student_id,
+        action=payload,
+        course_id=action_req.course_id,
+    )
+
+    return ApiResponse(
+        ok=True,
+        data=action_result.to_dict(),
+    )
+

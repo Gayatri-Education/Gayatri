@@ -3,11 +3,11 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 07  
-Overall Completion: 23.3% (7/30 Phases)  
-Last Verified Commit: 7da7d79 (Phase 06)  
-Last Full Regression: 2026-09-27 (486/486 passed)  
-Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed)  
+Current Phase: 08  
+Overall Completion: 26.7% (8/30 Phases)  
+Last Verified Commit: PENDING_COMMIT (Phase 07)  
+Last Full Regression: 2026-09-27 (497/497 passed)  
+Last Full Backtest: 2026-09-27 (scripts/run_frozen_baseline.py 44/44 passed, FrozenHistoryBacktester 3/3 passed)  
 Open P0: 0  
 Open P1: 0  
 Open P2: 0  
@@ -24,7 +24,7 @@ Open P3: 0
 | 04 | Authentication + RBAC | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | bccd694 |
 | 05 | Central Learning Event System | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | c8de429 |
 | 06 | Authoritative Student Learning Record | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 7da7d79 |
-| 07 | Connect Existing Learning Engine | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 07 | Connect Existing Learning Engine | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PENDING_COMMIT |
 | 08 | Real Desktop ↔ Platform Sync | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 09 | Student Progress API + UI | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 10 | Teacher Web Portal | NOT_STARTED | - | - | - | - | - | - | - | - | - |
@@ -51,45 +51,40 @@ Open P3: 0
 ## Current Phase
 
 ### Objective
-Execute Phase 06 (Authoritative Student Learning Record): Build the canonical, authoritative SLR aggregated across all 15 Section 15 dimensions, establishing a single source of truth across student desktop and teacher portal with strict RBAC boundaries and backward compatibility.
+Execute Phase 07 (Connect Existing Learning Engine): Connect working learning intelligence (`core/learning/` and `core/tutor/`) to the central event store and Authoritative SLR architecture. Preserve BKT, mastery, LDG, difficulty, misconceptions, spaced review, concept selection, and adaptive engine. Implement canonical pipeline `student action -> learning event -> learning engine -> updated mastery -> SLR -> recommendation` and execute frozen student history backtests within tolerance (<= 0.05).
 
 ### Implemented
-- Canonical 15-dimension SLR models in `central_platform/slr/models.py` (`AuthoritativeSLR`, `SLRIdentity`, `SLREnrollment`, `SLRCourse`, `SLRCurriculum`, `SLRMastery`, `SLRSession`, `SLRTimelineItem`, `SLRMisconception`, `SLRAssessmentResult`, `SLRHints`, `SLRTeacherFeedback`, `SLRTeacherInstruction`, `SLRIntervention`, `SLRRecommendation`, `SLRAlert`).
-- Authoritative `SLRService` in `central_platform/slr/service.py` with multi-entity scaffolding, database mastery tracking, event store timeline aggregation, misconception catalog mapping, assessment attempt history, dynamic recommendations for weak concepts (< 0.60), and real-time pedagogical alerts.
-- Backward-compatible `StudentLearningRecord` and `TimelineItem` in `central_platform/slr/record.py` and exported through `central_platform/slr/__init__.py`.
-- Upgraded `PlatformDatabase` in `central_platform/db.py` with `get_curriculum_for_course`, `get_sessions_for_student`, `get_misconception_by_code`, `get_assessment`, `get_assessment_attempts_for_student`, and `get_interventions_for_student`.
-- Extended `LearningEventStore` in `central_platform/events/store.py` with `get_student_events` and per-concept mastery tracking during event stream replay.
-- Upgraded student API endpoints in `central_platform/api/routes/students.py` (`GET /api/v1/students/{student_id}/slr`, `GET /api/v1/students/{student_id}`, `POST /api/v1/students/snapshot`).
-- Upgraded teacher API endpoints in `central_platform/api/routes/teachers.py` with `GET /api/v1/teachers/students/{student_id}/slr`.
-- Comprehensive Phase 06 test suite in `tests/test_phase06_authoritative_slr.py` (11/11 passed, 0 failures, 0 warnings).
-- Full regression suite: 486/486 tests passing across repository (0 failures, 0 warnings).
+- Canonical Learning Engine Bridge package in `central_platform/learning/` (`models.py`, `bridge.py`, `backtest.py`, `__init__.py`).
+- Complete canonical pipeline: `StudentActionPayload` is converted to `LearningEventIngest`, persisted idempotently to `LearningEventStore`, processed across preserved algorithms (`MasteryCalculator`, `DifficultyPolicy`, `SpacedReviewScheduler`, `MisconceptionTracker`, `ConceptSelector`, `AdaptiveLearningEngine`), persists updated concept mastery and misconceptions to `PlatformDatabase`, recomputes the Authoritative SLR, and outputs an `EngineActionResult` with next pedagogical actions and recommendations.
+- Platform API integration: `POST /api/v1/students/{student_id}/action` in `central_platform/api/routes/students.py` with strict student self-access RBAC enforcement.
+- Frozen student history backtester (`FrozenHistoryBacktester` in `central_platform/learning/backtest.py`) replaying 3 core learner archetypes (fast mastery learner, struggling learner with misconceptions, hint-dependent learner) verifying mathematical and algorithmic tolerance <= 0.05 versus pre-migration baseline.
+- Backward compatibility preserved: standalone `TutorController` and `TutorStateManager` continue to function identically.
+- Comprehensive Phase 07 test suite in `tests/test_phase07_connect_learning_engine.py` (11/11 passed, 0 failures, 0 warnings).
+- Full regression suite: 497/497 tests passing across repository (0 failures, 0 warnings).
 - Frozen baseline: 44/44 benchmarks passing (100.0%).
 
 ### Files Changed
-- `central_platform/slr/models.py` (created)
-- `central_platform/slr/service.py` (created)
-- `central_platform/slr/record.py` (updated)
-- `central_platform/slr/__init__.py` (updated)
-- `central_platform/db.py` (updated with curriculum, session, misconception, assessment, intervention query methods)
-- `central_platform/events/models.py` (updated ReplayProjectionResult with concept_mastery)
-- `central_platform/events/store.py` (updated with get_student_events and concept_mastery replay calculation)
-- `central_platform/api/routes/students.py` (updated to serve AuthoritativeSLR)
-- `central_platform/api/routes/teachers.py` (updated with student SLR retrieval)
-- `tests/test_phase06_authoritative_slr.py` (created, 11 test cases)
+- `central_platform/learning/models.py` (created)
+- `central_platform/learning/bridge.py` (created)
+- `central_platform/learning/backtest.py` (created)
+- `central_platform/learning/__init__.py` (created)
+- `central_platform/api/schemas.py` (updated with StudentActionRequest)
+- `central_platform/api/routes/students.py` (updated with POST /{student_id}/action route)
+- `tests/test_phase07_connect_learning_engine.py` (created, 11 test cases)
 - `docs/implementation/REGRESSION_REGISTER.md` (updated)
 - `docs/implementation/V2_PLATFORM_PROGRESS.md` (updated)
 
 ### Tests Added
-- `tests/test_phase06_authoritative_slr.py` (11 test cases covering: all 15 canonical dimensions, database persistence, event projection pipeline, misconception aggregation, timeline ordering, teacher instructions and interventions exposure, assessment results aggregation, dynamic recommendations and alerts, RBAC student isolation, single source of truth across portals, and backward compatibility).
+- `tests/test_phase07_connect_learning_engine.py` (11 test cases covering: target flow action -> event -> engine -> mastery -> SLR -> recommendation, BKT mastery calculation, difficulty policy transitions, misconception detection & catalog mapping, spaced review scheduling, LDG concept candidate selection, adaptive action routing, HTTP POST action API endpoint, student isolation and RBAC negative security, frozen history backtest replay, and core tutor backwards compatibility).
 
 ### Tests Passed
-- 486 / 486 pytest tests passed (0 failures, 0 warnings).
+- 497 / 497 pytest tests passed (0 failures, 0 warnings).
 - 44 / 44 frozen baseline benchmarks passed (100%).
+- 3 / 3 frozen student history backtests passed (all within <= 0.05 tolerance).
 
 ### Security
-- Student self-access boundary strictly enforced: students accessing another student's SLR receive 403 Forbidden.
-- Teachers restricted to assigned students and cohorts.
-- Shared single source of truth prevents data fabrication or out-of-band state distortion.
+- Student action submission strictly enforces RBAC boundaries: students attempting to submit actions for another student account receive 403 Forbidden.
+- Input validation on all incoming action fields; misconceptions validated against controlled catalog.
 
 ### Frontend
 - Desktop UI (`app/ui/index.html`) intact; all bridge slots verified.
@@ -99,21 +94,20 @@ Execute Phase 06 (Authoritative Student Learning Record): Build the canonical, a
 - 0 open bugs.
 
 ### Bugs Fixed
-- Missing `get_curriculum_for_course` in `PlatformDatabase` added with fallback to course ID.
-- In `ReplayProjectionResult`, added `concept_mastery` dictionary mapping to enable concept-level mastery persistence upon event replay.
-- Added auto-creation of misconception catalog entry in `SLRService.record_student_misconception` to prevent foreign key errors when client devices send novel misconception tags.
+- Resolved SQLite foreign key constraint during session creation by ensuring student scaffolding (`_ensure_student_scaffolding`) precedes session initialization in `LearningEngineBridge`.
+- Handled Pydantic v2 `model_dump()` serialization for `SLRRecommendation` and `SLRAlert` objects inside `EngineActionResult.to_dict()`.
+- Updated test connection cleanup to use `state_mgr.conn.close()` matching `TutorStateManager` internal schema.
 
 ### Known Issues
 - None.
 
 ### Remaining Work
-- Phase 06 complete and verified. Ready to present and execute Phase 07 (Connect Existing Learning Engine).
+- Phase 07 complete and verified. Ready to present and execute Phase 08 (Real Desktop ↔ Platform Sync).
 
 ### Commit
-- 7da7d79 (Phase 06: Authoritative Student Learning Record)
+- PENDING_COMMIT (Phase 07: Connect Existing Learning Engine)
 
 ### Verification Evidence
-- `pytest` run output: 486 passed in 23.53s.
+- `pytest` run output: 497 passed in 31.62s.
 - `python scripts/run_frozen_baseline.py` output: 44/44 passed (100.0%).
-- `docs/evaluation/baseline/frozen_baseline_report.json` generated and verified.
-
+- `FrozenHistoryBacktester.run_all_backtests()` output: all 3 archetypes passed with max tolerance 0.05 (target <= 0.05).

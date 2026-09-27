@@ -315,3 +315,23 @@ class BatchSyncEventsResponse(BaseModel):
     synced_count: int
     failed_count: int = 0
     status: str = "SYNCED"
+
+
+# ── Student Actions & Learning Engine Bridge (Phase 07) ─────────────────
+
+class StudentActionRequest(BaseModel):
+    concept_id: str
+    action_type: str = "answer_submitted"
+    course_id: str = "crs-chem-101"
+    session_id: Optional[str] = None
+    turn_id: Optional[str] = None
+    question_id: Optional[str] = None
+    student_answer: Optional[str] = None
+    correctness: Optional[str] = None
+    score: Optional[float] = None
+    hint_level: int = 0
+    difficulty: Optional[float] = None
+    response_time_ms: Optional[float] = None
+    misconception_code: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+

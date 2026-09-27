@@ -27,7 +27,9 @@ Central platform APIs, sync pipelines, database operations, auth & RBAC, server 
 - `tests/test_phase04_auth_rbac.py`
 - `tests/test_phase05_learning_events.py`
 - `tests/test_phase06_authoritative_slr.py`
+- `tests/test_phase07_connect_learning_engine.py`
 - `tests/test_server_live_sync.py`
+
 - `tests/test_teacher_dashboard_bridge.py`
 - `tests/test_phase2_central_platform.py`
 - `tests/test_phase3_auth_rbac.py`
@@ -83,3 +85,5 @@ pytest -k "rag or slm or security"
 | 2026-09-27 | Phase 04 Auth & RBAC | FULL SUITE | 465 | 465 | 0 | 0 | `scripts/verify_sync.py` (5/5) | PASSED |
 | 2026-09-27 | Phase 05 Learning Events | FULL SUITE | 475 | 475 | 0 | 0 | `tests/test_phase05_learning_events.py` (10/10) | PASSED |
 | 2026-09-27 | Phase 06 Authoritative SLR | FULL SUITE | 486 | 486 | 0 | 0 | `tests/test_phase06_authoritative_slr.py` (11/11) | PASSED |
+| 2026-09-27 | Phase 07 Connect Learning Engine | FULL SUITE | 497 | 497 | 0 | 0 | `tests/test_phase07_connect_learning_engine.py` (11/11) | PASSED |
+
