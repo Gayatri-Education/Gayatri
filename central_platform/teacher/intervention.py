@@ -35,6 +35,13 @@ class TeacherAlert:
     assigned_teacher_id: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+    def to_dict(self) -> dict:
+        from dataclasses import asdict
+        d = asdict(self)
+        d["severity"] = self.severity.value if hasattr(self.severity, "value") else str(self.severity)
+        d["status"] = self.status.value if hasattr(self.status, "value") else str(self.status)
+        return d
+
 
 class TeacherInterventionEngine:
     """Manages alert queues and teacher intervention lifecycle transitions."""
@@ -62,7 +69,7 @@ class TeacherInterventionEngine:
             return True
         return False
 
-    def resolve_alert(self, alert_id: str) -> bool:
+    def resolve_alert(self, alert_id: str, note: str = "") -> bool:
         return self.transition_alert_status(alert_id, AlertStatus.RESOLVED)
 
     def get_all_alerts(self, course_id: Optional[str] = None) -> List[TeacherAlert]:

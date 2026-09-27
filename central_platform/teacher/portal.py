@@ -18,6 +18,20 @@ class TeacherDashboardOverview:
     critical_count: int = 0
     top_misconceptions: List[dict] = field(default_factory=list)
     chapter_averages: Dict[str, float] = field(default_factory=dict)
+    active_students_today: int = 0
+    critical_alerts_count: int = 0
+    mastery_distribution: Dict[str, int] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        from dataclasses import asdict
+        d = asdict(self)
+        if not d.get("mastery_distribution"):
+            d["mastery_distribution"] = {
+                "Mastered": self.mastered_count,
+                "Progressing": self.progressing_count,
+                "Critical": self.critical_count,
+            }
+        return d
 
 
 class TeacherPortalService:
@@ -41,7 +55,9 @@ class TeacherPortalService:
     ) -> None:
         self._students[student_id] = {
             "id": student_id,
+            "student_id": student_id,
             "name": name,
+            "student_name": name,
             "course_id": course_id,
             "mastery": round(mastery, 2),
             "needs_attention": needs_attention or (mastery < 0.5),
@@ -56,6 +72,34 @@ class TeacherPortalService:
             },
             "recent_activity": recent_activity or "Practicing NCERT Questions",
         }
+
+    def update_student_snapshot(
+        self,
+        student_id: str,
+        student_name: Optional[str] = None,
+        name: Optional[str] = None,
+        course_id: str = "crs-chem-101",
+        mastery: float = 0.5,
+        needs_attention: bool = False,
+        misconceptions: Optional[List[str]] = None,
+        hint_count: int = 0,
+        retention_rate: float = 0.85,
+        chapter_mastery: Optional[Dict[str, float]] = None,
+        recent_activity: Optional[str] = None,
+    ) -> None:
+        """Alias/flexible update for register_student_snapshot."""
+        self.register_student_snapshot(
+            student_id=student_id,
+            name=student_name or name or self._students.get(student_id, {}).get("name", student_id),
+            course_id=course_id,
+            mastery=mastery,
+            needs_attention=needs_attention,
+            misconceptions=misconceptions,
+            hint_count=hint_count,
+            retention_rate=retention_rate,
+            chapter_mastery=chapter_mastery,
+            recent_activity=recent_activity,
+        )
 
     def get_dashboard_overview(self, course_id: str) -> TeacherDashboardOverview:
         relevant = [s for s in self._students.values() if s["course_id"] == course_id]
@@ -99,6 +143,12 @@ class TeacherPortalService:
             for code, count in sorted(misc_counts.items(), key=lambda x: x[1], reverse=True)
         ]
 
+        dist = {
+            "Mastered": mastered,
+            "Progressing": progressing,
+            "Critical": critical,
+        }
+
         return TeacherDashboardOverview(
             total_students=total,
             students_needing_attention=needing_attention,
@@ -110,6 +160,9 @@ class TeacherPortalService:
             critical_count=critical,
             top_misconceptions=top_misc,
             chapter_averages=chapter_avgs,
+            active_students_today=total,
+            critical_alerts_count=critical,
+            mastery_distribution=dist,
         )
 
     def get_students_needing_attention(self, course_id: str) -> List[dict]:

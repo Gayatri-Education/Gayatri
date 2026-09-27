@@ -625,6 +625,145 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 """
 
 
+def render_teacher_dashboard_html(course_id: str = "crs-chem-101") -> str:
+    """Render the responsive Teacher Command Center HTML with live cohort data."""
+    overview = portal.get_dashboard_overview(course_id)
+    students = portal.get_all_students(course_id)
+    instructions = instruction_engine.get_all_instructions()
+    alerts = intervention_engine.get_all_alerts(course_id)
+
+    # Health Color
+    health_color = "var(--green)"
+    if overview.class_health_status == "Attention Needed":
+        health_color = "var(--yellow)"
+    elif overview.class_health_status == "Critical":
+        health_color = "var(--red)"
+
+    # Distribution percentages
+    total = max(1, overview.total_students)
+    mastered_pct = int((overview.mastered_count / total) * 100)
+    progressing_pct = int((overview.progressing_count / total) * 100)
+    critical_pct = 100 - mastered_pct - progressing_pct
+
+    # Chapter boxes
+    chapter_boxes = []
+    for ch_name, ch_avg in overview.chapter_averages.items():
+        pct = int(ch_avg * 100)
+        chapter_boxes.append(
+            f"<div class='chapter-box'>"
+            f"  <div class='chapter-name'>{ch_name}</div>"
+            f"  <div class='chapter-pct'>{pct}%</div>"
+            f"  <div class='chapter-bar'><div class='chapter-bar-fill' style='width: {pct}%;'></div></div>"
+            f"</div>"
+        )
+
+    # Student Rows
+    student_rows = []
+    student_options = []
+    for s in students:
+        status_pill = (
+            '<span class="status-pill pill-warn">Attention Needed</span>'
+            if s["needs_attention"]
+            else '<span class="status-pill pill-good">On Track</span>'
+        )
+        misc_badges = (
+            "".join(f"<span class='misc-pill'>{m}</span>" for m in s.get("misconceptions", []))
+            if s.get("misconceptions")
+            else "<span style='color: var(--text-sub);'>None</span>"
+        )
+        student_rows.append(
+            f"<tr>"
+            f"<td><strong>{s['name']}</strong><br><code style='color: var(--text-sub); font-size: 11px;'>{s['id']}</code></td>"
+            f"<td>{s['course_id']}</td>"
+            f"<td><strong style='font-size: 14px;'>{int(s['mastery'] * 100)}%</strong></td>"
+            f"<td>{misc_badges}</td>"
+            f"<td>{s.get('hint_count', 0)}</td>"
+            f"<td>{int(s.get('retention_rate', 0.85) * 100)}%</td>"
+            f"<td style='font-size: 12px; color: var(--text-sub);'>{s.get('recent_activity', 'Active')}</td>"
+            f"<td>{status_pill}</td>"
+            f"</tr>"
+        )
+        student_options.append(f"<option value='{s['id']}'>{s['name']} ({s['id']})</option>")
+
+    # Alert Cards
+    alert_cards = []
+    active_alerts = [a for a in alerts if a.status != AlertStatus.RESOLVED]
+    for a in active_alerts:
+        card_class = "alert-info"
+        severity_badge = '<span class="status-pill pill-info">Info</span>'
+        if a.severity == AlertSeverity.CRITICAL:
+            card_class = "alert-critical"
+            severity_badge = '<span class="status-pill pill-crit">Critical</span>'
+        elif a.severity == AlertSeverity.WARNING:
+            card_class = "alert-warning"
+            severity_badge = '<span class="status-pill pill-warn">Warning</span>'
+
+        alert_cards.append(
+            f"<div class='alert-card {card_class}'>"
+            f"  <div>"
+            f"    <div style='display: flex; align-items: center; gap: 8px; margin-bottom: 4px;'>"
+            f"      {severity_badge}"
+            f"      <span style='font-weight: 700; color: #fff;'>Student: {a.student_id}</span>"
+            f"      <span style='font-size: 11px; color: var(--text-sub);'>({a.alert_type})</span>"
+            f"    </div>"
+            f"    <div style='font-size: 13px; color: #e5e7eb;'>{a.message}</div>"
+            f"  </div>"
+            f"  <form method='POST' action='/alert/resolve' style='margin: 0;'>"
+            f"    <input type='hidden' name='alert_id' value='{a.alert_id}'>"
+            f"    <button type='submit' class='btn-small btn-resolve'>✓ Resolve</button>"
+            f"  </form>"
+            f"</div>"
+        )
+
+    # Instruction Items
+    instruction_items = []
+    for inst in instructions:
+        status_badge = (
+            "<span style='color: var(--green); font-weight: 600;'>● Active</span>"
+            if inst.is_active
+            else "<span style='color: var(--text-sub);'>Inactive</span>"
+        )
+        toggle_label = "Deactivate" if inst.is_active else "Activate"
+        instruction_items.append(
+            f"<div class='alert-card' style='border-left-color: var(--accent);'>"
+            f"  <div>"
+            f"    <div style='font-size: 14px; font-weight: 600; color: #fff;'>\"{inst.instruction_text}\"</div>"
+            f"    <div style='font-size: 12px; color: var(--text-sub); margin-top: 4px;'>"
+            f"      Target: <code>{inst.student_id}</code> | Scope: <strong>{inst.concept_scope or 'ALL'}</strong> | Priority: {inst.priority} | Created: {inst.created_at[:19]}"
+            f"    </div>"
+            f"  </div>"
+            f"  <div style='display: flex; align-items: center; gap: 10px;'>"
+            f"    {status_badge}"
+            f"    <form method='POST' action='/instruction/toggle' style='margin: 0;'>"
+            f"      <input type='hidden' name='instruction_id' value='{inst.instruction_id}'>"
+            f"      <button type='submit' class='btn-small btn-toggle'>{toggle_label}</button>"
+            f"    </form>"
+            f"  </div>"
+            f"</div>"
+        )
+
+    return (
+        HTML_TEMPLATE
+        .replace("__HEALTH_STATUS__", overview.class_health_status)
+        .replace("__HEALTH_COLOR__", health_color)
+        .replace("__AVG_MASTERY__", str(int(overview.average_mastery * 100)))
+        .replace("__TOTAL_STUDENTS__", str(overview.total_students))
+        .replace("__MASTERED_COUNT__", str(overview.mastered_count))
+        .replace("__PROGRESSING_COUNT__", str(overview.progressing_count))
+        .replace("__CRITICAL_COUNT__", str(overview.critical_count))
+        .replace("__MASTERED_PCT__", str(mastered_pct))
+        .replace("__PROGRESSING_PCT__", str(progressing_pct))
+        .replace("__CRITICAL_PCT__", str(critical_pct))
+        .replace("__TOTAL_INSTRUCTIONS__", str(len([i for i in instructions if i.is_active])))
+        .replace("__ACTIVE_ALERTS_COUNT__", str(len(active_alerts)))
+        .replace("__CHAPTER_BOXES__", "\n".join(chapter_boxes))
+        .replace("__ALERT_CARDS__", "\n".join(alert_cards) if alert_cards else "<div style='color: var(--text-sub); padding: 10px;'>No active alerts. All students progressing stably.</div>")
+        .replace("__STUDENT_ROWS__", "\n".join(student_rows) if student_rows else "<tr><td colspan='8'>No students registered yet</td></tr>")
+        .replace("__STUDENT_OPTIONS__", "\n".join(student_options))
+        .replace("__INSTRUCTION_ITEMS__", "\n".join(instruction_items) if instruction_items else "<div style='color: var(--text-sub); padding: 10px;'>No directives added yet.</div>")
+    )
+
+
 class TeacherPortalHTTPHandler(BaseHTTPRequestHandler):
     """HTTP Request Handler for Teacher Dashboard and Central Sync API."""
 
@@ -656,142 +795,7 @@ class TeacherPortalHTTPHandler(BaseHTTPRequestHandler):
             path = parsed.path
 
             if path in ("/", "/teacher", "/dashboard"):
-                overview = portal.get_dashboard_overview("crs-chem-101")
-                students = portal.get_all_students("crs-chem-101")
-                instructions = instruction_engine.get_all_instructions()
-                alerts = intervention_engine.get_all_alerts("crs-chem-101")
-
-                # Health Color
-                health_color = "var(--green)"
-                if overview.class_health_status == "Attention Needed":
-                    health_color = "var(--yellow)"
-                elif overview.class_health_status == "Critical":
-                    health_color = "var(--red)"
-
-                # Distribution percentages
-                total = max(1, overview.total_students)
-                mastered_pct = int((overview.mastered_count / total) * 100)
-                progressing_pct = int((overview.progressing_count / total) * 100)
-                critical_pct = 100 - mastered_pct - progressing_pct
-
-                # Chapter boxes
-                chapter_boxes = []
-                for ch_name, ch_avg in overview.chapter_averages.items():
-                    pct = int(ch_avg * 100)
-                    chapter_boxes.append(
-                        f"<div class='chapter-box'>"
-                        f"  <div class='chapter-name'>{ch_name}</div>"
-                        f"  <div class='chapter-pct'>{pct}%</div>"
-                        f"  <div class='chapter-bar'><div class='chapter-bar-fill' style='width: {pct}%;'></div></div>"
-                        f"</div>"
-                    )
-
-                # Student Rows
-                student_rows = []
-                student_options = []
-                for s in students:
-                    status_pill = (
-                        '<span class="status-pill pill-warn">Attention Needed</span>'
-                        if s["needs_attention"]
-                        else '<span class="status-pill pill-good">On Track</span>'
-                    )
-                    misc_badges = (
-                        "".join(f"<span class='misc-pill'>{m}</span>" for m in s.get("misconceptions", []))
-                        if s.get("misconceptions")
-                        else "<span style='color: var(--text-sub);'>None</span>"
-                    )
-                    student_rows.append(
-                        f"<tr>"
-                        f"<td><strong>{s['name']}</strong><br><code style='color: var(--text-sub); font-size: 11px;'>{s['id']}</code></td>"
-                        f"<td>{s['course_id']}</td>"
-                        f"<td><strong style='font-size: 14px;'>{int(s['mastery'] * 100)}%</strong></td>"
-                        f"<td>{misc_badges}</td>"
-                        f"<td>{s.get('hint_count', 0)}</td>"
-                        f"<td>{int(s.get('retention_rate', 0.85) * 100)}%</td>"
-                        f"<td style='font-size: 12px; color: var(--text-sub);'>{s.get('recent_activity', 'Active')}</td>"
-                        f"<td>{status_pill}</td>"
-                        f"</tr>"
-                    )
-                    student_options.append(f"<option value='{s['id']}'>{s['name']} ({s['id']})</option>")
-
-                # Alert Cards
-                alert_cards = []
-                active_alerts = [a for a in alerts if a.status != AlertStatus.RESOLVED]
-                for a in active_alerts:
-                    card_class = "alert-info"
-                    severity_badge = '<span class="status-pill pill-info">Info</span>'
-                    if a.severity == AlertSeverity.CRITICAL:
-                        card_class = "alert-critical"
-                        severity_badge = '<span class="status-pill pill-crit">Critical</span>'
-                    elif a.severity == AlertSeverity.WARNING:
-                        card_class = "alert-warning"
-                        severity_badge = '<span class="status-pill pill-warn">Warning</span>'
-
-                    alert_cards.append(
-                        f"<div class='alert-card {card_class}'>"
-                        f"  <div>"
-                        f"    <div style='display: flex; align-items: center; gap: 8px; margin-bottom: 4px;'>"
-                        f"      {severity_badge}"
-                        f"      <span style='font-weight: 700; color: #fff;'>Student: {a.student_id}</span>"
-                        f"      <span style='font-size: 11px; color: var(--text-sub);'>({a.alert_type})</span>"
-                        f"    </div>"
-                        f"    <div style='font-size: 13px; color: #e5e7eb;'>{a.message}</div>"
-                        f"  </div>"
-                        f"  <form method='POST' action='/alert/resolve' style='margin: 0;'>"
-                        f"    <input type='hidden' name='alert_id' value='{a.alert_id}'>"
-                        f"    <button type='submit' class='btn-small btn-resolve'>✓ Resolve</button>"
-                        f"  </form>"
-                        f"</div>"
-                    )
-
-                # Instruction Items
-                instruction_items = []
-                for inst in instructions:
-                    status_badge = (
-                        "<span style='color: var(--green); font-weight: 600;'>● Active</span>"
-                        if inst.is_active
-                        else "<span style='color: var(--text-sub);'>Inactive</span>"
-                    )
-                    toggle_label = "Deactivate" if inst.is_active else "Activate"
-                    instruction_items.append(
-                        f"<div class='alert-card' style='border-left-color: var(--accent);'>"
-                        f"  <div>"
-                        f"    <div style='font-size: 14px; font-weight: 600; color: #fff;'>\"{inst.instruction_text}\"</div>"
-                        f"    <div style='font-size: 12px; color: var(--text-sub); margin-top: 4px;'>"
-                        f"      Target: <code>{inst.student_id}</code> | Scope: <strong>{inst.concept_scope or 'ALL'}</strong> | Priority: {inst.priority} | Created: {inst.created_at[:19]}"
-                        f"    </div>"
-                        f"  </div>"
-                        f"  <div style='display: flex; align-items: center; gap: 10px;'>"
-                        f"    {status_badge}"
-                        f"    <form method='POST' action='/instruction/toggle' style='margin: 0;'>"
-                        f"      <input type='hidden' name='instruction_id' value='{inst.instruction_id}'>"
-                        f"      <button type='submit' class='btn-small btn-toggle'>{toggle_label}</button>"
-                        f"    </form>"
-                        f"  </div>"
-                        f"</div>"
-                    )
-
-                content = (
-                    HTML_TEMPLATE
-                    .replace("__HEALTH_STATUS__", overview.class_health_status)
-                    .replace("__HEALTH_COLOR__", health_color)
-                    .replace("__AVG_MASTERY__", str(int(overview.average_mastery * 100)))
-                    .replace("__TOTAL_STUDENTS__", str(overview.total_students))
-                    .replace("__MASTERED_COUNT__", str(overview.mastered_count))
-                    .replace("__PROGRESSING_COUNT__", str(overview.progressing_count))
-                    .replace("__CRITICAL_COUNT__", str(overview.critical_count))
-                    .replace("__MASTERED_PCT__", str(mastered_pct))
-                    .replace("__PROGRESSING_PCT__", str(progressing_pct))
-                    .replace("__CRITICAL_PCT__", str(critical_pct))
-                    .replace("__TOTAL_INSTRUCTIONS__", str(len([i for i in instructions if i.is_active])))
-                    .replace("__ACTIVE_ALERTS_COUNT__", str(len(active_alerts)))
-                    .replace("__CHAPTER_BOXES__", "\n".join(chapter_boxes))
-                    .replace("__ALERT_CARDS__", "\n".join(alert_cards) if alert_cards else "<div style='color: var(--text-sub); padding: 10px;'>No active alerts. All students progressing stably.</div>")
-                    .replace("__STUDENT_ROWS__", "\n".join(student_rows) if student_rows else "<tr><td colspan='8'>No students registered yet</td></tr>")
-                    .replace("__STUDENT_OPTIONS__", "\n".join(student_options))
-                    .replace("__INSTRUCTION_ITEMS__", "\n".join(instruction_items) if instruction_items else "<div style='color: var(--text-sub); padding: 10px;'>No directives added yet.</div>")
-                )
-
+                content = render_teacher_dashboard_html("crs-chem-101")
                 payload = content.encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -993,12 +997,20 @@ class TeacherPortalHTTPHandler(BaseHTTPRequestHandler):
 
 
 def run_server(port: int = 8000) -> None:
-    server_address = ("0.0.0.0", port)
-    httpd = HTTPServer(server_address, TeacherPortalHTTPHandler)
-    print(f"[ONLINE] Gayatri Teacher Portal HTTP Server running at http://localhost:{port}")
-    httpd.serve_forever()
+    try:
+        import uvicorn
+        from central_platform.api.app import app
+        print(f"[ONLINE] Gayatri Production Platform API & Teacher Portal running at http://localhost:{port}")
+        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    except Exception as exc:
+        print(f"[FALLBACK] Uvicorn launch ({exc}), falling back to HTTPServer...")
+        server_address = ("0.0.0.0", port)
+        httpd = HTTPServer(server_address, TeacherPortalHTTPHandler)
+        print(f"[ONLINE] Gayatri Teacher Portal HTTP Server running at http://localhost:{port}")
+        httpd.serve_forever()
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     run_server(port)
+

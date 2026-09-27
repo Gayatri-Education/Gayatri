@@ -20,6 +20,10 @@ class TeacherInstruction:
     version: int = 1
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+    def to_dict(self) -> dict:
+        from dataclasses import asdict
+        return asdict(self)
+
 
 class TeacherInstructionEngine:
     """Manages persistent teacher instructions and resolves active context per student."""
@@ -54,9 +58,12 @@ class TeacherInstructionEngine:
             return True
         return False
 
-    def toggle_instruction(self, instruction_id: str) -> bool:
+    def toggle_instruction(self, instruction_id: str, is_active: Optional[bool] = None) -> bool:
         if instruction_id in self._instructions:
-            self._instructions[instruction_id].is_active = not self._instructions[instruction_id].is_active
+            if is_active is not None:
+                self._instructions[instruction_id].is_active = is_active
+            else:
+                self._instructions[instruction_id].is_active = not self._instructions[instruction_id].is_active
             return True
         return False
 

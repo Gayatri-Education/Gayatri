@@ -55,3 +55,8 @@ markers = [
     "headless: pure logic unit and integration tests that can run headless in CI",
     "slow: tests that take longer than 5 seconds",
 ]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:.*httpx.*:Warning",
+    "ignore:.*starlette.*:Warning",
+]

@@ -32,6 +32,16 @@ class SyncManager:
     def get_bound_student(self, device_id: str) -> Optional[str]:
         return self._device_bindings.get(device_id)
 
+    def record_event(self, event: SyncEvent) -> bool:
+        """Record an incoming event on the central platform. Idempotent based on event_id."""
+        if not self.get_bound_student(event.device_id):
+            self.bind_device(event.device_id, event.student_id)
+        if event.event_id in self._processed_event_ids:
+            return False
+        self._processed_event_ids.add(event.event_id)
+        self._local_queue.append(event)
+        return True
+
     def queue_offline_event(self, event: SyncEvent) -> bool:
         """Add event to local queue if device is authorized and event is not a duplicate."""
         if self.get_bound_student(event.device_id) != event.student_id:
