@@ -513,10 +513,22 @@ class AIExecutionLog:
     completion_tokens: int = 0
     latency_ms: float = 0.0
     status: str = "SUCCESS"
+    request_id: str = ""
+    provider: str = ""
+    model: str = ""
+    student_id: Optional[str] = None
+    session_id: Optional[str] = None
+    course_id: Optional[str] = None
+    task_type: str = "general"
+    error_class: Optional[str] = None
+    estimated_cost_usd: float = 0.0
+    fallback_used: bool = False
+    prompt_hash: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
         return asdict(self)
+
 
 
 @dataclass

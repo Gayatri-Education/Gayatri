@@ -1235,12 +1235,171 @@ class PlatformDatabase:
         return model
 
     def record_ai_execution(self, log: AIExecutionLog) -> AIExecutionLog:
+        return self.record_ai_execution_log(log)
+
+    def record_ai_execution_log(self, log: AIExecutionLog) -> AIExecutionLog:
         with self._get_connection() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO ai_execution_logs (id, model_id, prompt_tokens, completion_tokens, latency_ms, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?);",
-                (log.id, log.model_id, log.prompt_tokens, log.completion_tokens, log.latency_ms, log.status, log.created_at),
+                """
+                INSERT INTO ai_execution_logs (
+                    id, model_id, request_id, provider, model, student_id, session_id,
+                    course_id, task_type, prompt_tokens, completion_tokens, latency_ms,
+                    status, error_class, estimated_cost_usd, fallback_used, prompt_hash, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    model_id=excluded.model_id,
+                    request_id=excluded.request_id,
+                    provider=excluded.provider,
+                    model=excluded.model,
+                    student_id=excluded.student_id,
+                    session_id=excluded.session_id,
+                    course_id=excluded.course_id,
+                    task_type=excluded.task_type,
+                    prompt_tokens=excluded.prompt_tokens,
+                    completion_tokens=excluded.completion_tokens,
+                    latency_ms=excluded.latency_ms,
+                    status=excluded.status,
+                    error_class=excluded.error_class,
+                    estimated_cost_usd=excluded.estimated_cost_usd,
+                    fallback_used=excluded.fallback_used,
+                    prompt_hash=excluded.prompt_hash,
+                    created_at=excluded.created_at;
+                """,
+                (
+                    log.id,
+                    log.model_id or f"{log.provider}:{log.model}",
+                    log.request_id,
+                    log.provider,
+                    log.model,
+                    log.student_id,
+                    log.session_id,
+                    log.course_id,
+                    log.task_type,
+                    log.prompt_tokens,
+                    log.completion_tokens,
+                    log.latency_ms,
+                    log.status,
+                    log.error_class,
+                    log.estimated_cost_usd,
+                    1 if log.fallback_used else 0,
+                    log.prompt_hash,
+                    log.created_at,
+                ),
             )
         return log
+
+    def get_ai_execution_logs(
+        self,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        student_id: Optional[str] = None,
+        course_id: Optional[str] = None,
+        task_type: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[AIExecutionLog]:
+        with self._get_connection() as conn:
+            conditions = []
+            params: List[Any] = []
+            if provider:
+                conditions.append("provider = ?")
+                params.append(provider)
+            if model:
+                conditions.append("model = ?")
+                params.append(model)
+            if student_id:
+                conditions.append("student_id = ?")
+                params.append(student_id)
+            if course_id:
+                conditions.append("course_id = ?")
+                params.append(course_id)
+            if task_type:
+                conditions.append("task_type = ?")
+                params.append(task_type)
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+
+            where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+            sql = f"SELECT * FROM ai_execution_logs {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?;"
+            params.extend([limit, offset])
+
+            rows = conn.execute(sql, params).fetchall()
+            return [
+                AIExecutionLog(
+                    id=r["id"],
+                    model_id=r["model_id"],
+                    prompt_tokens=r["prompt_tokens"],
+                    completion_tokens=r["completion_tokens"],
+                    latency_ms=r["latency_ms"],
+                    status=r["status"],
+                    request_id=r["request_id"] if "request_id" in r.keys() else "",
+                    provider=r["provider"] if "provider" in r.keys() else "",
+                    model=r["model"] if "model" in r.keys() else "",
+                    student_id=r["student_id"] if "student_id" in r.keys() else None,
+                    session_id=r["session_id"] if "session_id" in r.keys() else None,
+                    course_id=r["course_id"] if "course_id" in r.keys() else None,
+                    task_type=r["task_type"] if "task_type" in r.keys() else "general",
+                    error_class=r["error_class"] if "error_class" in r.keys() else None,
+                    estimated_cost_usd=r["estimated_cost_usd"] if "estimated_cost_usd" in r.keys() else 0.0,
+                    fallback_used=bool(r["fallback_used"]) if "fallback_used" in r.keys() else False,
+                    prompt_hash=r["prompt_hash"] if "prompt_hash" in r.keys() else "",
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_ai_observability_metrics(self) -> Dict[str, Any]:
+        with self._get_connection() as conn:
+            r_total = conn.execute("SELECT count(*) as total_requests, sum(prompt_tokens) as total_prompt_tokens, sum(completion_tokens) as total_completion_tokens, sum(estimated_cost_usd) as total_cost, avg(latency_ms) as avg_latency FROM ai_execution_logs;").fetchone()
+            r_success = conn.execute("SELECT count(*) as success_count FROM ai_execution_logs WHERE status = 'SUCCESS';").fetchone()
+            r_fallback = conn.execute("SELECT count(*) as fallback_count FROM ai_execution_logs WHERE fallback_used = 1;").fetchone()
+
+            total = r_total["total_requests"] or 0
+            success = r_success["success_count"] or 0
+            fallbacks = r_fallback["fallback_count"] or 0
+            p_tokens = r_total["total_prompt_tokens"] or 0
+            c_tokens = r_total["total_completion_tokens"] or 0
+            cost = r_total["total_cost"] or 0.0
+            avg_lat = r_total["avg_latency"] or 0.0
+
+            # Provider breakdown
+            provider_rows = conn.execute("SELECT provider, count(*) as count, sum(estimated_cost_usd) as cost, avg(latency_ms) as avg_latency FROM ai_execution_logs GROUP BY provider;").fetchall()
+            providers_breakdown = {
+                r["provider"] or "unknown": {
+                    "count": r["count"],
+                    "cost_usd": round(r["cost"] or 0.0, 4),
+                    "avg_latency_ms": round(r["avg_latency"] or 0.0, 1),
+                }
+                for r in provider_rows
+            }
+
+            # Task breakdown
+            task_rows = conn.execute("SELECT task_type, count(*) as count, sum(estimated_cost_usd) as cost FROM ai_execution_logs GROUP BY task_type;").fetchall()
+            tasks_breakdown = {
+                r["task_type"] or "general": {
+                    "count": r["count"],
+                    "cost_usd": round(r["cost"] or 0.0, 4),
+                }
+                for r in task_rows
+            }
+
+            return {
+                "total_requests": total,
+                "successful_requests": success,
+                "failed_requests": max(0, total - success),
+                "success_rate": round(success / total, 3) if total > 0 else 1.0,
+                "fallback_count": fallbacks,
+                "total_prompt_tokens": p_tokens,
+                "total_completion_tokens": c_tokens,
+                "total_tokens": p_tokens + c_tokens,
+                "total_cost_usd": round(cost, 4),
+                "avg_latency_ms": round(avg_lat, 2),
+                "providers_breakdown": providers_breakdown,
+                "tasks_breakdown": tasks_breakdown,
+            }
+
 
     def record_audit_log(self, log: AuditLog) -> AuditLog:
         with self._get_connection() as conn:

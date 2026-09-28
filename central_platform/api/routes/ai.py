@@ -17,8 +17,12 @@ from central_platform.ai.schema import (
     TaskType,
 )
 from central_platform.api.schemas import (
+    AIAllowlistUpdateRequest,
+    AIBudgetStatusResponse,
+    AIBudgetUpdateRequest,
     AIExecutionApiRequest,
     AIExecutionApiResponse,
+    AIExecutionLogResponse,
     AIKillSwitchRequest,
     AIProviderCreateRequest,
     AIProviderResponse,
@@ -246,3 +250,156 @@ async def preview_routing(req: AIRoutePreviewRequest):
             rationale=decision.rationale,
         ),
     )
+
+
+# ── Phase 18: AI Governance & Observability Endpoints ────────────────────
+
+def get_governance_service():
+    from central_platform.ai.governance import AIGovernanceService
+    gw = get_ai_gateway_service()
+    return AIGovernanceService(gateway=gw, db=gw.db)
+
+
+@router.get("/observability/metrics", response_model=ApiResponse[dict])
+async def get_observability_metrics():
+    """Retrieve system-wide aggregated telemetry and performance metrics."""
+    gov = get_governance_service()
+    metrics = gov.get_observability_metrics()
+    return ApiResponse(ok=True, data=metrics)
+
+
+@router.get("/observability/logs", response_model=ApiResponse[List[AIExecutionLogResponse]])
+async def get_observability_logs(
+    provider: Optional[str] = Query(None),
+    model: Optional[str] = Query(None),
+    student_id: Optional[str] = Query(None),
+    course_id: Optional[str] = Query(None),
+    task_type: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """Retrieve privacy-preserving telemetry logs (prompt hash only)."""
+    gov = get_governance_service()
+    logs = gov.get_execution_logs(
+        provider=provider,
+        model=model,
+        student_id=student_id,
+        course_id=course_id,
+        task_type=task_type,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+    return ApiResponse(
+        ok=True,
+        data=[
+            AIExecutionLogResponse(
+                id=l["id"],
+                request_id=l.get("request_id", ""),
+                provider=l.get("provider", ""),
+                model=l.get("model", ""),
+                student_id=l.get("student_id"),
+                session_id=l.get("session_id"),
+                course_id=l.get("course_id"),
+                task_type=l.get("task_type", "general"),
+                prompt_tokens=l.get("prompt_tokens", 0),
+                completion_tokens=l.get("completion_tokens", 0),
+                latency_ms=l.get("latency_ms", 0.0),
+                status=l.get("status", "SUCCESS"),
+                error_class=l.get("error_class"),
+                estimated_cost_usd=l.get("estimated_cost_usd", 0.0),
+                fallback_used=l.get("fallback_used", False),
+                prompt_hash=l.get("prompt_hash", ""),
+                created_at=l.get("created_at", ""),
+            )
+            for l in logs
+        ],
+    )
+
+
+@router.get("/governance/budgets", response_model=ApiResponse[AIBudgetStatusResponse])
+async def get_budget_status():
+    """Retrieve daily budget usage, remaining spend, and alert status."""
+    gov = get_governance_service()
+    status_data = gov.get_budget_status()
+    return ApiResponse(
+        ok=True,
+        data=AIBudgetStatusResponse(
+            daily_budget_usd=status_data["daily_budget_usd"],
+            daily_spend_usd=status_data["daily_spend_usd"],
+            remaining_budget_usd=status_data["remaining_budget_usd"],
+            percentage_used=status_data["percentage_used"],
+            budget_alert=status_data["budget_alert"],
+            budget_exceeded=status_data["budget_exceeded"],
+        ),
+    )
+
+
+@router.put("/governance/budgets", response_model=ApiResponse[AIBudgetStatusResponse])
+async def update_budget_limit(req: AIBudgetUpdateRequest):
+    """Update daily AI budget threshold in USD."""
+    gov = get_governance_service()
+    try:
+        updated = gov.set_budget(req.daily_budget_usd)
+        return ApiResponse(
+            ok=True,
+            data=AIBudgetStatusResponse(
+                daily_budget_usd=updated["daily_budget_usd"],
+                daily_spend_usd=updated["daily_spend_usd"],
+                remaining_budget_usd=updated["remaining_budget_usd"],
+                percentage_used=updated["percentage_used"],
+                budget_alert=updated["budget_alert"],
+                budget_exceeded=updated["budget_exceeded"],
+            ),
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@router.get("/governance/circuit-breakers", response_model=ApiResponse[dict])
+async def get_circuit_breakers():
+    """Retrieve real-time circuit breaker states across all providers."""
+    gov = get_governance_service()
+    return ApiResponse(ok=True, data=gov.get_circuit_breaker_statuses())
+
+
+@router.post("/governance/circuit-breakers/{provider_name}/reset", response_model=ApiResponse[dict])
+async def reset_circuit_breaker(provider_name: str):
+    """Manually reset a tripped circuit breaker to CLOSED state."""
+    gov = get_governance_service()
+    reset = gov.reset_circuit_breaker(provider_name)
+    if not reset:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider_name}' has no active circuit breaker.")
+    return ApiResponse(ok=True, data={"provider_name": provider_name, "reset": True})
+
+
+@router.get("/governance/allowlist", response_model=ApiResponse[List[str]])
+async def get_allowlist():
+    """Retrieve active model allowlist."""
+    gov = get_governance_service()
+    return ApiResponse(ok=True, data=gov.get_model_allowlist())
+
+
+@router.post("/governance/allowlist", response_model=ApiResponse[List[str]])
+async def update_allowlist(req: AIAllowlistUpdateRequest):
+    """Set or replace model allowlist."""
+    gov = get_governance_service()
+    updated = gov.set_model_allowlist(req.models)
+    return ApiResponse(ok=True, data=updated)
+
+
+@router.delete("/governance/allowlist/{model_name}", response_model=ApiResponse[List[str]])
+async def remove_from_allowlist(model_name: str):
+    """Remove a model from the active allowlist."""
+    gov = get_governance_service()
+    updated = gov.remove_model_from_allowlist(model_name)
+    return ApiResponse(ok=True, data=updated)
+
+
+@router.get("/governance/cost-breakdown", response_model=ApiResponse[dict])
+async def get_cost_breakdown():
+    """Retrieve authoritative cost allocation across providers and tasks."""
+    gov = get_governance_service()
+    return ApiResponse(ok=True, data=gov.get_cost_breakdown())
+

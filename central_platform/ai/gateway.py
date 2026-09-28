@@ -246,7 +246,7 @@ class AIGatewayService:
                         result.fallback_used = True
                         result.original_provider = routing.target_provider
 
-                    self._log_execution(result)
+                    self._log_execution(result, request)
                     return result
                 else:
                     cb.record_failure()
@@ -257,7 +257,7 @@ class AIGatewayService:
                 logger.warning(f"Provider {p_name} execution error: {err}")
 
         # All providers failed
-        return AIExecutionResult(
+        fail_res = AIExecutionResult(
             request_id=req_id,
             content="",
             provider=routing.target_provider,
@@ -266,6 +266,8 @@ class AIGatewayService:
             error_class="AllProvidersFailed",
             error_message=f"All configured providers failed. Last error: {last_error}",
         )
+        self._log_execution(fail_res, request)
+        return fail_res
 
     def _resolve_model_descriptor(self, p_config: ProviderConfig, target_model: str) -> AIModelDescriptor:
         for m in p_config.models:
@@ -275,21 +277,37 @@ class AIGatewayService:
             return p_config.models[0]
         return AIModelDescriptor(model_id="default", model_name=target_model)
 
-    def _log_execution(self, result: AIExecutionResult) -> None:
-        """Record execution metrics to the database."""
+    def _log_execution(self, result: AIExecutionResult, request: AIExecutionRequest) -> None:
+        """Record privacy-preserving execution metrics to the database (Section 27)."""
         try:
+            # Privacy invariant: Store cryptographic hash, never raw prompt
+            p_hash = hashlib.sha256(request.prompt.encode("utf-8")).hexdigest()[:16]
+            task_type_val = request.task_type.value if isinstance(request.task_type, TaskType) else str(request.task_type)
+
             log_entry = AIExecutionLog(
                 id=f"log-{result.request_id}",
                 model_id=f"{result.provider}:{result.model}",
+                request_id=result.request_id,
+                provider=result.provider,
+                model=result.model,
+                student_id=request.student_id,
+                session_id=request.session_id,
+                course_id=request.course_id,
+                task_type=task_type_val,
                 prompt_tokens=result.prompt_tokens,
                 completion_tokens=result.completion_tokens,
                 latency_ms=result.latency_ms,
                 status="SUCCESS" if result.success else "FAILED",
+                error_class=result.error_class,
+                estimated_cost_usd=result.estimated_cost_usd,
+                fallback_used=result.fallback_used,
+                prompt_hash=p_hash,
                 created_at=datetime.now(timezone.utc).isoformat(),
             )
             self.db.record_ai_execution_log(log_entry)
         except Exception as exc:
             logger.debug(f"Failed to record AI execution log: {exc}")
+
 
     def get_status(self) -> Dict[str, Any]:
         """Return real-time AI Gateway status and metrics."""

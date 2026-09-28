@@ -395,13 +395,28 @@ CREATE TABLE IF NOT EXISTS ai_models (
 CREATE TABLE IF NOT EXISTS ai_execution_logs (
     id TEXT PRIMARY KEY,
     model_id TEXT NOT NULL,
+    request_id TEXT NOT NULL DEFAULT '',
+    provider TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    student_id TEXT,
+    session_id TEXT,
+    course_id TEXT,
+    task_type TEXT NOT NULL DEFAULT 'general',
     prompt_tokens INTEGER NOT NULL DEFAULT 0,
     completion_tokens INTEGER NOT NULL DEFAULT 0,
     latency_ms REAL NOT NULL DEFAULT 0.0,
     status TEXT NOT NULL DEFAULT 'SUCCESS',
-    created_at TEXT NOT NULL,
-    FOREIGN KEY(model_id) REFERENCES ai_models(id) ON DELETE CASCADE
+    error_class TEXT,
+    estimated_cost_usd REAL NOT NULL DEFAULT 0.0,
+    fallback_used INTEGER NOT NULL DEFAULT 0,
+    prompt_hash TEXT DEFAULT '',
+    created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_ai_logs_student ON ai_execution_logs(student_id);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_course ON ai_execution_logs(course_id);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_provider ON ai_execution_logs(provider);
+CREATE INDEX IF NOT EXISTS idx_ai_logs_created ON ai_execution_logs(created_at);
+
 
 CREATE TABLE IF NOT EXISTS audit_logs (
     id TEXT PRIMARY KEY,

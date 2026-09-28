@@ -601,6 +601,44 @@ class AIStatusResponse(BaseModel):
     kill_switch_active: bool = False
 
 
+class AIExecutionLogResponse(BaseModel):
+    id: str
+    request_id: str
+    provider: str
+    model: str
+    student_id: Optional[str] = None
+    session_id: Optional[str] = None
+    course_id: Optional[str] = None
+    task_type: str = "general"
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    latency_ms: float = 0.0
+    status: str = "SUCCESS"
+    error_class: Optional[str] = None
+    estimated_cost_usd: float = 0.0
+    fallback_used: bool = False
+    prompt_hash: str = ""
+    created_at: str
+
+
+class AIBudgetStatusResponse(BaseModel):
+    daily_budget_usd: float
+    daily_spend_usd: float
+    remaining_budget_usd: float
+    percentage_used: float
+    budget_alert: bool
+    budget_exceeded: bool
+
+
+class AIBudgetUpdateRequest(BaseModel):
+    daily_budget_usd: float = Field(..., gt=0.0)
+
+
+class AIAllowlistUpdateRequest(BaseModel):
+    models: List[str] = Field(default_factory=list)
+
+
+
 
 # ── Analytics ────────────────────────────────────────────────────────────
 
