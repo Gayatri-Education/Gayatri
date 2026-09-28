@@ -461,11 +461,22 @@ CREATE TABLE IF NOT EXISTS notifications (
     recipient_id TEXT NOT NULL,
     title TEXT NOT NULL,
     message TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'in_app',
+    status TEXT NOT NULL DEFAULT 'created',
     is_read INTEGER NOT NULL DEFAULT 0,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    max_retries INTEGER NOT NULL DEFAULT 3,
+    backoff_seconds REAL NOT NULL DEFAULT 1.0,
+    next_retry_at TEXT,
+    delivered_at TEXT,
+    error_message TEXT,
+    provider_message_id TEXT,
+    metadata TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY(recipient_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
 
 -- 8. AI Governance, Observability & Auditing
 CREATE TABLE IF NOT EXISTS ai_providers (

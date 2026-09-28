@@ -881,14 +881,65 @@ class AdminSystemAnalyticsResponse(BaseModel):
 
 # ── Notifications ────────────────────────────────────────────────────────
 
+class NotificationCreateRequest(BaseModel):
+    recipient_id: str
+    title: str
+    message: str
+    channel: str = "in_app"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    sync_deliver: bool = True
+
+
+class NotificationBatchRequest(BaseModel):
+    recipient_ids: List[str]
+    title: str
+    message: str
+    channel: str = "in_app"
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 class NotificationResponse(BaseModel):
-    notification_id: str
+    id: str = ""
+    notification_id: str = ""
     recipient_id: str
     channel: str = "in_app"
     title: str
     message: str
-    created_at: str
+    status: str = "delivered"
     is_read: bool = False
+    retry_count: int = 0
+    delivered_at: Optional[str] = None
+    error_message: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+
+    def __init__(self, **data):
+        if "id" in data and not data.get("notification_id"):
+            data["notification_id"] = data["id"]
+        elif "notification_id" in data and not data.get("id"):
+            data["id"] = data["notification_id"]
+        super().__init__(**data)
+
+
+class NotificationStatusResponse(BaseModel):
+    notification_id: str
+    recipient_id: str
+    channel: str
+    status: str
+    retry_count: int
+    max_retries: int
+    next_retry_at: Optional[str] = None
+    delivered_at: Optional[str] = None
+    error_message: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    is_read: bool = False
+
+
+class NotificationQueueStatsResponse(BaseModel):
+    pending_count: int
+    by_status: Dict[str, int] = Field(default_factory=dict)
+    by_channel: Dict[str, int] = Field(default_factory=dict)
 
 
 # ── Sync ─────────────────────────────────────────────────────────────────

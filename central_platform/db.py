@@ -1643,29 +1643,118 @@ class PlatformDatabase:
 
     def create_notification(self, notif: Notification) -> Notification:
         with self._get_connection() as conn:
+            meta_json = json.dumps(notif.metadata) if isinstance(notif.metadata, dict) else "{}"
             conn.execute(
-                "INSERT OR REPLACE INTO notifications (id, recipient_id, title, message, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?);",
-                (notif.id, notif.recipient_id, notif.title, notif.message, 1 if notif.is_read else 0, notif.created_at),
+                """INSERT OR REPLACE INTO notifications 
+                (id, recipient_id, title, message, channel, status, is_read, retry_count, max_retries, backoff_seconds, next_retry_at, delivered_at, error_message, provider_message_id, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    notif.id,
+                    notif.recipient_id,
+                    notif.title,
+                    notif.message,
+                    notif.channel,
+                    notif.status,
+                    1 if notif.is_read else 0,
+                    notif.retry_count,
+                    notif.max_retries,
+                    notif.backoff_seconds,
+                    notif.next_retry_at,
+                    notif.delivered_at,
+                    notif.error_message,
+                    notif.provider_message_id,
+                    meta_json,
+                    notif.created_at,
+                ),
             )
         return notif
 
-    def get_notifications(self, recipient_id: str) -> List[Notification]:
+    def get_notification(self, notification_id: str) -> Optional[Notification]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM notifications WHERE id = ?;", (notification_id,)).fetchone()
+            if r:
+                return self._row_to_notification(r)
+            return None
+
+    def get_notifications(
+        self,
+        recipient_id: str,
+        unread_only: bool = False,
+        channel: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Notification]:
+        with self._get_connection() as conn:
+            query = "SELECT * FROM notifications WHERE recipient_id = ?"
+            params: list = [recipient_id]
+            if unread_only:
+                query += " AND is_read = 0"
+            if channel:
+                query += " AND channel = ?"
+                params.append(channel)
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?;"
+            params.extend([limit, offset])
+            rows = conn.execute(query, tuple(params)).fetchall()
+            return [self._row_to_notification(r) for r in rows]
+
+    def update_notification(self, notif: Notification) -> Notification:
+        return self.create_notification(notif)
+
+    def mark_notification_read(self, notification_id: str, recipient_id: Optional[str] = None) -> bool:
+        with self._get_connection() as conn:
+            if recipient_id:
+                res = conn.execute(
+                    "UPDATE notifications SET is_read = 1 WHERE id = ? AND recipient_id = ?;",
+                    (notification_id, recipient_id),
+                )
+            else:
+                res = conn.execute(
+                    "UPDATE notifications SET is_read = 1 WHERE id = ?;",
+                    (notification_id,),
+                )
+            return res.rowcount > 0
+
+    def mark_all_notifications_read(self, recipient_id: str) -> int:
+        with self._get_connection() as conn:
+            res = conn.execute(
+                "UPDATE notifications SET is_read = 1 WHERE recipient_id = ? AND is_read = 0;",
+                (recipient_id,),
+            )
+            return res.rowcount
+
+    def get_pending_notifications(self, limit: int = 100) -> List[Notification]:
         with self._get_connection() as conn:
             rows = conn.execute(
-                "SELECT * FROM notifications WHERE recipient_id = ? ORDER BY created_at DESC;",
-                (recipient_id,),
+                "SELECT * FROM notifications WHERE status IN ('created', 'queued', 'retried') ORDER BY created_at ASC LIMIT ?;",
+                (limit,),
             ).fetchall()
-            return [
-                Notification(
-                    id=r["id"],
-                    recipient_id=r["recipient_id"],
-                    title=r["title"],
-                    message=r["message"],
-                    is_read=bool(r["is_read"]),
-                    created_at=r["created_at"],
-                )
-                for r in rows
-            ]
+            return [self._row_to_notification(r) for r in rows]
+
+    def _row_to_notification(self, r: sqlite3.Row) -> Notification:
+        keys = r.keys()
+        meta = json.loads(r["metadata"]) if "metadata" in keys and r["metadata"] else {}
+        return Notification(
+            id=r["id"],
+            recipient_id=r["recipient_id"],
+            title=r["title"],
+            message=r["message"],
+            channel=r["channel"] if "channel" in keys else "in_app",
+            status=r["status"] if "status" in keys else "delivered",
+            is_read=bool(r["is_read"]),
+            retry_count=int(r["retry_count"]) if "retry_count" in keys else 0,
+            max_retries=int(r["max_retries"]) if "max_retries" in keys else 3,
+            backoff_seconds=float(r["backoff_seconds"]) if "backoff_seconds" in keys else 1.0,
+            next_retry_at=r["next_retry_at"] if "next_retry_at" in keys else None,
+            delivered_at=r["delivered_at"] if "delivered_at" in keys else None,
+            error_message=r["error_message"] if "error_message" in keys else None,
+            provider_message_id=r["provider_message_id"] if "provider_message_id" in keys else None,
+            metadata=meta,
+            created_at=r["created_at"],
+        )
 
     # ── 8. AI Governance, Observability & Auditing ───────────────────────────
 

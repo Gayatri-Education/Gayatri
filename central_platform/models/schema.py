@@ -585,7 +585,17 @@ class Notification:
     recipient_id: str
     title: str
     message: str
+    channel: str = "in_app"
+    status: str = "created"
     is_read: bool = False
+    retry_count: int = 0
+    max_retries: int = 3
+    backoff_seconds: float = 1.0
+    next_retry_at: Optional[str] = None
+    delivered_at: Optional[str] = None
+    error_message: Optional[str] = None
+    provider_message_id: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
