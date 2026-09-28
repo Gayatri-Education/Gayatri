@@ -515,6 +515,82 @@ class RAGQueryResponse(BaseModel):
 
 # ── AI Gateway & Governance ──────────────────────────────────────────────
 
+class AIExecutionApiRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    system_prompt: Optional[str] = None
+    task_type: str = Field(default="general")
+    student_id: Optional[str] = None
+    course_id: Optional[str] = None
+    preferred_provider: Optional[str] = None
+    preferred_model: Optional[str] = None
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=1024, ge=1, le=8192)
+    teacher_directives: List[str] = Field(default_factory=list)
+    rag_context: Optional[str] = None
+
+
+class AIExecutionApiResponse(BaseModel):
+    request_id: str
+    content: str
+    provider: str
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    latency_ms: float
+    estimated_cost_usd: float
+    success: bool
+    error_class: Optional[str] = None
+    error_message: Optional[str] = None
+    fallback_used: bool = False
+    original_provider: Optional[str] = None
+
+
+class AIProviderCreateRequest(BaseModel):
+    provider_name: str
+    provider_type: str = "mock"
+    api_key_ref: str = ""
+    base_url: Optional[str] = None
+    enabled: bool = True
+    priority: int = 1
+    fallback_provider: Optional[str] = None
+    rate_limit_rpm: int = 600
+    daily_budget_usd: float = 50.0
+
+
+class AIProviderResponse(BaseModel):
+    provider_name: str
+    provider_type: str
+    api_key_ref: str = ""
+    base_url: Optional[str] = None
+    enabled: bool = True
+    priority: int = 1
+    fallback_provider: Optional[str] = None
+    rate_limit_rpm: int = 600
+    daily_budget_usd: float = 50.0
+    models: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AIKillSwitchRequest(BaseModel):
+    enabled: bool
+    reason: str = ""
+
+
+class AIRoutePreviewRequest(BaseModel):
+    task_type: str = "general"
+    preferred_provider: Optional[str] = None
+    preferred_model: Optional[str] = None
+
+
+class AIRoutePreviewResponse(BaseModel):
+    task_type: str
+    target_provider: str
+    target_model: str
+    target_tier: str
+    fallback_chain: List[str] = Field(default_factory=list)
+    rationale: str
+
+
 class AIStatusResponse(BaseModel):
     gateway_status: str = "HEALTHY"
     active_provider: str = "local_llama"
@@ -523,6 +599,7 @@ class AIStatusResponse(BaseModel):
     token_usage_today: int = 4210
     budget_remaining_usd: float = 98.45
     kill_switch_active: bool = False
+
 
 
 # ── Analytics ────────────────────────────────────────────────────────────
