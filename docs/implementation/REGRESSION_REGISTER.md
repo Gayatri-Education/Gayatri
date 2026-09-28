@@ -109,6 +109,7 @@ pytest -k "rag or slm or security"
 | 2026-09-28 | Phase 22 Security Hardening Master | FULL SUITE | 637 | 637 | 0 | 0 | `tests/test_phase22_security_hardening_master.py` (10/10) | PASSED |
 | 2026-09-28 | Phase 23 Real End-to-End Testing | FULL SUITE | 640 | 640 | 0 | 0 | `tests/test_phase23_e2e_journeys_master.py` (3/3) | PASSED |
 | 2026-09-28 | Phase 24 Failure / Recovery Testing | FULL SUITE | 645 | 645 | 0 | 0 | `tests/test_phase24_failure_recovery_master.py` (5/5) | PASSED |
+| 2026-09-28 | Phase 25 Performance / Scale Testing | FULL SUITE | 648 | 648 | 0 | 0 | `tests/test_phase25_performance_scale_master.py` (3/3) | PASSED |
 
 
 
