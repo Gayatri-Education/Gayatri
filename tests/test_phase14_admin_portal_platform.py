@@ -468,3 +468,57 @@ def test_admin_portal_html_contains_all_16_views():
     # Verify Kill switch banner
     assert 'id="killSwitchBanner"' in html
     assert 'AdminApp.init()' in html
+
+
+def test_admin_portal_all_ctas_and_modals_wired():
+    """Verify that all CTAs, modals, forms, and handlers in admin_portal.html are properly wired."""
+    path = os.path.join("app", "ui", "admin_portal.html")
+    with open(path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # 1. Modals
+    expected_modals = [
+        "modalOrg",
+        "modalUser",
+        "modalCourse",
+        "modalCurriculum",
+        "modalClass",
+        "modalCohort",
+        "modalEnrollment",
+        "modalProvider",
+        "modalModel",
+    ]
+    for m in expected_modals:
+        assert f'id="{m}"' in html, f"Missing modal {m} in admin_portal.html"
+
+    # 2. JS Submit Handlers
+    expected_submit_handlers = [
+        "submitOrg",
+        "submitUser",
+        "submitCourse",
+        "submitCurriculum",
+        "submitClass",
+        "submitCohort",
+        "submitEnrollment",
+        "submitProvider",
+        "submitModel",
+    ]
+    for h in expected_submit_handlers:
+        assert f"async {h}(" in html or f"{h}(" in html, f"Missing submit handler {h} in AdminApp"
+
+    # 3. Action CTAs
+    expected_actions = [
+        "toggleKillSwitch",
+        "promptKillSwitch",
+        "toggleUserActive",
+        "deleteUser",
+        "revokeEnrollment",
+        "saveAIPolicies",
+        "saveFeatureFlags",
+        "exportAuditLog",
+        "pingDiagnostics",
+        "apiDelete",
+    ]
+    for a in expected_actions:
+        assert a in html, f"Missing action handler {a} in AdminApp"
+
