@@ -3,10 +3,10 @@
 ## Overall
 
 Status: IN_PROGRESS  
-Current Phase: 16  
-Overall Completion: 53.3% (16/30 Phases)  
-Last Verified Commit: 75710bb (Phase 15)  
-Last Full Regression: 2026-09-28 (580/580 passed)  
+Current Phase: 17  
+Overall Completion: 56.7% (17/30 Phases)  
+Last Verified Commit: 5397107 (Phase 16)  
+Last Full Regression: 2026-09-28 (591/591 passed)  
 Last Full Backtest: 2026-09-28 (scripts/run_frozen_baseline.py 44/44 passed)  
 Open P0: 0  
 Open P1: 0  
@@ -33,7 +33,7 @@ Open P3: 0
 | 13 | Teacher Copilot | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 14e988f |
 | 14 | Admin Web Portal | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 3c5e45d |
 | 15 | Plug-and-Play Curriculum | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 75710bb |
-| 16 | RAG Plug-and-Play | NOT_STARTED | - | - | - | - | - | - | - | - | - |
+| 16 | RAG Plug-and-Play | VERIFIED | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | 5397107 |
 | 17 | Real AI Gateway + Model Router | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 18 | AI Governance / Observability | NOT_STARTED | - | - | - | - | - | - | - | - | - |
 | 19 | Assessment Platform | NOT_STARTED | - | - | - | - | - | - | - | - | - |
