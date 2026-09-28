@@ -282,27 +282,91 @@ CREATE TABLE IF NOT EXISTS student_misconceptions (
 );
 CREATE INDEX IF NOT EXISTS idx_student_misc_student ON student_misconceptions(student_id);
 
--- 6. Assessments
+-- 6. Assessments & Question Bank
+CREATE TABLE IF NOT EXISTS question_bank_items (
+    id TEXT PRIMARY KEY,
+    course_id TEXT NOT NULL,
+    organization_id TEXT,
+    subject_id TEXT,
+    concept_id TEXT NOT NULL DEFAULT '',
+    topic_id TEXT NOT NULL DEFAULT '',
+    question_text TEXT NOT NULL,
+    item_type TEXT NOT NULL DEFAULT 'MCQ',
+    options TEXT NOT NULL DEFAULT '[]',
+    correct_answer TEXT NOT NULL DEFAULT '',
+    rubric TEXT NOT NULL DEFAULT '{}',
+    difficulty INTEGER NOT NULL DEFAULT 1,
+    bloom_level TEXT NOT NULL DEFAULT 'recall',
+    hints TEXT NOT NULL DEFAULT '[]',
+    explanation TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '[]',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_by TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_qb_course ON question_bank_items(course_id);
+CREATE INDEX IF NOT EXISTS idx_qb_concept ON question_bank_items(concept_id);
+CREATE INDEX IF NOT EXISTS idx_qb_difficulty ON question_bank_items(difficulty);
+
 CREATE TABLE IF NOT EXISTS assessments (
     id TEXT PRIMARY KEY,
     course_id TEXT NOT NULL,
     title TEXT NOT NULL,
     assessment_type TEXT NOT NULL DEFAULT 'formative',
     total_marks REAL NOT NULL DEFAULT 100.0,
+    organization_id TEXT,
+    description TEXT NOT NULL DEFAULT '',
+    duration_minutes INTEGER NOT NULL DEFAULT 0,
+    passing_score REAL NOT NULL DEFAULT 70.0,
+    item_ids TEXT NOT NULL DEFAULT '[]',
+    config TEXT NOT NULL DEFAULT '{}',
+    rubric TEXT NOT NULL DEFAULT '{}',
+    status TEXT NOT NULL DEFAULT 'published',
+    created_by TEXT,
     created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '',
     FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_assessments_course ON assessments(course_id);
+CREATE INDEX IF NOT EXISTS idx_assessments_type ON assessments(assessment_type);
 
 CREATE TABLE IF NOT EXISTS assessment_items (
     id TEXT PRIMARY KEY,
     assessment_id TEXT NOT NULL,
     question_text TEXT NOT NULL,
     item_type TEXT NOT NULL DEFAULT 'MCQ',
-    correct_answer TEXT NOT NULL,
+    correct_answer TEXT NOT NULL DEFAULT '',
     max_marks REAL NOT NULL DEFAULT 4.0,
+    concept_id TEXT NOT NULL DEFAULT '',
+    options TEXT NOT NULL DEFAULT '[]',
+    rubric TEXT NOT NULL DEFAULT '{}',
+    difficulty INTEGER NOT NULL DEFAULT 1,
+    hints TEXT NOT NULL DEFAULT '[]',
+    explanation TEXT NOT NULL DEFAULT '',
     FOREIGN KEY(assessment_id) REFERENCES assessments(id) ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_asmt_items_asmt ON assessment_items(assessment_id);
+
+CREATE TABLE IF NOT EXISTS assignments (
+    id TEXT PRIMARY KEY,
+    course_id TEXT NOT NULL,
+    assessment_id TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    organization_id TEXT,
+    cohort_id TEXT,
+    class_group_id TEXT,
+    assigned_by TEXT,
+    teacher_id TEXT,
+    instructions TEXT NOT NULL DEFAULT '',
+    due_at TEXT,
+    due_date TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_assignments_course ON assignments(course_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_cohort ON assignments(cohort_id);
 
 CREATE TABLE IF NOT EXISTS assessment_attempts (
     id TEXT PRIMARY KEY,
@@ -312,10 +376,41 @@ CREATE TABLE IF NOT EXISTS assessment_attempts (
     passed INTEGER NOT NULL DEFAULT 0,
     started_at TEXT NOT NULL,
     completed_at TEXT,
+    assignment_id TEXT,
+    attempt_number INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'in_progress',
+    time_spent_seconds INTEGER NOT NULL DEFAULT 0,
+    max_score REAL NOT NULL DEFAULT 100.0,
+    percentage REAL NOT NULL DEFAULT 0.0,
+    current_difficulty INTEGER NOT NULL DEFAULT 1,
+    answers TEXT NOT NULL DEFAULT '{}',
+    item_results TEXT NOT NULL DEFAULT '{}',
+    ai_grading_summary TEXT NOT NULL DEFAULT '{}',
+    teacher_review TEXT NOT NULL DEFAULT '{}',
+    reassessment_recommendations TEXT NOT NULL DEFAULT '[]',
     FOREIGN KEY(assessment_id) REFERENCES assessments(id) ON DELETE CASCADE,
-    FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(assignment_id) REFERENCES assignments(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_asmt_attempt_student ON assessment_attempts(student_id);
+CREATE INDEX IF NOT EXISTS idx_asmt_attempt_asmt ON assessment_attempts(assessment_id);
+
+CREATE TABLE IF NOT EXISTS reassessments (
+    id TEXT PRIMARY KEY,
+    original_attempt_id TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    course_id TEXT NOT NULL,
+    generated_assessment_id TEXT NOT NULL,
+    target_concepts TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    target_score REAL NOT NULL DEFAULT 80.0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(original_attempt_id) REFERENCES assessment_attempts(id) ON DELETE CASCADE,
+    FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY(generated_assessment_id) REFERENCES assessments(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_reassessments_student ON reassessments(student_id);
 
 -- 7. Teacher Directives & Interventions
 CREATE TABLE IF NOT EXISTS teacher_instructions (

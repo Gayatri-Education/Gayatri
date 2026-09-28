@@ -166,8 +166,10 @@ class LearningEventStore:
         """Retrieve individual event by unique identifier."""
         return self.db.get_learning_event(event_id)
 
-    def query_events(self, filter_params: LearningEventFilter) -> List[LearningEvent]:
+    def query_events(self, filter_params: Optional[LearningEventFilter] = None) -> List[LearningEvent]:
         """Query learning events using filters with chronological ordering."""
+        if filter_params is None:
+            filter_params = LearningEventFilter()
         return self.db.query_learning_events(
             student_id=filter_params.student_id,
             organization_id=filter_params.organization_id,

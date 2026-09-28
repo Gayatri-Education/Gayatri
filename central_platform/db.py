@@ -46,9 +46,11 @@ from central_platform.models.schema import (
     Organization,
     Permission,
     Prerequisite,
+    QuestionBankItem,
     RAGChunk,
     RAGSource,
     RAGSourceStatus,
+    Reassessment,
     Role,
     Session,
     SessionStatus,
@@ -1025,32 +1027,153 @@ class PlatformDatabase:
                 )
             return None
 
-    # ── 6. Assessments ───────────────────────────────────────────────────────
+    # ── 6. Assessments & Question Bank ───────────────────────────────────────
+
+    def create_question_bank_item(self, item: QuestionBankItem) -> QuestionBankItem:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO question_bank_items (
+                    id, course_id, organization_id, subject_id, concept_id, topic_id,
+                    question_text, item_type, options, correct_answer, rubric,
+                    difficulty, bloom_level, hints, explanation, tags, is_active,
+                    created_by, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    item.id,
+                    item.course_id,
+                    item.organization_id,
+                    item.subject_id,
+                    item.concept_id,
+                    item.topic_id,
+                    item.question_text,
+                    item.item_type,
+                    json.dumps(item.options),
+                    item.correct_answer,
+                    json.dumps(item.rubric),
+                    item.difficulty,
+                    item.bloom_level,
+                    json.dumps(item.hints),
+                    item.explanation,
+                    json.dumps(item.tags),
+                    1 if item.is_active else 0,
+                    item.created_by,
+                    item.created_at,
+                ),
+            )
+        return item
+
+    def get_question_bank_item(self, item_id: str) -> Optional[QuestionBankItem]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM question_bank_items WHERE id = ?;", (item_id,)).fetchone()
+            if r:
+                return QuestionBankItem(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    subject_id=r["subject_id"] if "subject_id" in r.keys() else None,
+                    concept_id=r["concept_id"] if "concept_id" in r.keys() else "",
+                    topic_id=r["topic_id"] if "topic_id" in r.keys() else "",
+                    question_text=r["question_text"],
+                    item_type=r["item_type"],
+                    options=json.loads(r["options"]) if "options" in r.keys() and r["options"] else [],
+                    correct_answer=r["correct_answer"] if "correct_answer" in r.keys() else "",
+                    rubric=json.loads(r["rubric"]) if "rubric" in r.keys() and r["rubric"] else {},
+                    difficulty=int(r["difficulty"]) if "difficulty" in r.keys() else 1,
+                    bloom_level=r["bloom_level"] if "bloom_level" in r.keys() else "recall",
+                    hints=json.loads(r["hints"]) if "hints" in r.keys() and r["hints"] else [],
+                    explanation=r["explanation"] if "explanation" in r.keys() else "",
+                    tags=json.loads(r["tags"]) if "tags" in r.keys() and r["tags"] else [],
+                    is_active=bool(r["is_active"]) if "is_active" in r.keys() else True,
+                    created_by=r["created_by"] if "created_by" in r.keys() else None,
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def list_question_bank_items(
+        self,
+        course_id: Optional[str] = None,
+        concept_id: Optional[str] = None,
+        difficulty: Optional[int] = None,
+        item_type: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[QuestionBankItem]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM question_bank_items WHERE is_active = 1"
+            params: list = []
+            if course_id:
+                sql += " AND course_id = ?"
+                params.append(course_id)
+            if concept_id:
+                sql += " AND concept_id = ?"
+                params.append(concept_id)
+            if difficulty is not None:
+                sql += " AND difficulty = ?"
+                params.append(difficulty)
+            if item_type:
+                sql += " AND item_type = ?"
+                params.append(item_type)
+            sql += " ORDER BY created_at DESC LIMIT ?;"
+            params.append(limit)
+
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [
+                QuestionBankItem(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    subject_id=r["subject_id"] if "subject_id" in r.keys() else None,
+                    concept_id=r["concept_id"] if "concept_id" in r.keys() else "",
+                    topic_id=r["topic_id"] if "topic_id" in r.keys() else "",
+                    question_text=r["question_text"],
+                    item_type=r["item_type"],
+                    options=json.loads(r["options"]) if "options" in r.keys() and r["options"] else [],
+                    correct_answer=r["correct_answer"] if "correct_answer" in r.keys() else "",
+                    rubric=json.loads(r["rubric"]) if "rubric" in r.keys() and r["rubric"] else {},
+                    difficulty=int(r["difficulty"]) if "difficulty" in r.keys() else 1,
+                    bloom_level=r["bloom_level"] if "bloom_level" in r.keys() else "recall",
+                    hints=json.loads(r["hints"]) if "hints" in r.keys() and r["hints"] else [],
+                    explanation=r["explanation"] if "explanation" in r.keys() else "",
+                    tags=json.loads(r["tags"]) if "tags" in r.keys() and r["tags"] else [],
+                    is_active=bool(r["is_active"]) if "is_active" in r.keys() else True,
+                    created_by=r["created_by"] if "created_by" in r.keys() else None,
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
 
     def create_assessment(self, asmt: Assessment) -> Assessment:
         with self._get_connection() as conn:
             type_val = asmt.assessment_type.value if isinstance(asmt.assessment_type, AssessmentType) else str(asmt.assessment_type)
             conn.execute(
-                "INSERT OR REPLACE INTO assessments (id, course_id, title, assessment_type, total_marks, created_at) VALUES (?, ?, ?, ?, ?, ?);",
-                (asmt.id, asmt.course_id, asmt.title, type_val, asmt.total_marks, asmt.created_at),
+                """
+                INSERT OR REPLACE INTO assessments (
+                    id, course_id, title, assessment_type, total_marks,
+                    organization_id, description, duration_minutes, passing_score,
+                    item_ids, config, rubric, status, created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    asmt.id,
+                    asmt.course_id,
+                    asmt.title,
+                    type_val,
+                    asmt.total_marks,
+                    asmt.organization_id,
+                    asmt.description,
+                    asmt.duration_minutes,
+                    asmt.passing_score,
+                    json.dumps(asmt.item_ids),
+                    json.dumps(asmt.config),
+                    json.dumps(asmt.rubric),
+                    asmt.status,
+                    asmt.created_by,
+                    asmt.created_at,
+                    asmt.updated_at or asmt.created_at,
+                ),
             )
         return asmt
-
-    def create_assessment_item(self, item: AssessmentItem) -> AssessmentItem:
-        with self._get_connection() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO assessment_items (id, assessment_id, question_text, item_type, correct_answer, max_marks) VALUES (?, ?, ?, ?, ?, ?);",
-                (item.id, item.assessment_id, item.question_text, item.item_type, item.correct_answer, item.max_marks),
-            )
-        return item
-
-    def record_assessment_attempt(self, attempt: AssessmentAttempt) -> AssessmentAttempt:
-        with self._get_connection() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO assessment_attempts (id, assessment_id, student_id, score, passed, started_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?);",
-                (attempt.id, attempt.assessment_id, attempt.student_id, attempt.score, 1 if attempt.passed else 0, attempt.started_at, attempt.completed_at),
-            )
-        return attempt
 
     def get_assessment(self, assessment_id: str) -> Optional[Assessment]:
         with self._get_connection() as conn:
@@ -1062,7 +1185,264 @@ class PlatformDatabase:
                     title=r["title"],
                     assessment_type=AssessmentType(r["assessment_type"]),
                     total_marks=float(r["total_marks"]),
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    description=r["description"] if "description" in r.keys() else "",
+                    duration_minutes=int(r["duration_minutes"]) if "duration_minutes" in r.keys() else 0,
+                    passing_score=float(r["passing_score"]) if "passing_score" in r.keys() else 70.0,
+                    item_ids=json.loads(r["item_ids"]) if "item_ids" in r.keys() and r["item_ids"] else [],
+                    config=json.loads(r["config"]) if "config" in r.keys() and r["config"] else {},
+                    rubric=json.loads(r["rubric"]) if "rubric" in r.keys() and r["rubric"] else {},
+                    status=r["status"] if "status" in r.keys() else "published",
+                    created_by=r["created_by"] if "created_by" in r.keys() else None,
                     created_at=r["created_at"],
+                    updated_at=r["updated_at"] if "updated_at" in r.keys() and r["updated_at"] else r["created_at"],
+                )
+            return None
+
+    def list_assessments(
+        self,
+        course_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        assessment_type: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Assessment]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM assessments WHERE 1=1"
+            params: list = []
+            if course_id:
+                sql += " AND course_id = ?"
+                params.append(course_id)
+            if organization_id:
+                sql += " AND organization_id = ?"
+                params.append(organization_id)
+            if assessment_type:
+                sql += " AND assessment_type = ?"
+                params.append(assessment_type)
+            if status:
+                sql += " AND status = ?"
+                params.append(status)
+            sql += " ORDER BY created_at DESC LIMIT ?;"
+            params.append(limit)
+
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [
+                Assessment(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    title=r["title"],
+                    assessment_type=AssessmentType(r["assessment_type"]),
+                    total_marks=float(r["total_marks"]),
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    description=r["description"] if "description" in r.keys() else "",
+                    duration_minutes=int(r["duration_minutes"]) if "duration_minutes" in r.keys() else 0,
+                    passing_score=float(r["passing_score"]) if "passing_score" in r.keys() else 70.0,
+                    item_ids=json.loads(r["item_ids"]) if "item_ids" in r.keys() and r["item_ids"] else [],
+                    config=json.loads(r["config"]) if "config" in r.keys() and r["config"] else {},
+                    rubric=json.loads(r["rubric"]) if "rubric" in r.keys() and r["rubric"] else {},
+                    status=r["status"] if "status" in r.keys() else "published",
+                    created_by=r["created_by"] if "created_by" in r.keys() else None,
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"] if "updated_at" in r.keys() and r["updated_at"] else r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def create_assessment_item(self, item: AssessmentItem) -> AssessmentItem:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO assessment_items (
+                    id, assessment_id, question_text, item_type, correct_answer, max_marks,
+                    concept_id, options, rubric, difficulty, hints, explanation
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    item.id,
+                    item.assessment_id,
+                    item.question_text,
+                    item.item_type,
+                    item.correct_answer,
+                    item.max_marks,
+                    item.concept_id,
+                    json.dumps(item.options),
+                    json.dumps(item.rubric),
+                    item.difficulty,
+                    json.dumps(item.hints),
+                    item.explanation,
+                ),
+            )
+        return item
+
+    def get_assessment_items(self, assessment_id: str) -> List[AssessmentItem]:
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT * FROM assessment_items WHERE assessment_id = ?;", (assessment_id,)).fetchall()
+            return [
+                AssessmentItem(
+                    id=r["id"],
+                    assessment_id=r["assessment_id"],
+                    question_text=r["question_text"],
+                    item_type=r["item_type"],
+                    correct_answer=r["correct_answer"],
+                    max_marks=float(r["max_marks"]),
+                    concept_id=r["concept_id"] if "concept_id" in r.keys() else "",
+                    options=json.loads(r["options"]) if "options" in r.keys() and r["options"] else [],
+                    rubric=json.loads(r["rubric"]) if "rubric" in r.keys() and r["rubric"] else {},
+                    difficulty=int(r["difficulty"]) if "difficulty" in r.keys() else 1,
+                    hints=json.loads(r["hints"]) if "hints" in r.keys() and r["hints"] else [],
+                    explanation=r["explanation"] if "explanation" in r.keys() else "",
+                )
+                for r in rows
+            ]
+
+    def create_assignment(self, assignment: Assignment) -> Assignment:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO assignments (
+                    id, course_id, assessment_id, title, organization_id,
+                    cohort_id, class_group_id, assigned_by, teacher_id, instructions, due_at, due_date, is_active, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    assignment.id,
+                    assignment.course_id,
+                    assignment.assessment_id or "",
+                    assignment.title,
+                    assignment.organization_id,
+                    assignment.cohort_id,
+                    assignment.class_group_id,
+                    assignment.assigned_by or assignment.teacher_id,
+                    assignment.teacher_id or assignment.assigned_by,
+                    assignment.instructions,
+                    assignment.due_at or assignment.due_date,
+                    assignment.due_date or assignment.due_at,
+                    1 if assignment.is_active else 0,
+                    assignment.created_at,
+                ),
+            )
+        return assignment
+
+    def get_assignment(self, assignment_id: str) -> Optional[Assignment]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM assignments WHERE id = ?;", (assignment_id,)).fetchone()
+            if r:
+                return Assignment(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    assessment_id=r["assessment_id"],
+                    title=r["title"],
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    cohort_id=r["cohort_id"] if "cohort_id" in r.keys() else None,
+                    class_group_id=r["class_group_id"] if "class_group_id" in r.keys() else None,
+                    assigned_by=r["assigned_by"] if "assigned_by" in r.keys() else None,
+                    instructions=r["instructions"] if "instructions" in r.keys() else "",
+                    due_at=r["due_at"] if "due_at" in r.keys() else None,
+                    is_active=bool(r["is_active"]) if "is_active" in r.keys() else True,
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def list_assignments(
+        self,
+        course_id: Optional[str] = None,
+        cohort_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Assignment]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM assignments WHERE is_active = 1"
+            params: list = []
+            if course_id:
+                sql += " AND course_id = ?"
+                params.append(course_id)
+            if cohort_id:
+                sql += " AND cohort_id = ?"
+                params.append(cohort_id)
+            if organization_id:
+                sql += " AND organization_id = ?"
+                params.append(organization_id)
+            sql += " ORDER BY created_at DESC LIMIT ?;"
+            params.append(limit)
+
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [
+                Assignment(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    assessment_id=r["assessment_id"],
+                    title=r["title"],
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    cohort_id=r["cohort_id"] if "cohort_id" in r.keys() else None,
+                    class_group_id=r["class_group_id"] if "class_group_id" in r.keys() else None,
+                    assigned_by=r["assigned_by"] if "assigned_by" in r.keys() else None,
+                    instructions=r["instructions"] if "instructions" in r.keys() else "",
+                    due_at=r["due_at"] if "due_at" in r.keys() else None,
+                    is_active=bool(r["is_active"]) if "is_active" in r.keys() else True,
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def record_assessment_attempt(self, attempt: AssessmentAttempt) -> AssessmentAttempt:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO assessment_attempts (
+                    id, assessment_id, student_id, score, passed, started_at, completed_at,
+                    assignment_id, attempt_number, status, time_spent_seconds, max_score,
+                    percentage, current_difficulty, answers, item_results, ai_grading_summary,
+                    teacher_review, reassessment_recommendations
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    attempt.id,
+                    attempt.assessment_id,
+                    attempt.student_id,
+                    attempt.score,
+                    1 if attempt.passed else 0,
+                    attempt.started_at,
+                    attempt.completed_at,
+                    attempt.assignment_id,
+                    attempt.attempt_number,
+                    attempt.status,
+                    attempt.time_spent_seconds,
+                    attempt.max_score,
+                    attempt.percentage,
+                    attempt.current_difficulty,
+                    json.dumps(attempt.answers),
+                    json.dumps(attempt.item_results),
+                    json.dumps(attempt.ai_grading_summary),
+                    json.dumps(attempt.teacher_review),
+                    json.dumps(attempt.reassessment_recommendations),
+                ),
+            )
+        return attempt
+
+    def get_assessment_attempt(self, attempt_id: str) -> Optional[AssessmentAttempt]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM assessment_attempts WHERE id = ?;", (attempt_id,)).fetchone()
+            if r:
+                return AssessmentAttempt(
+                    id=r["id"],
+                    assessment_id=r["assessment_id"],
+                    student_id=r["student_id"],
+                    score=float(r["score"]),
+                    passed=bool(r["passed"]),
+                    started_at=r["started_at"],
+                    completed_at=r["completed_at"],
+                    assignment_id=r["assignment_id"] if "assignment_id" in r.keys() else None,
+                    attempt_number=int(r["attempt_number"]) if "attempt_number" in r.keys() else 1,
+                    status=r["status"] if "status" in r.keys() else "in_progress",
+                    time_spent_seconds=int(r["time_spent_seconds"]) if "time_spent_seconds" in r.keys() else 0,
+                    max_score=float(r["max_score"]) if "max_score" in r.keys() else 100.0,
+                    percentage=float(r["percentage"]) if "percentage" in r.keys() else 0.0,
+                    current_difficulty=int(r["current_difficulty"]) if "current_difficulty" in r.keys() else 1,
+                    answers=json.loads(r["answers"]) if "answers" in r.keys() and r["answers"] else {},
+                    item_results=json.loads(r["item_results"]) if "item_results" in r.keys() and r["item_results"] else {},
+                    ai_grading_summary=json.loads(r["ai_grading_summary"]) if "ai_grading_summary" in r.keys() and r["ai_grading_summary"] else {},
+                    teacher_review=json.loads(r["teacher_review"]) if "teacher_review" in r.keys() and r["teacher_review"] else {},
+                    reassessment_recommendations=json.loads(r["reassessment_recommendations"]) if "reassessment_recommendations" in r.keys() and r["reassessment_recommendations"] else [],
                 )
             return None
 
@@ -1081,6 +1461,79 @@ class PlatformDatabase:
                     passed=bool(r["passed"]),
                     started_at=r["started_at"],
                     completed_at=r["completed_at"],
+                    assignment_id=r["assignment_id"] if "assignment_id" in r.keys() else None,
+                    attempt_number=int(r["attempt_number"]) if "attempt_number" in r.keys() else 1,
+                    status=r["status"] if "status" in r.keys() else "in_progress",
+                    time_spent_seconds=int(r["time_spent_seconds"]) if "time_spent_seconds" in r.keys() else 0,
+                    max_score=float(r["max_score"]) if "max_score" in r.keys() else 100.0,
+                    percentage=float(r["percentage"]) if "percentage" in r.keys() else 0.0,
+                    current_difficulty=int(r["current_difficulty"]) if "current_difficulty" in r.keys() else 1,
+                    answers=json.loads(r["answers"]) if "answers" in r.keys() and r["answers"] else {},
+                    item_results=json.loads(r["item_results"]) if "item_results" in r.keys() and r["item_results"] else {},
+                    ai_grading_summary=json.loads(r["ai_grading_summary"]) if "ai_grading_summary" in r.keys() and r["ai_grading_summary"] else {},
+                    teacher_review=json.loads(r["teacher_review"]) if "teacher_review" in r.keys() and r["teacher_review"] else {},
+                    reassessment_recommendations=json.loads(r["reassessment_recommendations"]) if "reassessment_recommendations" in r.keys() and r["reassessment_recommendations"] else [],
+                )
+                for r in rows
+            ]
+
+    def create_reassessment(self, reassessment: Reassessment) -> Reassessment:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO reassessments (
+                    id, original_attempt_id, student_id, course_id, generated_assessment_id,
+                    target_concepts, status, target_score, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    reassessment.id,
+                    reassessment.original_attempt_id,
+                    reassessment.student_id,
+                    reassessment.course_id,
+                    reassessment.generated_assessment_id,
+                    json.dumps(reassessment.target_concepts),
+                    reassessment.status,
+                    reassessment.target_score,
+                    reassessment.created_at,
+                ),
+            )
+        return reassessment
+
+    def get_reassessment(self, reassessment_id: str) -> Optional[Reassessment]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM reassessments WHERE id = ?;", (reassessment_id,)).fetchone()
+            if r:
+                return Reassessment(
+                    id=r["id"],
+                    original_attempt_id=r["original_attempt_id"],
+                    student_id=r["student_id"],
+                    course_id=r["course_id"],
+                    generated_assessment_id=r["generated_assessment_id"],
+                    target_concepts=json.loads(r["target_concepts"]) if "target_concepts" in r.keys() and r["target_concepts"] else [],
+                    status=r["status"],
+                    target_score=float(r["target_score"]),
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def list_reassessments_for_student(self, student_id: str) -> List[Reassessment]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM reassessments WHERE student_id = ? ORDER BY created_at DESC;",
+                (student_id,),
+            ).fetchall()
+            return [
+                Reassessment(
+                    id=r["id"],
+                    original_attempt_id=r["original_attempt_id"],
+                    student_id=r["student_id"],
+                    course_id=r["course_id"],
+                    generated_assessment_id=r["generated_assessment_id"],
+                    target_concepts=json.loads(r["target_concepts"]) if "target_concepts" in r.keys() and r["target_concepts"] else [],
+                    status=r["status"],
+                    target_score=float(r["target_score"]),
+                    created_at=r["created_at"],
                 )
                 for r in rows
             ]
@@ -1181,14 +1634,6 @@ class PlatformDatabase:
                 )
                 for r in rows
             ]
-
-    def create_assignment(self, assignment: Assignment) -> Assignment:
-        with self._get_connection() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO assignments (id, course_id, teacher_id, title, due_date, created_at) VALUES (?, ?, ?, ?, ?, ?);",
-                (assignment.id, assignment.course_id, assignment.teacher_id, assignment.title, assignment.due_date, assignment.created_at),
-            )
-        return assignment
 
     def create_notification(self, notif: Notification) -> Notification:
         with self._get_connection() as conn:

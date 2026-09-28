@@ -381,7 +381,7 @@ class LearningEventSchema(BaseModel):
     misconception_code: str = ""
 
 
-# ── Assessments ──────────────────────────────────────────────────────────
+# ── Assessments & Question Bank ──────────────────────────────────────────
 
 class AssessmentItemSchema(BaseModel):
     question_id: str
@@ -404,7 +404,190 @@ class AssessmentSubmitResponse(BaseModel):
     score: float
     total_questions: int
     passed: bool
-    feedback: Dict[str, str] = Field(default_factory=list)
+    feedback: Dict[str, Any] = Field(default_factory=dict)
+    item_results: Dict[str, Any] = Field(default_factory=dict)
+    reassessment_recommendations: List[str] = Field(default_factory=list)
+
+
+class QuestionBankItemCreateRequest(BaseModel):
+    course_id: str
+    question_text: str
+    item_type: str = Field(default="MCQ")  # MCQ, NUMERICAL, SHORT_ANSWER, ESSAY, CODE
+    organization_id: Optional[str] = None
+    subject_id: Optional[str] = None
+    concept_id: str = ""
+    topic_id: str = ""
+    options: List[str] = Field(default_factory=list)
+    correct_answer: str = ""
+    rubric: Dict[str, Any] = Field(default_factory=dict)
+    difficulty: int = Field(default=1, ge=1, le=5)
+    bloom_level: str = Field(default="recall")
+    hints: List[str] = Field(default_factory=list)
+    explanation: str = ""
+    tags: List[str] = Field(default_factory=list)
+
+
+class QuestionBankItemResponse(BaseModel):
+    id: str
+    course_id: str
+    question_text: str
+    item_type: str
+    organization_id: Optional[str] = None
+    subject_id: Optional[str] = None
+    concept_id: str = ""
+    topic_id: str = ""
+    options: List[str] = Field(default_factory=list)
+    correct_answer: str = ""
+    rubric: Dict[str, Any] = Field(default_factory=dict)
+    difficulty: int = 1
+    bloom_level: str = "recall"
+    hints: List[str] = Field(default_factory=list)
+    explanation: str = ""
+    tags: List[str] = Field(default_factory=list)
+    is_active: bool = True
+    created_at: str
+    question_id: Optional[str] = None
+    question: Optional[str] = None
+    question_type: Optional[str] = None
+
+    def __init__(self, **data: Any):
+        if "question_id" not in data and "id" in data:
+            data["question_id"] = data["id"]
+        if "question" not in data and "question_text" in data:
+            data["question"] = data["question_text"]
+        if "question_type" not in data and "item_type" in data:
+            data["question_type"] = data["item_type"].lower()
+        if "topic_id" not in data or not data["topic_id"]:
+            data["topic_id"] = data.get("concept_id", "")
+        super().__init__(**data)
+
+
+class AssessmentCreateRequest(BaseModel):
+    course_id: str
+    title: str
+    assessment_type: str = Field(default="formative")  # diagnostic, formative, summative, adaptive, reassessment
+    organization_id: Optional[str] = None
+    description: str = ""
+    duration_minutes: int = 0
+    passing_score: float = 70.0
+    item_ids: List[str] = Field(default_factory=list)
+    config: Dict[str, Any] = Field(default_factory=dict)
+    rubric: Dict[str, Any] = Field(default_factory=dict)
+    status: str = Field(default="published")
+
+
+class AssessmentResponse(BaseModel):
+    id: str
+    course_id: str
+    title: str
+    assessment_type: str
+    total_marks: float
+    organization_id: Optional[str] = None
+    description: str = ""
+    duration_minutes: int = 0
+    passing_score: float = 70.0
+    item_ids: List[str] = Field(default_factory=list)
+    config: Dict[str, Any] = Field(default_factory=dict)
+    rubric: Dict[str, Any] = Field(default_factory=dict)
+    status: str = "published"
+    created_at: str
+    updated_at: str
+
+
+class AssignmentCreateRequest(BaseModel):
+    course_id: str
+    assessment_id: str
+    title: str
+    organization_id: Optional[str] = None
+    cohort_id: Optional[str] = None
+    class_group_id: Optional[str] = None
+    instructions: str = ""
+    due_at: Optional[str] = None
+
+
+class AssignmentResponse(BaseModel):
+    id: str
+    course_id: str
+    assessment_id: str
+    title: str
+    organization_id: Optional[str] = None
+    cohort_id: Optional[str] = None
+    class_group_id: Optional[str] = None
+    assigned_by: Optional[str] = None
+    instructions: str = ""
+    due_at: Optional[str] = None
+    is_active: bool = True
+    created_at: str
+
+
+class AttemptStartRequest(BaseModel):
+    assessment_id: str
+    student_id: str
+    assignment_id: Optional[str] = None
+    initial_difficulty: int = Field(default=2, ge=1, le=5)
+
+
+class AttemptStartResponse(BaseModel):
+    attempt_id: str
+    assessment_id: str
+    student_id: str
+    assignment_id: Optional[str] = None
+    attempt_number: int = 1
+    status: str = "in_progress"
+    started_at: str
+    max_score: float = 100.0
+    current_difficulty: int = 2
+
+
+class AttemptSubmitRequest(BaseModel):
+    answers: Dict[str, Any]
+    student_id: Optional[str] = None
+
+
+class AttemptDetailResponse(BaseModel):
+    id: str
+    assessment_id: str
+    student_id: str
+    assignment_id: Optional[str] = None
+    attempt_number: int = 1
+    status: str
+    started_at: str
+    completed_at: Optional[str] = None
+    time_spent_seconds: int = 0
+    score: float = 0.0
+    max_score: float = 100.0
+    percentage: float = 0.0
+    passed: bool = False
+    current_difficulty: int = 1
+    answers: Dict[str, Any] = Field(default_factory=dict)
+    item_results: Dict[str, Any] = Field(default_factory=dict)
+    ai_grading_summary: Dict[str, Any] = Field(default_factory=dict)
+    teacher_review: Dict[str, Any] = Field(default_factory=dict)
+    reassessment_recommendations: List[str] = Field(default_factory=list)
+
+
+class TeacherReviewAttemptRequest(BaseModel):
+    item_score_adjustments: Dict[str, float] = Field(default_factory=dict)
+    teacher_comments: str = Field(default="")
+    status: str = Field(default="reviewed")
+
+
+class ReassessmentGenerateRequest(BaseModel):
+    original_attempt_id: str
+    target_score: float = Field(default=80.0)
+
+
+class ReassessmentResponse(BaseModel):
+    reassessment_id: str
+    original_attempt_id: str
+    student_id: str
+    course_id: str
+    generated_assessment_id: str
+    target_concepts: List[str] = Field(default_factory=list)
+    status: str = "PENDING"
+    target_score: float = 80.0
+    created_at: str
+
 
 
 # ── RAG & Evidence ───────────────────────────────────────────────────────

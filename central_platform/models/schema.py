@@ -51,6 +51,20 @@ class AssessmentType(str, Enum):
     DIAGNOSTIC = "diagnostic"
     FORMATIVE = "formative"
     SUMMATIVE = "summative"
+    ADAPTIVE = "adaptive"
+    REASSESSMENT = "reassessment"
+    ASSIGNMENT = "assignment"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            if val_norm.startswith("assessmenttype."):
+                val_norm = val_norm.split(".", 1)[1]
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
 
 
 # ── 1. Organizations & Identity ──────────────────────────────────────────
@@ -354,13 +368,49 @@ class StudentMisconceptionRecord:
 # ── 6. Assessments ───────────────────────────────────────────────────────
 
 @dataclass
+class QuestionBankItem:
+    id: str
+    course_id: str
+    question_text: str
+    item_type: str = "MCQ"  # MCQ, NUMERICAL, SHORT_ANSWER, ESSAY, CODE, MATCHING
+    organization_id: Optional[str] = None
+    subject_id: Optional[str] = None
+    concept_id: str = ""
+    topic_id: str = ""
+    options: List[str] = field(default_factory=list)
+    correct_answer: str = ""
+    rubric: Dict[str, Any] = field(default_factory=dict)
+    difficulty: int = 1  # 1 to 5
+    bloom_level: str = "recall"
+    hints: List[str] = field(default_factory=list)
+    explanation: str = ""
+    tags: List[str] = field(default_factory=list)
+    is_active: bool = True
+    created_by: Optional[str] = None
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class Assessment:
     id: str
     course_id: str
     title: str
     assessment_type: AssessmentType = AssessmentType.FORMATIVE
     total_marks: float = 100.0
+    organization_id: Optional[str] = None
+    description: str = ""
+    duration_minutes: int = 0  # 0 = untimed
+    passing_score: float = 70.0  # percentage
+    item_ids: List[str] = field(default_factory=list)
+    config: Dict[str, Any] = field(default_factory=dict)
+    rubric: Dict[str, Any] = field(default_factory=dict)
+    status: str = "published"  # draft, published, archived
+    created_by: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -373,9 +423,46 @@ class AssessmentItem:
     id: str
     assessment_id: str
     question_text: str
-    item_type: str = "MCQ"  # MCQ, NUMERICAL, EQUATION
+    item_type: str = "MCQ"  # MCQ, NUMERICAL, EQUATION, SHORT_ANSWER, ESSAY, CODE
     correct_answer: str = ""
     max_marks: float = 4.0
+    concept_id: str = ""
+    options: List[str] = field(default_factory=list)
+    rubric: Dict[str, Any] = field(default_factory=dict)
+    difficulty: int = 1
+    hints: List[str] = field(default_factory=list)
+    explanation: str = ""
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class Assignment:
+    id: str
+    course_id: str
+    title: str
+    assessment_id: str = ""
+    teacher_id: Optional[str] = None
+    due_date: Optional[str] = None
+    organization_id: Optional[str] = None
+    cohort_id: Optional[str] = None
+    class_group_id: Optional[str] = None
+    assigned_by: Optional[str] = None
+    instructions: str = ""
+    due_at: Optional[str] = None
+    is_active: bool = True
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def __post_init__(self):
+        if not self.assigned_by and self.teacher_id:
+            self.assigned_by = self.teacher_id
+        if not self.due_at and self.due_date:
+            self.due_at = self.due_date
+        if not self.teacher_id and self.assigned_by:
+            self.teacher_id = self.assigned_by
+        if not self.due_date and self.due_at:
+            self.due_date = self.due_at
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -390,6 +477,34 @@ class AssessmentAttempt:
     passed: bool = False
     started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     completed_at: Optional[str] = None
+    assignment_id: Optional[str] = None
+    attempt_number: int = 1
+    status: str = "in_progress"  # in_progress, submitted, grading_pending, graded, reviewed
+    time_spent_seconds: int = 0
+    max_score: float = 100.0
+    percentage: float = 0.0
+    current_difficulty: int = 1
+    answers: Dict[str, Any] = field(default_factory=dict)
+    item_results: Dict[str, Any] = field(default_factory=dict)
+    ai_grading_summary: Dict[str, Any] = field(default_factory=dict)
+    teacher_review: Dict[str, Any] = field(default_factory=dict)
+    reassessment_recommendations: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class Reassessment:
+    id: str
+    original_attempt_id: str
+    student_id: str
+    course_id: str
+    generated_assessment_id: str
+    target_concepts: List[str] = field(default_factory=list)
+    status: str = "PENDING"
+    target_score: float = 80.0
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -449,19 +564,6 @@ class InterventionRecord:
         d["severity"] = self.severity.value if isinstance(self.severity, AlertSeverity) else str(self.severity)
         d["status"] = self.status.value if isinstance(self.status, AlertStatus) else str(self.status)
         return d
-
-
-@dataclass
-class Assignment:
-    id: str
-    course_id: str
-    teacher_id: str
-    title: str
-    due_date: str
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-    def to_dict(self) -> dict:
-        return asdict(self)
 
 
 @dataclass
