@@ -268,7 +268,7 @@ def create_app() -> FastAPI:
     @app.get("/teacher", response_class=HTMLResponse, tags=["Dashboard UI"])
     @app.get("/portal", response_class=HTMLResponse, tags=["Dashboard UI"])
     async def get_teacher_portal_html():
-        """Serve the Master Plan Section 19 Teacher Web Portal browser SPA."""
+        """Serve the Teacher Web Portal browser SPA."""
         import os
         portal_path = os.path.join(os.path.dirname(__file__), "..", "..", "app", "ui", "teacher_portal.html")
         if os.path.exists(portal_path):
@@ -276,7 +276,41 @@ def create_app() -> FastAPI:
                 return HTMLResponse(content=f.read(), status_code=200)
         return HTMLResponse(content="<h1>Teacher Web Portal</h1>", status_code=200)
 
+    @app.get("/admin", response_class=HTMLResponse, tags=["Dashboard UI"])
+    @app.get("/admin/portal", response_class=HTMLResponse, tags=["Dashboard UI"])
+    async def get_admin_portal_html():
+        """Serve the Admin Multi-Tiered Web Portal browser SPA."""
+        import os
+        admin_path = os.path.join(os.path.dirname(__file__), "..", "..", "app", "ui", "admin_portal.html")
+        if os.path.exists(admin_path):
+            with open(admin_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=200)
+        return HTMLResponse(content="<h1>Admin Web Portal</h1>", status_code=200)
+
+    @app.get("/student", response_class=HTMLResponse, tags=["Dashboard UI"])
+    @app.get("/student/dashboard", response_class=HTMLResponse, tags=["Dashboard UI"])
+    async def get_student_dashboard_html():
+        """Serve the Student Progress & Mastery Web Portal SPA."""
+        import os
+        student_path = os.path.join(os.path.dirname(__file__), "..", "..", "app", "ui", "student_dashboard.html")
+        if os.path.exists(student_path):
+            with open(student_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=200)
+        return HTMLResponse(content="<h1>Student Dashboard</h1>", status_code=200)
+
+    @app.get("/tutor", response_class=HTMLResponse, tags=["Dashboard UI"])
+    @app.get("/interactive", response_class=HTMLResponse, tags=["Dashboard UI"])
+    async def get_interactive_tutor_html():
+        """Serve the Interactive Web Tutor Client."""
+        import os
+        tutor_path = os.path.join(os.path.dirname(__file__), "..", "..", "app", "ui", "index.html")
+        if os.path.exists(tutor_path):
+            with open(tutor_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=200)
+        return HTMLResponse(content="<h1>Interactive Tutor</h1>", status_code=200)
+
     return app
 
 
 app = create_app()
+
