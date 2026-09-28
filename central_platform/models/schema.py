@@ -329,12 +329,23 @@ class StudentLearningRecord:
 
 @dataclass
 class MasteryState:
-    id: str
-    slr_id: str
-    concept_id: str
+    id: str = ""
+    slr_id: str = ""
+    concept_id: str = ""
     score: float = 0.5
     confidence: float = 0.8
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_practiced_at: Optional[str] = None
+    state: str = "practicing"
+    p_mastery: Optional[float] = None
+
+    def __post_init__(self):
+        if not self.id:
+            self.id = f"ms_{uuid.uuid4().hex[:8]}"
+        if self.p_mastery is not None:
+            self.score = self.p_mastery
+        else:
+            self.p_mastery = self.score
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -359,6 +370,8 @@ class StudentMisconceptionRecord:
     student_id: str
     misconception_code: str
     frequency: int = 1
+    concept_id: str = ""
+    description: str = ""
     last_observed: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
@@ -610,7 +623,7 @@ class AIModel:
 @dataclass
 class AIExecutionLog:
     id: str
-    model_id: str
+    model_id: str = ""
     prompt_tokens: int = 0
     completion_tokens: int = 0
     latency_ms: float = 0.0
@@ -626,7 +639,18 @@ class AIExecutionLog:
     estimated_cost_usd: float = 0.0
     fallback_used: bool = False
     prompt_hash: str = ""
+    total_tokens: Optional[int] = None
+    cost_usd: Optional[float] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def __post_init__(self):
+        if self.cost_usd is not None and self.estimated_cost_usd == 0.0:
+            self.estimated_cost_usd = self.cost_usd
+        elif self.estimated_cost_usd != 0.0 and self.cost_usd is None:
+            self.cost_usd = self.estimated_cost_usd
+
+        if self.total_tokens is None:
+            self.total_tokens = self.prompt_tokens + self.completion_tokens
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -940,12 +940,18 @@ class PlatformDatabase:
             )
         return slr
 
-    def get_slr(self, student_id: str, course_id: str) -> Optional[StudentLearningRecord]:
+    def get_slr(self, student_id: str, course_id: Optional[str] = None) -> Optional[StudentLearningRecord]:
         with self._get_connection() as conn:
-            r = conn.execute(
-                "SELECT * FROM student_learning_records WHERE student_id = ? AND course_id = ?;",
-                (student_id, course_id),
-            ).fetchone()
+            if course_id:
+                r = conn.execute(
+                    "SELECT * FROM student_learning_records WHERE student_id = ? AND course_id = ?;",
+                    (student_id, course_id),
+                ).fetchone()
+            else:
+                r = conn.execute(
+                    "SELECT * FROM student_learning_records WHERE student_id = ? ORDER BY updated_at DESC LIMIT 1;",
+                    (student_id,),
+                ).fetchone()
             if r:
                 return StudentLearningRecord(
                     id=r["id"],

@@ -825,13 +825,58 @@ class AIAllowlistUpdateRequest(BaseModel):
 
 # ── Analytics ────────────────────────────────────────────────────────────
 
+class StudentAnalyticsResponse(BaseModel):
+    student_id: str
+    course_id: Optional[str] = None
+    mastery: float
+    mastery_distribution: Dict[str, int] = Field(default_factory=dict)
+    accuracy: float
+    total_questions_attempted: int
+    correct_questions: int
+    retention: float
+    session_frequency: Dict[str, Any] = Field(default_factory=dict)
+    learning_velocity: float
+    weak_concepts: List[Dict[str, Any]] = Field(default_factory=list)
+    review_compliance: float
+    generated_at: str
+
+
+class TeacherClassAnalyticsResponse(BaseModel):
+    cohort_id: Optional[str] = None
+    course_id: Optional[str] = None
+    student_count: int
+    class_mastery: float
+    mastery_tiers: Dict[str, int] = Field(default_factory=dict)
+    student_activity: Dict[str, Any] = Field(default_factory=dict)
+    difficult_concepts: List[Dict[str, Any]] = Field(default_factory=list)
+    misconceptions: List[Dict[str, Any]] = Field(default_factory=list)
+    intervention_rates: Dict[str, Any] = Field(default_factory=dict)
+    assessment_outcomes: Dict[str, Any] = Field(default_factory=dict)
+    generated_at: str
+
+
 class CohortAnalyticsResponse(BaseModel):
     cohort_id: str = "cohort_chem_101"
     student_count: int = 5
     average_mastery: float = 0.76
-    mastery_tiers: Dict[str, int]
-    weak_concepts: List[str]
-    frequent_misconceptions: List[Dict[str, Any]]
+    mastery_tiers: Dict[str, int] = Field(default_factory=dict)
+    weak_concepts: List[str] = Field(default_factory=list)
+    frequent_misconceptions: List[Dict[str, Any]] = Field(default_factory=list)
+    student_activity: Optional[Dict[str, Any]] = None
+    difficult_concepts: Optional[List[Dict[str, Any]]] = None
+    intervention_rates: Optional[Dict[str, Any]] = None
+    assessment_outcomes: Optional[Dict[str, Any]] = None
+
+
+class AdminSystemAnalyticsResponse(BaseModel):
+    organization_id: Optional[str] = None
+    active_users: Dict[str, Any] = Field(default_factory=dict)
+    course_usage: List[Dict[str, Any]] = Field(default_factory=list)
+    ai_usage: Dict[str, Any] = Field(default_factory=dict)
+    cost: Dict[str, Any] = Field(default_factory=dict)
+    performance: Dict[str, Any] = Field(default_factory=dict)
+    system_health: Dict[str, Any] = Field(default_factory=dict)
+    generated_at: str
 
 
 # ── Notifications ────────────────────────────────────────────────────────
