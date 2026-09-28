@@ -409,10 +409,88 @@ class AssessmentSubmitResponse(BaseModel):
 
 # ── RAG & Evidence ───────────────────────────────────────────────────────
 
+class RAGSourceCreateRequest(BaseModel):
+    course_id: str
+    subject: str
+    title: str
+    source_type: str = Field(default="text")
+    authority: str = Field(default="NCERT")
+    version: str = Field(default="1.0.0")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RAGSourceResponse(BaseModel):
+    id: str
+    organization_id: str
+    course_id: str
+    subject: str
+    title: str
+    source_type: str
+    authority: str
+    version: str
+    status: str
+    checksum: str = ""
+    chunk_count: int = 0
+    created_at: str
+    updated_at: str
+
+
+class RAGIngestRequest(BaseModel):
+    content: str = Field(..., min_length=1)
+    file_name: str = ""
+    override_source_type: Optional[str] = None
+
+
+class RAGIngestResponse(BaseModel):
+    source_id: str
+    status: str
+    sections_parsed: int
+    chunks_created: int
+    checksum: str
+
+
+class RAGValidateResponse(BaseModel):
+    valid: bool
+    source_id: str
+    status: str
+    chunk_count: int
+    average_chunk_chars: float
+    concepts_covered: List[str] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class RAGPublishResponse(BaseModel):
+    source_id: str
+    status: str
+    updated_at: str
+
+
+class RAGChunkResponse(BaseModel):
+    id: str
+    source_id: str
+    course_id: str
+    subject: str
+    chapter: str
+    topic: str
+    concept: str = ""
+    difficulty: float = 0.5
+    page: int = 1
+    section: str = ""
+    content_type: str = "explanation"
+    text: str
+    clean_text: str
+    provenance_type: str = "NCERT"
+    created_at: str
+
+
 class RAGQueryRequest(BaseModel):
     query: str = Field(..., min_length=2)
+    course_id: Optional[str] = None
+    subject: Optional[str] = None
     concept_id: Optional[str] = None
-    top_k: int = Field(default=3, ge=1, le=10)
+    top_k: int = Field(default=3, ge=1, le=20)
+    confidence_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
 
 
 class RAGResultItem(BaseModel):
@@ -423,6 +501,8 @@ class RAGResultItem(BaseModel):
     text: str
     score: float
     citation: str
+    concept: Optional[str] = None
+    source_id: Optional[str] = None
 
 
 class RAGQueryResponse(BaseModel):
@@ -430,6 +510,7 @@ class RAGQueryResponse(BaseModel):
     query: str
     results: List[RAGResultItem]
     count: int
+    data_context: Optional[str] = None
 
 
 # ── AI Gateway & Governance ──────────────────────────────────────────────

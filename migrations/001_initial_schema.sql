@@ -416,3 +416,53 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_logs_org ON audit_logs(organization_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+
+-- 9. RAG Knowledge Subsystem (Phase 16)
+CREATE TABLE IF NOT EXISTS rag_sources (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    course_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    title TEXT NOT NULL,
+    source_type TEXT NOT NULL DEFAULT 'text',
+    authority TEXT NOT NULL DEFAULT 'NCERT',
+    version TEXT NOT NULL DEFAULT '1.0.0',
+    status TEXT NOT NULL DEFAULT 'draft',
+    checksum TEXT DEFAULT '',
+    metadata_json TEXT DEFAULT '{}',
+    chunk_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_rag_sources_course ON rag_sources(course_id);
+CREATE INDEX IF NOT EXISTS idx_rag_sources_subject ON rag_sources(subject);
+CREATE INDEX IF NOT EXISTS idx_rag_sources_status ON rag_sources(status);
+
+CREATE TABLE IF NOT EXISTS rag_chunks (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    course_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    chapter TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    concept TEXT DEFAULT '',
+    difficulty REAL NOT NULL DEFAULT 0.5,
+    page INTEGER NOT NULL DEFAULT 1,
+    section TEXT DEFAULT '',
+    content_type TEXT NOT NULL DEFAULT 'explanation',
+    text TEXT NOT NULL,
+    clean_text TEXT NOT NULL,
+    embedding_vector TEXT DEFAULT '[]',
+    provenance_type TEXT NOT NULL DEFAULT 'NCERT',
+    metadata_json TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(source_id) REFERENCES rag_sources(id) ON DELETE CASCADE,
+    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_source ON rag_chunks(source_id);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_course ON rag_chunks(course_id);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_subject ON rag_chunks(subject);
+CREATE INDEX IF NOT EXISTS idx_rag_chunks_concept ON rag_chunks(concept);
+

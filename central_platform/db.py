@@ -46,6 +46,9 @@ from central_platform.models.schema import (
     Organization,
     Permission,
     Prerequisite,
+    RAGChunk,
+    RAGSource,
+    RAGSourceStatus,
     Role,
     Session,
     SessionStatus,
@@ -1267,3 +1270,282 @@ class PlatformDatabase:
                 )
                 for r in rows
             ]
+
+    # ── 9. Plug-and-Play RAG Subsystem ──────────────────────────────────────
+
+    def create_rag_source(self, source: RAGSource) -> RAGSource:
+        with self._get_connection() as conn:
+            metadata_str = json.dumps(source.metadata_json) if isinstance(source.metadata_json, dict) else str(source.metadata_json)
+            conn.execute(
+                """
+                INSERT INTO rag_sources (id, organization_id, course_id, subject, title, source_type, authority, version, status, checksum, metadata_json, chunk_count, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    organization_id=excluded.organization_id,
+                    course_id=excluded.course_id,
+                    subject=excluded.subject,
+                    title=excluded.title,
+                    source_type=excluded.source_type,
+                    authority=excluded.authority,
+                    version=excluded.version,
+                    status=excluded.status,
+                    checksum=excluded.checksum,
+                    metadata_json=excluded.metadata_json,
+                    chunk_count=excluded.chunk_count,
+                    updated_at=excluded.updated_at;
+                """,
+                (
+                    source.id,
+                    source.organization_id,
+                    source.course_id,
+                    source.subject,
+                    source.title,
+                    source.source_type,
+                    source.authority,
+                    source.version,
+                    source.status,
+                    source.checksum,
+                    metadata_str,
+                    source.chunk_count,
+                    source.created_at,
+                    source.updated_at,
+                ),
+            )
+        return source
+
+    def get_rag_source(self, source_id: str) -> Optional[RAGSource]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM rag_sources WHERE id = ?;", (source_id,)).fetchone()
+            if r:
+                metadata = {}
+                if r["metadata_json"]:
+                    try:
+                        metadata = json.loads(r["metadata_json"])
+                    except Exception:
+                        pass
+                return RAGSource(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    course_id=r["course_id"],
+                    subject=r["subject"],
+                    title=r["title"],
+                    source_type=r["source_type"],
+                    authority=r["authority"],
+                    version=r["version"],
+                    status=r["status"],
+                    checksum=r["checksum"] or "",
+                    metadata_json=metadata,
+                    chunk_count=r["chunk_count"],
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                )
+            return None
+
+    def list_rag_sources(
+        self,
+        course_id: Optional[str] = None,
+        subject: Optional[str] = None,
+        status: Optional[str] = None,
+        authority: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[RAGSource]:
+        with self._get_connection() as conn:
+            conditions = []
+            params: List[Any] = []
+            if course_id:
+                conditions.append("course_id = ?")
+                params.append(course_id)
+            if subject:
+                conditions.append("subject = ?")
+                params.append(subject)
+            if status:
+                conditions.append("status = ?")
+                params.append(status)
+            if authority:
+                conditions.append("authority = ?")
+                params.append(authority)
+
+            where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+            sql = f"SELECT * FROM rag_sources {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?;"
+            params.extend([limit, offset])
+
+            rows = conn.execute(sql, params).fetchall()
+            results = []
+            for r in rows:
+                metadata = {}
+                if r["metadata_json"]:
+                    try:
+                        metadata = json.loads(r["metadata_json"])
+                    except Exception:
+                        pass
+                results.append(
+                    RAGSource(
+                        id=r["id"],
+                        organization_id=r["organization_id"],
+                        course_id=r["course_id"],
+                        subject=r["subject"],
+                        title=r["title"],
+                        source_type=r["source_type"],
+                        authority=r["authority"],
+                        version=r["version"],
+                        status=r["status"],
+                        checksum=r["checksum"] or "",
+                        metadata_json=metadata,
+                        chunk_count=r["chunk_count"],
+                        created_at=r["created_at"],
+                        updated_at=r["updated_at"],
+                    )
+                )
+            return results
+
+    def update_rag_source(self, source: RAGSource) -> RAGSource:
+        source.updated_at = datetime.now(timezone.utc).isoformat()
+        return self.create_rag_source(source)
+
+    def delete_rag_source(self, source_id: str) -> bool:
+        with self._get_connection() as conn:
+            cur = conn.execute("DELETE FROM rag_sources WHERE id = ?;", (source_id,))
+            return cur.rowcount > 0
+
+    def add_rag_chunks(self, chunks: List[RAGChunk]) -> int:
+        if not chunks:
+            return 0
+        with self._get_connection() as conn:
+            count = 0
+            for chunk in chunks:
+                emb_str = json.dumps(chunk.embedding_vector) if chunk.embedding_vector else "[]"
+                meta_str = json.dumps(chunk.metadata_json) if chunk.metadata_json else "{}"
+                conn.execute(
+                    """
+                    INSERT INTO rag_chunks (
+                        id, source_id, course_id, subject, chapter, topic, concept,
+                        difficulty, page, section, content_type, text, clean_text,
+                        embedding_vector, provenance_type, metadata_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        source_id=excluded.source_id,
+                        course_id=excluded.course_id,
+                        subject=excluded.subject,
+                        chapter=excluded.chapter,
+                        topic=excluded.topic,
+                        concept=excluded.concept,
+                        difficulty=excluded.difficulty,
+                        page=excluded.page,
+                        section=excluded.section,
+                        content_type=excluded.content_type,
+                        text=excluded.text,
+                        clean_text=excluded.clean_text,
+                        embedding_vector=excluded.embedding_vector,
+                        provenance_type=excluded.provenance_type,
+                        metadata_json=excluded.metadata_json;
+                    """,
+                    (
+                        chunk.id,
+                        chunk.source_id,
+                        chunk.course_id,
+                        chunk.subject,
+                        chunk.chapter,
+                        chunk.topic,
+                        chunk.concept,
+                        chunk.difficulty,
+                        chunk.page,
+                        chunk.section,
+                        chunk.content_type,
+                        chunk.text,
+                        chunk.clean_text,
+                        emb_str,
+                        chunk.provenance_type,
+                        meta_str,
+                        chunk.created_at,
+                    ),
+                )
+                count += 1
+            if chunks:
+                source_id = chunks[0].source_id
+                conn.execute(
+                    "UPDATE rag_sources SET chunk_count = (SELECT count(*) FROM rag_chunks WHERE source_id = ?) WHERE id = ?;",
+                    (source_id, source_id),
+                )
+            return count
+
+    def get_rag_chunks(self, source_id: str, limit: int = 100, offset: int = 0) -> List[RAGChunk]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM rag_chunks WHERE source_id = ? ORDER BY page ASC, id ASC LIMIT ? OFFSET ?;",
+                (source_id, limit, offset),
+            ).fetchall()
+            return [self._row_to_rag_chunk(r) for r in rows]
+
+    def get_rag_chunks_by_course(
+        self,
+        course_id: str,
+        subject: Optional[str] = None,
+        concept: Optional[str] = None,
+        only_published: bool = True,
+        limit: int = 200,
+    ) -> List[RAGChunk]:
+        with self._get_connection() as conn:
+            conditions = ["rc.course_id = ?"]
+            params: List[Any] = [course_id]
+
+            if only_published:
+                conditions.append("rs.status = 'published'")
+            if subject:
+                conditions.append("rc.subject = ?")
+                params.append(subject)
+            if concept:
+                conditions.append("(rc.concept = ? OR rc.concept = '' OR rc.concept IS NULL)")
+                params.append(concept)
+
+            where_str = " AND ".join(conditions)
+            sql = f"""
+                SELECT rc.* FROM rag_chunks rc
+                JOIN rag_sources rs ON rc.source_id = rs.id
+                WHERE {where_str}
+                ORDER BY rc.created_at ASC
+                LIMIT ?;
+            """
+            params.append(limit)
+            rows = conn.execute(sql, params).fetchall()
+            return [self._row_to_rag_chunk(r) for r in rows]
+
+    def delete_rag_chunks_by_source(self, source_id: str) -> int:
+        with self._get_connection() as conn:
+            cur = conn.execute("DELETE FROM rag_chunks WHERE source_id = ?;", (source_id,))
+            conn.execute("UPDATE rag_sources SET chunk_count = 0 WHERE id = ?;", (source_id,))
+            return cur.rowcount
+
+    def _row_to_rag_chunk(self, r: sqlite3.Row) -> RAGChunk:
+        emb = []
+        if r["embedding_vector"]:
+            try:
+                emb = json.loads(r["embedding_vector"])
+            except Exception:
+                pass
+        metadata = {}
+        if r["metadata_json"]:
+            try:
+                metadata = json.loads(r["metadata_json"])
+            except Exception:
+                pass
+        return RAGChunk(
+            id=r["id"],
+            source_id=r["source_id"],
+            course_id=r["course_id"],
+            subject=r["subject"],
+            chapter=r["chapter"],
+            topic=r["topic"],
+            concept=r["concept"] or "",
+            difficulty=r["difficulty"],
+            page=r["page"],
+            section=r["section"] or "",
+            content_type=r["content_type"],
+            text=r["text"],
+            clean_text=r["clean_text"],
+            embedding_vector=emb,
+            provenance_type=r["provenance_type"],
+            metadata_json=metadata,
+            created_at=r["created_at"],
+        )
+

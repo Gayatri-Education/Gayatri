@@ -1,6 +1,8 @@
 -- Gayatri AI Central Platform — Production DDL Rollback 001
 -- Safe Reverse Migration for 001_initial_schema.sql
 
+DROP TABLE IF EXISTS rag_chunks;
+DROP TABLE IF EXISTS rag_sources;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS ai_execution_logs;
 DROP TABLE IF EXISTS ai_models;

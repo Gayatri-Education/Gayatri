@@ -532,3 +532,59 @@ class AuditLog:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+# ── 9. Plug-and-Play RAG Knowledge Subsystem ────────────────────────────
+
+class RAGSourceStatus(str, Enum):
+    DRAFT = "draft"
+    INGESTED = "ingested"
+    VALIDATED = "validated"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+
+@dataclass
+class RAGSource:
+    id: str
+    organization_id: str
+    course_id: str
+    subject: str
+    title: str
+    source_type: str = "text"  # pdf, docx, html, markdown, text, json
+    authority: str = "NCERT"  # NCERT, APPROVED_CURRICULUM, TRUSTED_CURRICULUM, OFFICIAL_DOCS
+    version: str = "1.0.0"
+    status: str = "draft"
+    checksum: str = ""
+    metadata_json: Dict[str, Any] = field(default_factory=dict)
+    chunk_count: int = 0
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
+class RAGChunk:
+    id: str
+    source_id: str
+    course_id: str
+    subject: str
+    chapter: str
+    topic: str
+    concept: str = ""
+    difficulty: float = 0.5
+    page: int = 1
+    section: str = ""
+    content_type: str = "explanation"  # definition, formula, example, explanation, exercise
+    text: str = ""
+    clean_text: str = ""
+    embedding_vector: List[float] = field(default_factory=list)
+    provenance_type: str = "NCERT"
+    metadata_json: Dict[str, Any] = field(default_factory=dict)
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
