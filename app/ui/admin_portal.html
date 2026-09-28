@@ -338,7 +338,16 @@
     </div>
 
     <header>
-      <div class="page-title" id="pageTitle">Platform Dashboard</div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="page-title" id="pageTitle">Platform Dashboard</div>
+        <div style="display: flex; gap: 8px;">
+          <a href="/student" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">🧑‍🎓 Student</a>
+          <a href="/teacher" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">👩‍🏫 Teacher</a>
+          <a href="/admin" class="btn btn-primary" style="padding: 4px 10px; font-size: 11px;">👨‍💼 Admin</a>
+          <a href="/tutor" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">💬 Web Tutor</a>
+          <a href="/docs" target="_blank" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">📖 API Docs</a>
+        </div>
+      </div>
       <div class="header-actions">
         <span class="badge badge-purple" id="userRoleBadge">SUPER_ADMIN</span>
         <button class="btn btn-secondary" onclick="AdminApp.refreshCurrentView()">🔄 Refresh</button>
@@ -601,7 +610,18 @@
     const AdminApp = {
       baseUrl: window.location.origin || 'http://127.0.0.1:8000',
 
-      init() {
+      async init() {
+        if (!localStorage.getItem('admin_token')) {
+          try {
+            const res = await fetch(`${this.baseUrl}/api/v1/auth/demo-tokens`);
+            if (res.ok) {
+              const json = await res.json();
+              if (json.data && json.data.superadmin) {
+                localStorage.setItem('admin_token', json.data.superadmin.token);
+              }
+            }
+          } catch (e) {}
+        }
         window.addEventListener('hashchange', () => this.handleRoute());
         this.handleRoute();
         this.checkKillSwitch();

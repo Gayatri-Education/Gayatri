@@ -89,3 +89,5 @@ PRIVATE_WORK/
 # Local datasets & raw logs
 *.jsonl
 *.csv
+local_auth_tokens.json
+

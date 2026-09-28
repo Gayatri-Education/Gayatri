@@ -348,12 +348,21 @@
 
     <!-- TOPBAR -->
     <header class="portal-topbar">
-      <div class="portal-page-title" id="pageTitle">Cohort Overview</div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="portal-page-title" id="pageTitle">Cohort Overview</div>
+        <div style="display: flex; gap: 8px;">
+          <a href="/student" class="subtab-btn">🧑‍🎓 Student Portal</a>
+          <a href="/teacher" class="subtab-btn active">👩‍🏫 Teacher Portal</a>
+          <a href="/admin" class="subtab-btn">👨‍💼 Admin Portal</a>
+          <a href="/tutor" class="subtab-btn">💬 Web Tutor</a>
+          <a href="/docs" target="_blank" class="subtab-btn">📖 API Docs</a>
+        </div>
+      </div>
       <div class="portal-user-badge">
-        <div class="portal-avatar" id="teacherAvatar">TC</div>
+        <div class="portal-avatar" id="teacherAvatar">AS</div>
         <div>
-          <div style="font-weight:600; color:var(--text-bright);" id="teacherName">Instructor View</div>
-          <div style="font-size:11px; color:var(--text-muted);" id="courseBadge">Chemistry Class 11</div>
+          <div style="font-weight:600; color:var(--text-bright);" id="teacherName">Prof. Anita Sharma (Chemistry Lead)</div>
+          <div style="font-size:11px; color:var(--text-muted);" id="courseBadge">DPS Delhi • Grade 11 Chemistry</div>
         </div>
       </div>
     </header>
@@ -674,13 +683,25 @@
      * loading, empty, success, partial_data, offline, api_error, permission_error, retry.
      */
     const TeacherApp = {
-      courseId: 'crs-chem-101',
+      courseId: 'crs_chem_101',
       currentStudentId: null,
       currentSubTab: 'overview',
       studentsCache: [],
       baseUrl: window.location.origin || 'http://127.0.0.1:8000',
 
-      init() {
+      async init() {
+        // Auto-authenticate with demo teacher token if not set
+        if (!localStorage.getItem('teacher_token')) {
+          try {
+            const res = await fetch(`${this.baseUrl}/api/v1/auth/demo-tokens`);
+            if (res.ok) {
+              const json = await res.json();
+              if (json.data && json.data.teacher) {
+                localStorage.setItem('teacher_token', json.data.teacher.token);
+              }
+            }
+          } catch (e) {}
+        }
         window.addEventListener('hashchange', () => this.handleRoute());
         this.handleRoute();
       },

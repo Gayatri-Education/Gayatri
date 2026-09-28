@@ -205,3 +205,52 @@ async def reset_password(req: PasswordResetRequest):
         db.set_user_password(user.id, req.new_password)
 
     return ApiResponse(ok=True, data={"reset": True})
+
+
+@router.get("/demo-tokens", response_model=ApiResponse[dict])
+async def get_demo_tokens():
+    """Return pre-generated JWT tokens for all local testing personas."""
+    personas = {
+        "superadmin": {
+            "id": "usr_superadmin",
+            "name": "Dr. Gayatri Admin",
+            "email": "superadmin@gayatri.edu",
+            "role": "SUPER_ADMIN",
+            "organization_id": "org_global",
+            "token": create_access_token("usr_superadmin", "SUPER_ADMIN", "org_global", expires_minutes=1440),
+        },
+        "org_admin": {
+            "id": "usr_dps_admin",
+            "name": "Principal Ramesh Gupta",
+            "email": "admin@dps.edu",
+            "role": "ORG_ADMIN",
+            "organization_id": "org_dps",
+            "token": create_access_token("usr_dps_admin", "ORG_ADMIN", "org_dps", expires_minutes=1440),
+        },
+        "teacher": {
+            "id": "usr_teacher_sharma",
+            "name": "Prof. Anita Sharma",
+            "email": "teacher.sharma@dps.edu",
+            "role": "TEACHER",
+            "organization_id": "org_dps",
+            "token": create_access_token("usr_teacher_sharma", "TEACHER", "org_dps", expires_minutes=1440),
+        },
+        "student_arjun": {
+            "id": "usr_student_arjun",
+            "name": "Arjun Patel",
+            "email": "student.arjun@dps.edu",
+            "role": "STUDENT",
+            "organization_id": "org_dps",
+            "token": create_access_token("usr_student_arjun", "STUDENT", "org_dps", expires_minutes=1440),
+        },
+        "student_priya": {
+            "id": "usr_student_priya",
+            "name": "Priya Sen",
+            "email": "student.priya@dps.edu",
+            "role": "STUDENT",
+            "organization_id": "org_dps",
+            "token": create_access_token("usr_student_priya", "STUDENT", "org_dps", expires_minutes=1440),
+        },
+    }
+    return ApiResponse(ok=True, data=personas)
+
