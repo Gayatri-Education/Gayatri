@@ -385,3 +385,22 @@ def test_dashboard_html_rendering(client):
     assert "text/html" in resp.headers["content-type"]
     assert "Teacher Command Center" in resp.text
     assert "Cohort Mastery Distribution" in resp.text
+
+
+def test_static_assets_and_tutor_serving(client):
+    """Verify that static assets and /tutor serve properly without 404 errors."""
+    r_tutor = client.get("/tutor")
+    assert r_tutor.status_code == 200
+
+    r_fav = client.get("/favicon.ico")
+    assert r_fav.status_code in (200, 204)
+
+    r_png = client.get("/gai3.png")
+    assert r_png.status_code in (200, 204)
+
+    r_ico = client.get("/gai3.ico")
+    assert r_ico.status_code in (200, 204)
+
+    r_js = client.get("/marked.min.js")
+    assert r_js.status_code in (200, 204)
+

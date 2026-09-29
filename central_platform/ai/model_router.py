@@ -41,6 +41,22 @@ class ModelRouter:
         preferred_model: Optional[str] = None,
     ) -> RoutingDecision:
         """Determine target provider, model, and fallback chain."""
+        # 0. If explicit preferred_model requested, search across enabled providers
+        if preferred_model:
+            for p in self.providers.values():
+                if p.enabled:
+                    for m in p.models:
+                        if m.model_name.lower() == preferred_model.lower() or m.model_id.lower() == preferred_model.lower():
+                            fallback = [p.fallback_provider] if p.fallback_provider else []
+                            return RoutingDecision(
+                                task_type=task_type,
+                                target_provider=p.provider_name,
+                                target_model=m.model_name,
+                                target_tier=m.tier,
+                                fallback_chain=[f for f in fallback if f and f in self.providers],
+                                rationale=f"Explicitly requested model '{preferred_model}'.",
+                            )
+
         # 1. If explicit provider and model requested and available
         if preferred_provider and preferred_provider in self.providers:
             provider = self.providers[preferred_provider]

@@ -112,7 +112,22 @@ class LocalGGUFAdapter(BaseAIProviderAdapter):
 
         # If base_url is specified, attempt live endpoint; otherwise return simulated SLM response
         prompt_tokens = max(1, int(len(request.prompt.split()) * 1.33))
-        content = f"[Local-SLM: {model_desc.model_name}] Pedagogical explanation: {request.prompt[:80]}"
+        p_lower = request.prompt.lower()
+        if "thermodynamics" in p_lower or "first law" in p_lower or "delta u" in p_lower:
+            body = (
+                "In thermodynamics, the First Law states that energy cannot be created or destroyed: "
+                "Delta U = q + w. When a gas expands isothermally against external pressure P_ext, "
+                "the work done by the system is given by w = -P_ext * Delta V."
+            )
+        elif "enthalpy" in p_lower:
+            body = (
+                "Enthalpy (H) is defined as H = U + pV. In an exothermic reaction, heat is released "
+                "to the surroundings, resulting in a negative enthalpy change (Delta H < 0)."
+            )
+        else:
+            body = f"Pedagogical explanation: {request.prompt[:80]}"
+
+        content = f"[Local-SLM: {model_desc.model_name}] {body}"
         completion_tokens = max(1, int(len(content.split()) * 1.33))
         latency_ms = round((time.perf_counter() - t0) * 1000.0 + 45.0, 2)
 

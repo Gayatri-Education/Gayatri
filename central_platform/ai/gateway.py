@@ -60,6 +60,20 @@ class AIGatewayService:
             daily_budget_usd=100.0,
             models=[
                 AIModelDescriptor(
+                    model_id="gayatri-tutor-v3",
+                    model_name="Gayatri-Tutor-v3-Q4_K_M",
+                    tier=ModelTier.TIER_2_STANDARD,
+                    context_window=8192,
+                    latency_p50_ms=40.0,
+                ),
+                AIModelDescriptor(
+                    model_id="gayatri-tutor-slm",
+                    model_name="Gayatri-Tutor-SLM-Q4_K_M",
+                    tier=ModelTier.TIER_2_STANDARD,
+                    context_window=8192,
+                    latency_p50_ms=40.0,
+                ),
+                AIModelDescriptor(
                     model_id="qwen-2.5-3b",
                     model_name="Qwen2.5-3B-Instruct-Q4_K_M",
                     tier=ModelTier.TIER_3_FAST,

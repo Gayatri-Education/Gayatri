@@ -80,8 +80,16 @@ def _detect_initial_model_file() -> str:
     env_override = os.environ.get("GAYATRI_MODEL_FILE")
     if env_override:
         return env_override
-    # 1. Check preferred models (SLM or v3)
-    for preferred in ("Gayatri-Tutor-SLM-Q4_K_M.gguf", "Gayatri-Tutor-v3-Q4_K_M.gguf"):
+    # 1. Check preferred models (SLM, v3, 3B, Qwen)
+    for preferred in (
+        "Gayatri-Tutor-v3-Q4_K_M.gguf",
+        "Gayatri-Tutor-v3.gguf",
+        "Gayatri-Tutor-SLM-Q4_K_M.gguf",
+        "Gayatri-Tutor-3B-Q4_K_M.gguf",
+        "Gayatri-Tutor-v3-Q8_0.gguf",
+        "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "llama-3.2-3b-instruct-q4_k_m.gguf",
+    ):
         for d in _get_model_search_dirs():
             if (d / preferred).is_file():
                 return preferred
@@ -91,7 +99,7 @@ def _detect_initial_model_file() -> str:
             for p in d.glob("*.gguf"):
                 if p.is_file() and p.stat().st_size > 1024 * 1024:
                     return p.name
-    return "Gayatri-Tutor-SLM-Q4_K_M.gguf"
+    return "Gayatri-Tutor-v3-Q4_K_M.gguf"
 
 LOCAL_MODEL_FILE: str = _detect_initial_model_file()
 

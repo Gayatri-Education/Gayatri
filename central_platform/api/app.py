@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 from typing import Any, Dict, Optional
 
@@ -309,8 +310,42 @@ def create_app() -> FastAPI:
                 return HTMLResponse(content=f.read(), status_code=200)
         return HTMLResponse(content="<h1>Interactive Tutor</h1>", status_code=200)
 
+    # Static Assets & Web Icons (Fixing 404s for favicon.ico, gai3.png, gai3.ico, marked.min.js)
+    from fastapi.responses import FileResponse
+
+    ui_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "app", "ui"))
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    @app.get("/gai3.ico", include_in_schema=False)
+    async def get_favicon():
+        for candidate in [
+            os.path.join(ui_dir, "gai3.ico"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "gai3.ico"),
+        ]:
+            if os.path.exists(candidate):
+                return FileResponse(candidate, media_type="image/x-icon")
+        return Response(status_code=204)
+
+    @app.get("/gai3.png", include_in_schema=False)
+    async def get_gai3_png():
+        for candidate in [
+            os.path.join(ui_dir, "gai3.png"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "gai3.png"),
+        ]:
+            if os.path.exists(candidate):
+                return FileResponse(candidate, media_type="image/png")
+        return Response(status_code=204)
+
+    @app.get("/marked.min.js", include_in_schema=False)
+    async def get_marked_js():
+        js_path = os.path.join(ui_dir, "marked.min.js")
+        if os.path.exists(js_path):
+            return FileResponse(js_path, media_type="application/javascript")
+        return Response(content="", media_type="application/javascript")
+
     return app
 
 
 app = create_app()
+
 
