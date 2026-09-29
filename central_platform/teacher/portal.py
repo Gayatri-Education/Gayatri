@@ -156,12 +156,11 @@ class TeacherPortalService:
 
     def _sync_students_from_db(self, course_id: str) -> None:
         """Load registered students and their Authoritative SLR data from PlatformDatabase."""
-        if not self.db and self._students:
-            return  # Unit tests with manually registered student snapshots should remain isolated
         db = self._get_db()
         if not db:
             return
         slr_svc = self._get_slr_service()
+        cids = [course_id, course_id.replace('-', '_'), course_id.replace('_', '-')]
         try:
             with db._get_connection() as conn:
                 rows = conn.execute(
@@ -171,9 +170,9 @@ class TeacherPortalService:
                     LEFT JOIN enrollments e ON u.id = e.student_id
                     LEFT JOIN student_learning_records s ON u.id = s.student_id
                     WHERE u.role = 'student' 
-                      AND (e.course_id = ? OR s.course_id = ?)
+                      AND (e.course_id IN (?, ?, ?) OR s.course_id IN (?, ?, ?))
                     """,
-                    (course_id, course_id)
+                    (*cids, *cids)
                 ).fetchall()
 
             for r in rows:
@@ -210,7 +209,8 @@ class TeacherPortalService:
     def get_dashboard_overview(self, course_id: str = "crs-chem-101") -> TeacherDashboardOverview:
         """Calculate cohort dashboard metrics with all 6 Section 19 core dimensions."""
         self._sync_students_from_db(course_id)
-        relevant = [s for s in self._students.values() if s["course_id"] == course_id]
+        valid_cids = {course_id, course_id.replace('-', '_'), course_id.replace('_', '-')}
+        relevant = [s for s in self._students.values() if s.get("course_id") in valid_cids]
 
         if not relevant:
             return TeacherDashboardOverview(
@@ -335,16 +335,18 @@ class TeacherPortalService:
 
     def get_students_needing_attention(self, course_id: str) -> List[dict]:
         self._sync_students_from_db(course_id)
+        valid_cids = {course_id, course_id.replace('-', '_'), course_id.replace('_', '-')}
         return [
             s for s in self._students.values()
-            if s["course_id"] == course_id and (s["needs_attention"] or s["mastery"] < 0.60)
+            if s.get("course_id") in valid_cids and (s["needs_attention"] or s["mastery"] < 0.60)
         ]
 
     def get_all_students(self, course_id: Optional[str] = None) -> List[dict]:
         cid = course_id or "crs-chem-101"
         self._sync_students_from_db(cid)
         if course_id:
-            return [s for s in self._students.values() if s["course_id"] == course_id]
+            valid_cids = {course_id, course_id.replace('-', '_'), course_id.replace('_', '-')}
+            return [s for s in self._students.values() if s.get("course_id") in valid_cids]
         return list(self._students.values())
 
     def get_misconception_summary(self, course_id: str) -> List[dict]:

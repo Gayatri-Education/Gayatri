@@ -1214,10 +1214,12 @@
             })
           });
 
-          let reply = "Think about Le Chatelier's principle: when you perturb a system at equilibrium, does it move to amplify or counteract the change?";
+          let reply = "";
           if (res.ok) {
             const data = await res.json();
-            reply = data.content || data.response || reply;
+            reply = (data.data && data.data.content) || data.content || data.response || "Let's explore this concept step-by-step.";
+          } else {
+            reply = "I am analyzing this chemistry problem. Could you clarify which variable you are testing?";
           }
 
           const tutorMsg = document.createElement('div');
@@ -1228,7 +1230,7 @@
         } catch (e) {
           const tutorMsg = document.createElement('div');
           tutorMsg.className = 'chat-msg tutor';
-          tutorMsg.textContent = "Let's break this down socratically. What happens to the concentration quotient Q when reactant pressure is doubled?";
+          tutorMsg.textContent = "Let's break this down socratically. What happens to the system when you apply that change?";
           container.appendChild(tutorMsg);
           container.scrollTop = container.scrollHeight;
         }

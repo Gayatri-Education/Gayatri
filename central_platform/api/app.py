@@ -12,8 +12,16 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import uuid
 from typing import Any, Dict, Optional
+
+# Auto-detect local demo database when running the standalone platform server (outside pytest)
+if "pytest" not in sys.modules and "PYTEST_CURRENT_TEST" not in os.environ and not os.environ.get("GAYATRI_DB_PATH"):
+    for candidate in ["gayatri_local.db", os.path.join(os.path.dirname(__file__), "..", "..", "gayatri_local.db")]:
+        if os.path.exists(candidate):
+            os.environ["GAYATRI_DB_PATH"] = os.path.abspath(candidate)
+            break
 
 logger = logging.getLogger("gayatri.api.app")
 
