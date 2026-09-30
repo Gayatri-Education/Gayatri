@@ -105,3 +105,16 @@ Every completed phase from the Master Development Plan will be recorded here.
 - Authored `docs/security/RBAC_POLICY_V4.md` defining strict data scope boundaries for `STUDENT`, `TEACHER`, `PARENT`, and `ORG_ADMIN`.
 - Ran full regression suite to ensure enum addition did not break schema parsing.
 
+
+## Phase 09 - Curriculum Abstraction
+**Date:** 2026-09-30
+**Objective:** Support various curriculum boards (NCERT, CBSE, ICSE, State, College, Custom).
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Added `CurriculumBoard` enumeration and `metadata` to `Curriculum` schema.
+- Added SQL migration `002_curriculum_abstraction.sql` to expand `curricula` table.
+- Mapped schema properties correctly into `central_platform.db` operations.
+- Updated database migration test logic to support dynamic assertions.
+- Added `tests/test_phase09_curriculum_abstraction.py` test suite.
+

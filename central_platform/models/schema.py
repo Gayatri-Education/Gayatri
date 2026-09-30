@@ -29,6 +29,15 @@ class UserRole(str, Enum):
         return super()._missing_(value)
 
 
+class CurriculumBoard(str, Enum):
+    NCERT = "ncert"
+    CBSE = "cbse"
+    ICSE = "icse"
+    STATE_BOARD = "state_board"
+    COLLEGE = "college"
+    CUSTOM = "custom"
+
+
 class AlertSeverity(str, Enum):
     INFO = "info"
     WARNING = "warning"
@@ -160,8 +169,10 @@ class Curriculum:
     id: str
     course_id: str
     title: str
+    board: CurriculumBoard = CurriculumBoard.CUSTOM
     version: str = "1.0.0"
     is_active: bool = True
+    metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
