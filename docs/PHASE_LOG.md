@@ -195,3 +195,17 @@ ecent_events and misconceptions.
 - Structured plain-language explanations and detailed explainability_details payload for every decision.
 - Added unit & integration test suite 	ests/test_phase15_next_action_engine.py verifying all 9 action triggers.
 - 700 total tests passing clean across full suite.
+
+
+## Phase 16 - Query Understanding
+**Date:** 2026-09-30
+**Objective:** Add structured query interpretation using local SLM with schema validation and deterministic fallback.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.ai.query_understanding module containing QueryUnderstandingEngine and StructuredQueryInterpretation Pydantic contract.
+- Implemented structured JSON extraction from SLM with strict Pydantic validation.
+- Built infallible rule-based deterministic fallback parser for offline operation and schema failure recovery.
+- Supported intent classification, concept extraction, security checking (prompt injection & chemistry safety), and contextual follow-up query rewriting.
+- Added unit & integration test suite 	ests/test_phase16_query_understanding.py.
+- 708 total tests passing clean across full suite.
