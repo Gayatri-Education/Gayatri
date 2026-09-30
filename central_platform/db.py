@@ -986,6 +986,9 @@ class PlatformDatabase:
             return None
 
     def upsert_mastery_state(self, state: MasteryState) -> MasteryState:
+        # Clamp score/confidence to [0.0, 1.0] as a hard DB-level safety net
+        state.score = max(0.0, min(1.0, round(state.score, 4)))
+        state.confidence = max(0.0, min(1.0, round(state.confidence, 4)))
         with self._get_connection() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO mastery_states (id, slr_id, concept_id, score, confidence, updated_at) VALUES (?, ?, ?, ?, ?, ?);",

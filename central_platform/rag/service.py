@@ -493,3 +493,8 @@ class RAGService:
             "count": len(results),
             "data_context": data_context,
         }
+
+    # ── Backward-Compatibility Aliases ────────────────────────────────────────
+    def retrieve(self, **kwargs) -> Dict[str, Any]:
+        """Alias for query() - retained for backward compatibility."""
+        return self.query(**kwargs)
