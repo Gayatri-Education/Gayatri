@@ -94,7 +94,7 @@ class LearningGraph:
         return list(dict.fromkeys(chain))  # Deduplicate while preserving order
 
     def validate_dag(self, concept_ids: List[str]) -> Dict[str, Any]:
-        """Check for cycles or missing prerequisites in the graph."""
+        """Check for cycles or missing prerequisites in the graph across any depth."""
         cycles = []
         missing = []
         
@@ -103,9 +103,9 @@ class LearningGraph:
             for p in prereqs:
                 if p not in concept_ids and not self.db.get_concept(p):
                     missing.append({"concept_id": cid, "missing_prerequisite": p})
-                # Simple cycle check
-                p_prereqs = self.get_prerequisites(p)
-                if cid in p_prereqs:
+                # Check for cycle of any depth: if cid is in p's prerequisite chain
+                p_chain = self.get_prerequisite_chain(p)
+                if cid in p_chain or cid == p:
                     cycles.append((cid, p))
                     
         return {

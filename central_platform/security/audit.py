@@ -82,10 +82,14 @@ class SecurityAuditRunner:
                 masked_user = username[0] + "*" * (len(username) - 2) + username[-1]
             return f"{masked_user}@{domain}"
 
-        # Mask phone -> e.g. +91-XXXXXX1234
+        # Mask phone -> e.g. +91 9******10
         def mask_phone(match: re.Match) -> str:
             phone = match.group(0)
-            return phone[:3] + "******" + phone[-2:]
+            if len(phone) > 10:
+                prefix = phone[:-10]
+                local = phone[-10:]
+                return f"{prefix}{local[0]}******{local[-2:]}"
+            return f"{phone[0]}******{phone[-2:]}"
 
         sanitized = cls.EMAIL_REGEX.sub(mask_email, log_message)
         sanitized = cls.PHONE_REGEX.sub(mask_phone, sanitized)

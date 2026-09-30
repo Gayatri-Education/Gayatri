@@ -212,11 +212,11 @@ class FeeService:
         if value <= 0:
             raise ValueError("Discount value must be positive.")
 
+        base_amount = invoice.amount_due if invoice else fee_account.balance_due
         if discount_type == DiscountType.PERCENTAGE:
-            base_amount = invoice.amount_due if invoice else fee_account.balance_due
             applied_amount = (value / 100.0) * base_amount
         else:
-            applied_amount = min(value, fee_account.balance_due)
+            applied_amount = min(value, base_amount)
 
         discount = Discount(
             fee_account_id=fee_account.id,
@@ -230,6 +230,9 @@ class FeeService:
 
         if invoice:
             invoice.amount_due = max(0.0, invoice.amount_due - applied_amount)
+            if invoice.amount_paid >= invoice.amount_due:
+                invoice.status = InvoiceStatus.PAID
+            invoice.updated_at = datetime.now(timezone.utc).isoformat()
             if self.db and hasattr(self.db, "update_invoice"):
                 self.db.update_invoice(invoice)
 

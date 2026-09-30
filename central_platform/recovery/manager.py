@@ -146,8 +146,10 @@ class FailureRecoveryManager:
         # 2. Extract JSON block inside markdown code fences
         match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
         if match:
+            candidate = match.group(1)
+            candidate_clean = re.sub(r",\s*([\}\]])", r"\1", candidate)
             try:
-                parsed = json.loads(match.group(1))
+                parsed = json.loads(candidate_clean)
                 return RecoveryResult(
                     failure_category=FailureCategory.MALFORMED_MODEL_OUTPUT,
                     status=RecoveryStatus.RECOVERED,
@@ -158,11 +160,13 @@ class FailureRecoveryManager:
             except json.JSONDecodeError:
                 pass
 
-        # 3. Extract first balanced pair of curly braces
-        match_brace = re.search(r"(\{.*\})", raw_text, re.DOTALL)
+        # 3. Extract balanced pair of curly braces
+        match_brace = re.search(r"(\{.*?\})", raw_text, re.DOTALL)
         if match_brace:
+            candidate = match_brace.group(1)
+            candidate_clean = re.sub(r",\s*([\}\]])", r"\1", candidate)
             try:
-                parsed = json.loads(match_brace.group(1))
+                parsed = json.loads(candidate_clean)
                 return RecoveryResult(
                     failure_category=FailureCategory.MALFORMED_MODEL_OUTPUT,
                     status=RecoveryStatus.RECOVERED,
