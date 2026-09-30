@@ -473,3 +473,14 @@ ecent_events and misconceptions.
 - Created `central_platform/explainability/engine.py` providing `ExplanationType` enum (`WHY_SEEING_THIS`, `WHY_FLAGGED`, `WHY_NEXT_LESSON`, `WHY_DUE_FOR_REVIEW`), `RecommendationExplanation` dataclass, and `ExplainabilityEngine` with evidence collection and pedagogical justification generators.
 - Added unit & integration test suite `tests/test_phase36_explainability.py`.
 - 816 total tests passing clean across full suite.
+
+
+## Phase 37 - Security Audit
+**Date:** 2026-10-01
+**Objective:** Implement Security Audit Subsystem supporting automated vulnerability scanning, prompt injection detection, PII log sanitization, upload filename path traversal validation, and tenant boundary verification.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `central_platform/security/audit.py` providing `SecurityAuditCategory` enum, `SecuritySeverity` enum, `SecurityAuditIssue` dataclass, and `SecurityAuditRunner` with `sanitize_pii_logs` (masking emails and Indian phone numbers), `audit_prompt_injection`, `audit_upload_filename`, and `audit_tenant_query`.
+- Added unit & integration test suite `tests/test_phase37_security_audit.py`.
+- 821 total tests passing clean across full suite.
