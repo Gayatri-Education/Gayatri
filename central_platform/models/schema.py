@@ -17,6 +17,7 @@ class UserRole(str, Enum):
     COURSE_ADMIN = "course_admin"
     TEACHER = "teacher"
     STUDENT = "student"
+    PARENT = "parent"
 
     @classmethod
     def _missing_(cls, value: object):

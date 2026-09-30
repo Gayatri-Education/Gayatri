@@ -94,3 +94,14 @@ Every completed phase from the Master Development Plan will be recorded here.
 - Added `tests/test_phase07_tenant_isolation.py` to explicitly enforce and test cross-tenant database isolation and soft-deletion leakage prevention in `PlatformDatabase`.
 - Verified all new tests pass within the regression suite.
 
+
+## Phase 08 - Roles and Permissions
+**Date:** 2026-09-30
+**Objective:** Implement/reconcile platform roles to reflect the 4 portals.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Added `PARENT` enum to `UserRole` in `central_platform/models/schema.py` to complete the 4-portal mapping.
+- Authored `docs/security/RBAC_POLICY_V4.md` defining strict data scope boundaries for `STUDENT`, `TEACHER`, `PARENT`, and `ORG_ADMIN`.
+- Ran full regression suite to ensure enum addition did not break schema parsing.
+
