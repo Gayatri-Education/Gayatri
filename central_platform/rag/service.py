@@ -228,6 +228,18 @@ class RAGService:
             "checksum": checksum,
         }
 
+    def ingest_from_provider(
+        self, 
+        source_id: str, 
+        provider: 'central_platform.providers.KnowledgeSource', 
+        document_id: str
+    ) -> Dict[str, Any]:
+        """Ingest knowledge directly from a plugin provider (Phase 10)."""
+        content = provider.get_document(document_id)
+        if not content:
+            raise ValueError(f"Document '{document_id}' not found in provider.")
+        return self.ingest_document(source_id, content)
+
     def validate_source(self, source_id: str) -> Dict[str, Any]:
         """Validate ingested chunks: verify lengths, check concept alignments, detect prompt injections."""
         source = self.db.get_rag_source(source_id)
