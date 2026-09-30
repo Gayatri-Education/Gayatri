@@ -507,6 +507,26 @@ class CurriculumService:
 
     # ── 6. Declarative Package Import & Export ────────────────────────────────
 
+    def import_from_provider(
+        self,
+        admin: 'central_platform.models.schema.User',
+        provider: 'central_platform.providers.CurriculumProvider',
+        curriculum_id: str,
+        course_id: str
+    ) -> Dict[str, Any]:
+        """Fetch and import curriculum directly from a plugin provider (Phase 10)."""
+        curriculum = provider.get_curriculum(curriculum_id)
+        if not curriculum:
+            raise ValueError(f"Curriculum '{curriculum_id}' not found in provider.")
+        
+        # Package it up in the expected declarative schema format
+        package = {
+            "title": curriculum.title,
+            "version": curriculum.version,
+            "modules": curriculum.metadata.get("modules", [])
+        }
+        return self.import_curriculum_package(admin, course_id, package, publish=True)
+
     def import_curriculum_package(
         self,
         admin: User,

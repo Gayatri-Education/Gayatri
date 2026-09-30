@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+import uuid
 from typing import Any, Dict, List, Optional
 
 
@@ -17,6 +18,7 @@ class UserRole(str, Enum):
     COURSE_ADMIN = "course_admin"
     TEACHER = "teacher"
     STUDENT = "student"
+    PARENT = "parent"
 
     @classmethod
     def _missing_(cls, value: object):
@@ -26,6 +28,15 @@ class UserRole(str, Enum):
                 if member.value == val_norm or member.name.lower() == val_norm:
                     return member
         return super()._missing_(value)
+
+
+class CurriculumBoard(str, Enum):
+    NCERT = "ncert"
+    CBSE = "cbse"
+    ICSE = "icse"
+    STATE_BOARD = "state_board"
+    COLLEGE = "college"
+    CUSTOM = "custom"
 
 
 class AlertSeverity(str, Enum):
@@ -159,8 +170,10 @@ class Curriculum:
     id: str
     course_id: str
     title: str
+    board: CurriculumBoard = CurriculumBoard.CUSTOM
     version: str = "1.0.0"
     is_active: bool = True
+    metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:

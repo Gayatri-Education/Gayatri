@@ -31,20 +31,20 @@ def test_bridge_set_tutor_mode_invalid():
 
 
 def test_bridge_telemetry_reflects_mode():
-    """Test get_demo_telemetry reflects tutor mode changes."""
+    """Test get_system_telemetry reflects tutor mode changes."""
     bridge = Bridge()
     bridge.set_tutor_mode("QUESTION")
-    telemetry = json.loads(bridge.get_demo_telemetry())
+    telemetry = json.loads(bridge.get_system_telemetry())
     assert telemetry["mode"] == "QUESTION"
     assert telemetry["next_action"] == "EVALUATE"
 
     bridge.set_tutor_mode("HINT")
-    telemetry = json.loads(bridge.get_demo_telemetry())
+    telemetry = json.loads(bridge.get_system_telemetry())
     assert telemetry["mode"] == "HINT"
     assert "HINT LVL" in telemetry["next_action"]
 
     bridge.set_tutor_mode("REMEDIATE")
-    telemetry = json.loads(bridge.get_demo_telemetry())
+    telemetry = json.loads(bridge.get_system_telemetry())
     assert telemetry["mode"] == "REMEDIATE"
     assert telemetry["concept_id"] == "THERMO_INTERNAL_ENERGY"
 

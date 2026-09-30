@@ -35,6 +35,7 @@ from central_platform.models.schema import (
     Concept,
     Course,
     Curriculum,
+    CurriculumBoard,
     CurriculumVersion,
     Enrollment,
     InterventionRecord,
@@ -484,16 +485,27 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             conn.execute(
                 """
-                INSERT INTO curricula (id, course_id, title, version, is_active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO curricula (id, course_id, title, board, metadata, version, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     course_id=excluded.course_id,
                     title=excluded.title,
+                    board=excluded.board,
+                    metadata=excluded.metadata,
                     version=excluded.version,
                     is_active=excluded.is_active,
                     created_at=excluded.created_at;
                 """,
-                (curriculum.id, curriculum.course_id, curriculum.title, curriculum.version, 1 if curriculum.is_active else 0, curriculum.created_at),
+                (
+                    curriculum.id, 
+                    curriculum.course_id, 
+                    curriculum.title, 
+                    curriculum.board.value,
+                    json.dumps(curriculum.metadata),
+                    curriculum.version, 
+                    1 if curriculum.is_active else 0, 
+                    curriculum.created_at
+                ),
             )
         return curriculum
 
@@ -501,10 +513,16 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             r = conn.execute("SELECT * FROM curricula WHERE id = ?;", (curriculum_id,)).fetchone()
             if r:
+                # Handle migrations gracefully where board/metadata might not be fetched 
+                # if sqlite PRAGMA table_info is out of sync in tests
+                board_val = r["board"] if "board" in r.keys() else "custom"
+                metadata_val = r["metadata"] if "metadata" in r.keys() else "{}"
                 return Curriculum(
                     id=r["id"],
                     course_id=r["course_id"],
                     title=r["title"],
+                    board=CurriculumBoard(board_val),
+                    metadata=json.loads(metadata_val) if metadata_val else {},
                     version=r["version"],
                     is_active=bool(r["is_active"]),
                     created_at=r["created_at"],
@@ -518,10 +536,14 @@ class PlatformDatabase:
                 (course_id,),
             ).fetchone()
             if r:
+                board_val = r["board"] if "board" in r.keys() else "custom"
+                metadata_val = r["metadata"] if "metadata" in r.keys() else "{}"
                 return Curriculum(
                     id=r["id"],
                     course_id=r["course_id"],
                     title=r["title"],
+                    board=CurriculumBoard(board_val),
+                    metadata=json.loads(metadata_val) if metadata_val else {},
                     version=r["version"],
                     is_active=bool(r["is_active"]),
                     created_at=r["created_at"],

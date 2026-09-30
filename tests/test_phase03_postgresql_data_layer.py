@@ -86,12 +86,16 @@ def test_migration_rollback_and_reapply(tmp_path):
     db = PlatformDatabase(db_file)
     conn = db._get_connection()
 
-    # Initial state: 1 migration applied
-    assert len(get_applied_migrations(conn)) == 1
+    # Initial state: all migrations applied
+    import os
+    num_migrations = len([f for f in os.listdir("migrations") if f.endswith(".sql") and not f.endswith("_down.sql")])
+    assert len(get_applied_migrations(conn)) == num_migrations
 
     # Rollback
     rolled = rollback_all_migrations(conn)
-    assert rolled == ["001"]
+    assert len(rolled) == num_migrations
+    versions = sorted([f.split("_")[0] for f in os.listdir("migrations") if f.endswith(".sql") and not f.endswith("_down.sql")])
+    assert rolled == sorted(versions, reverse=True)
     assert len(get_applied_migrations(conn)) == 0
 
     # Verify tables dropped
@@ -102,8 +106,9 @@ def test_migration_rollback_and_reapply(tmp_path):
 
     # Re-apply
     reapplied = run_all_migrations(conn)
-    assert reapplied == ["001"]
-    assert len(get_applied_migrations(conn)) == 1
+    assert len(reapplied) == num_migrations
+    assert reapplied == sorted(versions)
+    assert len(get_applied_migrations(conn)) == num_migrations
     db.close()
 
 

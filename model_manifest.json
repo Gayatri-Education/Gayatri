@@ -1,10 +1,18 @@
 {
-  "model_name": "gayatri-chemistry-tutor-v1",
-  "base_model": "Qwen2.5-7B-Instruct",
-  "adapter": "gayatri-chem-adapter-v1",
+  "model_id": "gayatri-chem-qwen2.5-0.5b-v4",
+  "display_name": "Gayatri Chemistry Tutor (0.5B)",
+  "provider": "local",
+  "local_path": "models/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+  "download_source": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf",
   "quantization": "Q4_K_M",
   "context_length": 8192,
-  "training_dataset_version": "v1.0",
-  "created_at": "2026-09-19T00:00:00Z",
-  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  "architecture": "Qwen2.5",
+  "parameter_count": "0.5B",
+  "chat_template": "chatml",
+  "capabilities": ["text-generation", "socratic-tutoring"],
+  "hardware_requirements": "1GB RAM, CPU",
+  "language_support": ["en", "hi"],
+  "version": "v4.0",
+  "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "license": "MIT"
 }
