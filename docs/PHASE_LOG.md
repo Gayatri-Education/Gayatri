@@ -263,3 +263,16 @@ ecent_events and misconceptions.
 - Enforced zero-corruption guarantee: failed AI responses or validation errors trigger immediate rollback leaving persistent database untouched.
 - Added unit & integration test suite 	ests/test_phase20_state_commit_pipeline.py.
 - 727 total tests passing clean across full suite.
+
+
+## Phase 21 - Local-First Router
+**Date:** 2026-09-30
+**Objective:** Implement routing strategies LOCAL_ONLY, LOCAL_FIRST, CLOUD_PREFERRED using capability matching.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Added RoutingStrategy enum (LOCAL_ONLY, LOCAL_FIRST, CLOUD_PREFERRED) and capabilities list field to AIModelDescriptor in central_platform.ai.schema.
+- Updated ModelRouter.route to execute strategy-driven provider selection and capability matching.
+- Enforced strict local execution for LOCAL_ONLY, prioritized local fallback for LOCAL_FIRST, and prioritized cloud with local fallback for CLOUD_PREFERRED.
+- Added unit & integration test suite 	ests/test_phase21_local_first_router.py.
+- 732 total tests passing clean across full suite.

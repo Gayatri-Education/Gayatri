@@ -38,6 +38,13 @@ class ProviderType(str, Enum):
     MOCK = "mock"
 
 
+class RoutingStrategy(str, Enum):
+    """Routing strategies for local vs cloud execution (Phase 21)."""
+    LOCAL_ONLY = "local_only"
+    LOCAL_FIRST = "local_first"
+    CLOUD_PREFERRED = "cloud_preferred"
+
+
 @dataclass
 class AIModelDescriptor:
     """Descriptor for an AI model supported by a provider."""
@@ -49,6 +56,7 @@ class AIModelDescriptor:
     supports_system_prompt: bool = True
     supports_tools: bool = True
     supports_json: bool = True
+    capabilities: List[str] = field(default_factory=list)
     cost_per_1k_input_usd: float = 0.00015
     cost_per_1k_output_usd: float = 0.0006
     latency_p50_ms: float = 350.0
@@ -63,6 +71,7 @@ class AIModelDescriptor:
             "supports_system_prompt": self.supports_system_prompt,
             "supports_tools": self.supports_tools,
             "supports_json": self.supports_json,
+            "capabilities": self.capabilities,
             "cost_per_1k_input_usd": self.cost_per_1k_input_usd,
             "cost_per_1k_output_usd": self.cost_per_1k_output_usd,
             "latency_p50_ms": self.latency_p50_ms,
