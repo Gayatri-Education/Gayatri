@@ -484,3 +484,14 @@ ecent_events and misconceptions.
 - Created `central_platform/security/audit.py` providing `SecurityAuditCategory` enum, `SecuritySeverity` enum, `SecurityAuditIssue` dataclass, and `SecurityAuditRunner` with `sanitize_pii_logs` (masking emails and Indian phone numbers), `audit_prompt_injection`, `audit_upload_filename`, and `audit_tenant_query`.
 - Added unit & integration test suite `tests/test_phase37_security_audit.py`.
 - 821 total tests passing clean across full suite.
+
+
+## Phase 38 - Failure Recovery
+**Date:** 2026-10-01
+**Objective:** Implement Resilience & Failure Recovery Manager providing self-healing fallback policies, degraded execution modes, and JSON output repairs across model failures, provider timeouts, RAG outages, DB failures, and payment transactions.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `central_platform/recovery/manager.py` providing `FailureCategory` enum, `RecoveryStatus` enum, `RecoveryResult` dataclass, and `FailureRecoveryManager` supporting model unavailable fallback, provider timeout routing, RAG outage fallback, database cache fallback, self-healing JSON repair (repair_malformed_model_output), and payment failure rollback.
+- Added unit & integration test suite `tests/test_phase38_failure_recovery.py`.
+- 827 total tests passing clean across full suite.
