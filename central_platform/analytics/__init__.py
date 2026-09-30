@@ -1,6 +1,15 @@
 """Package init for central_platform.analytics."""
 
-from central_platform.analytics.engine import AnalyticsEngine, MetricRecord
+from central_platform.analytics.engine import (
+    AnalyticsEngine,
+    MetricRecord,
+    LearningHealthLevel,
+    StudentHealthMetric,
+    ClassHealthMetric,
+    SectionHealthMetric,
+    InstitutionHealthMetric,
+    LearningAnalyticsEngine,
+)
 from central_platform.analytics.service import (
     AdminSystemAnalytics,
     AnalyticsService,
@@ -11,6 +20,12 @@ from central_platform.analytics.service import (
 __all__ = [
     "AnalyticsEngine",
     "MetricRecord",
+    "LearningHealthLevel",
+    "StudentHealthMetric",
+    "ClassHealthMetric",
+    "SectionHealthMetric",
+    "InstitutionHealthMetric",
+    "LearningAnalyticsEngine",
     "AnalyticsService",
     "StudentAnalytics",
     "TeacherClassAnalytics",
