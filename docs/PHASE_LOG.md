@@ -169,3 +169,16 @@ ecent_events and misconceptions.
 - Added unit & integration test suite 	ests/test_phase13_learning_graph.py.
 - 684 total tests passing clean across full suite.
 
+
+
+## Phase 14 - Mastery and Evidence Engine
+**Date:** 2026-09-30
+**Objective:** Implement deterministic evidence-backed mastery with correct/incorrect answers, repeated attempts, review, decay, and prerequisite effects.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.learning.mastery module containing MasteryEvidenceEngine and MasteryCalculationResult.
+- Implemented multi-factor accuracy (recent vs long-term), hint penalties, attempt diminishing returns, Ebbinghaus forgetting curve time decay, and prerequisite mastery discounting.
+- Integrated canonical DB persistence updating mastery_states and StudentLearningRecord.
+- Added unit & integration test suite 	ests/test_phase14_mastery_engine.py verifying correct/incorrect answers, repeated attempts, review, decay, and prerequisite effects.
+- 690 total tests passing clean across full suite.
