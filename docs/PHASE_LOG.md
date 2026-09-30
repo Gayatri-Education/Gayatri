@@ -72,3 +72,14 @@ Every completed phase from the Master Development Plan will be recorded here.
 - Moved 5 standalone demo scripts (`reset_demo.py`, `run_demo_scenarios.py`, `seed_demo.py`, `seed_demo_student.py`, `simulate_student_demo.py`) from `scripts/` to `tests/fixtures/examples/` to isolate them from the production CLI/scripts path.
 - Ran full regression suite to verify isolation didn't break integration layers.
 
+
+## Phase 06 - Portal Foundation
+**Date:** 2026-09-30
+**Objective:** Map routing and directory structures for 4 portals and create baseline entry points.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created directory structures for `app/portals/student`, `app/portals/teacher`, `app/portals/parent`, and `app/portals/admin`.
+- Established baseline `__init__.py` and `controller.py` entry point files for all four UI personas.
+- Positioned basic routing controllers (`StudentPortalController`, `TeacherPortalController`, etc.) for future PySide6 component mounting.
+
