@@ -462,3 +462,14 @@ ecent_events and misconceptions.
 - Updated `central_platform/analytics/__init__.py` exporting all Phase 35 learning health data structures.
 - Added unit & integration test suite `tests/test_phase35_learning_analytics.py`.
 - 811 total tests passing clean across full suite.
+
+
+## Phase 36 - Explainability
+**Date:** 2026-10-01
+**Objective:** Implement Decision Explainability Subsystem providing evidence-based pedagogical justifications for content recommendations, intervention flags, next lesson sequencing, and spaced repetition review schedules.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `central_platform/explainability/engine.py` providing `ExplanationType` enum (`WHY_SEEING_THIS`, `WHY_FLAGGED`, `WHY_NEXT_LESSON`, `WHY_DUE_FOR_REVIEW`), `RecommendationExplanation` dataclass, and `ExplainabilityEngine` with evidence collection and pedagogical justification generators.
+- Added unit & integration test suite `tests/test_phase36_explainability.py`.
+- 816 total tests passing clean across full suite.
