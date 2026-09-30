@@ -320,3 +320,16 @@ ecent_events and misconceptions.
 - Created `central_platform/ui/design_system.py` Python backend manager providing `UIThemeConfig`, `DesignSystemRegistry`, and token validation helper `validate_theme_tokens`.
 - Added unit & integration test suite `tests/test_phase24_shared_ui_design_system.py`.
 - 752 total tests passing clean across full suite.
+
+
+## Phase 25 - Application Shell
+**Date:** 2026-10-01
+**Objective:** Implement consistent sidebar, topbar, navigation, responsive shell, user menu, theme selector, and language selector across the platform UI.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/shell.css` defining CSS rules for desktop sidebar (~260px wide, collapsible to icon mode 64px), topbar header, portal badge, theme/language selectors, user avatar & dropdown menu, and mobile responsive drawer breakpoints (`@media (max-width: 768px)`).
+- Created `app/ui/design_system/shell.js` client-side controller supporting sidebar toggling (`toggleSidebar`), user menu dropdowns (`toggleUserMenu`), portal navigation (`navigateToPortal`), and 8-language selection (`en`, `hi`, `sa`, `ta`, `te`, `kn`, `mr`, `bn`).
+- Created `central_platform/ui/shell.py` Python backend manager providing `AppShellConfig`, `PortalRoute` enum, `LanguageOption` descriptors, and portal URL routing.
+- Added unit & integration test suite `tests/test_phase25_application_shell.py`.
+- 758 total tests passing clean across full suite.
