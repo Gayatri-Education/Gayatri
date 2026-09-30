@@ -83,3 +83,14 @@ Every completed phase from the Master Development Plan will be recorded here.
 - Established baseline `__init__.py` and `controller.py` entry point files for all four UI personas.
 - Positioned basic routing controllers (`StudentPortalController`, `TeacherPortalController`, etc.) for future PySide6 component mounting.
 
+
+## Phase 07 - Core Testing Expansion
+**Date:** 2026-09-30
+**Objective:** Write tests for missing UI interaction boundaries and expand tenant isolation tests.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Added `tests/test_phase07_portal_ui.py` to verify baseline UI boundary states for Student, Teacher, Parent, and Admin controllers.
+- Added `tests/test_phase07_tenant_isolation.py` to explicitly enforce and test cross-tenant database isolation and soft-deletion leakage prevention in `PlatformDatabase`.
+- Verified all new tests pass within the regression suite.
+
