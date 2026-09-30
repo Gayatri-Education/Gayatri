@@ -372,3 +372,16 @@ ecent_events and misconceptions.
 - Created `central_platform/portals/teacher.py` Python backend manager providing `TeacherPortalTab` enum, `ClassOverviewSummary`, `StudentHealthRecord`, and `TeacherPortalController`.
 - Added unit & integration test suite `tests/test_phase28_teacher_portal_ui.py`.
 - 777 total tests passing clean across full suite.
+
+
+## Phase 29 - Parent Portal UI
+**Date:** 2026-10-01
+**Objective:** Implement Parent Portal UI covering child selector, progress tracking, attendance, assignments, assessments, teacher updates, home recommendations, fees overview, and notifications.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/parent.css` defining layout styles for 8 parent portal sub-views (child selector pills, child progress summary, attendance status grid, assignments list, assessment performance, teacher update cards, recommendations, fee summary, and notifications).
+- Created `app/ui/design_system/parent.js` client-side controller supporting `selectChild` and `switchParentTab` across all 8 sub-views.
+- Created `central_platform/portals/parent.py` Python backend manager providing `ParentPortalTab` enum, `ChildDescriptor`, `ChildProgressSummary`, `AttendanceSummary`, and `ParentPortalController`.
+- Added unit & integration test suite `tests/test_phase29_parent_portal_ui.py`.
+- 782 total tests passing clean across full suite.
