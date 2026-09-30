@@ -13,14 +13,22 @@ from typing import Any
 logger = logging.getLogger("gayatri.model.validator")
 
 REQUIRED_MANIFEST_KEYS = {
-    "model_name",
-    "base_model",
-    "adapter",
+    "model_id",
+    "display_name",
+    "provider",
+    "local_path",
+    "download_source",
     "quantization",
     "context_length",
-    "training_dataset_version",
-    "created_at",
-    "sha256",
+    "architecture",
+    "parameter_count",
+    "chat_template",
+    "capabilities",
+    "hardware_requirements",
+    "language_support",
+    "version",
+    "checksum",
+    "license"
 }
 
 
@@ -51,5 +59,5 @@ def load_and_validate_manifest(manifest_path: Path | str | None = None) -> dict[
     if not isinstance(data.get("context_length"), int) or data["context_length"] <= 0:
         raise ModelManifestValidationError(f"Invalid context_length in manifest: {data.get('context_length')}")
 
-    logger.info(f"Model manifest validated successfully: {data['model_name']} ({data['base_model']})")
+    logger.info(f"Model manifest validated successfully: {data['model_id']} ({data['architecture']})")
     return data

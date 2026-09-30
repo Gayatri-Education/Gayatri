@@ -93,7 +93,7 @@ def test_master_integration_flow(tmp_path):
 
     # 12. Model Manifest
     manifest = load_and_validate_manifest("model_manifest.json")
-    assert manifest["model_name"] == "gayatri-chemistry-tutor-v1"
+    assert manifest["model_id"] == "gayatri-chem-qwen2.5-0.5b-v4"
 
     # Commit turn
     lifecycle.update_stage("turn_m1", TurnStage.TURN_COMMITTED)
