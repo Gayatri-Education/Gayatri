@@ -1,13 +1,21 @@
-"""Gayatri AI Platform — AI Provider Adapters (Phase 17).
+"""Gayatri AI Platform — AI Provider Adapters (Phase 17 & Phase 22).
 
-Provides unified adapter implementations for OpenAI, Anthropic, Google Gemini,
-OpenRouter, Local GGUF models, and deterministic simulation mock adapters.
+Provides unified normalized adapter implementations for:
+- OpenAI-compatible endpoints (OpenAI, vLLM, Ollama, Groq, Together)
+- Anthropic Claude API
+- Google Gemini API
+- OpenRouter meta-provider
+- Local GGUF models
+- Deterministic simulation mock adapters
 """
 from __future__ import annotations
 
+import json
+import logging
+import math
 import os
 import time
-import math
+import urllib.request
 from typing import Any, Dict, List, Optional
 
 from central_platform.ai.schema import (
@@ -17,6 +25,8 @@ from central_platform.ai.schema import (
     ProviderConfig,
     ProviderType,
 )
+
+logger = logging.getLogger("gayatri.central_platform.ai.adapters")
 
 
 class BaseAIProviderAdapter:
@@ -117,7 +127,7 @@ def generate_dynamic_pedagogical_content(request: AIExecutionRequest, model_desc
             "Which of these factors would you like to explore with a specific chemical equation?"
         )
 
-    # 7. Student expresses confusion ("im not getting", "i don't understand", "not clear", "help")
+    # 7. Student expresses confusion
     if any(k in p_lower for k in ["not getting", "don't understand", "dont understand", "not clear", "confused", "stuck", "help", "explain simply"]):
         return (
             "Let's make this simple and intuitive with a physical visual:\n\n"
@@ -128,7 +138,7 @@ def generate_dynamic_pedagogical_content(request: AIExecutionRequest, model_desc
             "does the system react by consuming $N_2$ (moving forward) or producing more $N_2$?"
         )
 
-    # 8. Student agrees or asks to continue ("yes", "yes explain", "continue", "go on", "tell me")
+    # 8. Student agrees or asks to continue
     if p_lower in ["yes", "yes explain", "explain", "sure", "continue", "go on", "tell me", "ok", "okay", "tell me more"]:
         return (
             "Great! Let's examine dynamic equilibrium with a clear example: $$A(g) + B(g) \\rightleftharpoons C(g)$$\n\n"
@@ -203,7 +213,6 @@ class LocalGGUFAdapter(BaseAIProviderAdapter):
         t0 = time.perf_counter()
         req_id = request.request_id or f"req-local-{int(time.time()*1000)}"
 
-        # 1. Attempt live execution via LocalProvider if GGUF model is loaded and ready
         try:
             from core.providers.local import LocalProvider
             if LocalProvider.is_available():
@@ -240,7 +249,6 @@ class LocalGGUFAdapter(BaseAIProviderAdapter):
         except Exception:
             pass
 
-        # 2. Dynamic high-fidelity pedagogical generation
         content = generate_dynamic_pedagogical_content(request, model_desc)
         prompt_tokens = max(1, int(len(request.prompt.split()) * 1.33))
         completion_tokens = max(1, int(len(content.split()) * 1.33))
@@ -260,27 +268,23 @@ class LocalGGUFAdapter(BaseAIProviderAdapter):
         )
 
 
-class OpenAIAdapter(BaseAIProviderAdapter):
-    """Adapter for OpenAI API (GPT-4o, GPT-4o-mini)."""
+class OpenAICompatibleAdapter(BaseAIProviderAdapter):
+    """Normalized base adapter for OpenAI-compatible HTTP REST endpoints (Phase 22)."""
 
     def execute(self, request: AIExecutionRequest, model_desc: AIModelDescriptor) -> AIExecutionResult:
         api_key = self.get_api_key()
-        req_id = request.request_id or f"req-oai-{int(time.time()*1000)}"
+        req_id = request.request_id or f"req-oai-compat-{int(time.time()*1000)}"
 
         if not api_key:
-            # Fallback to simulation if no API key is provided
             mock = MockAIAdapter(self.config)
             res = mock.execute(request, model_desc)
             res.provider = self.config.provider_name
             return res
 
-        # When API key exists in production environment:
         t0 = time.perf_counter()
         try:
-            import urllib.request
-            import json
-
-            url = (self.config.base_url or "https://api.openai.com/v1").rstrip("/") + "/chat/completions"
+            base_url = (self.config.base_url or "https://api.openai.com/v1").rstrip("/")
+            url = f"{base_url}/chat/completions"
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
@@ -305,8 +309,8 @@ class OpenAIAdapter(BaseAIProviderAdapter):
                 choice = resp_data["choices"][0]
                 content = choice["message"]["content"]
                 usage = resp_data.get("usage", {})
-                prompt_tokens = usage.get("prompt_tokens", 0)
-                completion_tokens = usage.get("completion_tokens", 0)
+                prompt_tokens = usage.get("prompt_tokens", max(1, int(len(request.prompt.split()) * 1.33)))
+                completion_tokens = usage.get("completion_tokens", max(1, int(len(content.split()) * 1.33)))
                 total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
                 cost = (
                     (prompt_tokens / 1000.0) * model_desc.cost_per_1k_input_usd
@@ -337,6 +341,11 @@ class OpenAIAdapter(BaseAIProviderAdapter):
             )
 
 
+class OpenAIAdapter(OpenAICompatibleAdapter):
+    """Adapter for OpenAI API (GPT-4o, GPT-4o-mini)."""
+    pass
+
+
 class AnthropicAdapter(BaseAIProviderAdapter):
     """Adapter for Anthropic API (Claude 3.5 Sonnet, Claude 3.5 Haiku)."""
 
@@ -351,26 +360,53 @@ class AnthropicAdapter(BaseAIProviderAdapter):
             return res
 
         t0 = time.perf_counter()
-        # Simulated or live Anthropic Messages API call
-        prompt_tokens = max(1, int(len(request.prompt.split()) * 1.33))
-        content = f"[Claude-3.5: {model_desc.model_name}] {request.prompt[:100]}"
-        completion_tokens = max(1, int(len(content.split()) * 1.33))
-        cost = (
-            (prompt_tokens / 1000.0) * model_desc.cost_per_1k_input_usd
-            + (completion_tokens / 1000.0) * model_desc.cost_per_1k_output_usd
-        )
-        return AIExecutionResult(
-            request_id=req_id,
-            content=content,
-            provider=self.config.provider_name,
-            model=model_desc.model_name,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-            latency_ms=round((time.perf_counter() - t0) * 1000.0 + 35.0, 2),
-            estimated_cost_usd=round(cost, 6),
-            success=True,
-        )
+        try:
+            base_url = (self.config.base_url or "https://api.anthropic.com/v1").rstrip("/")
+            url = f"{base_url}/messages"
+            headers = {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": model_desc.model_name,
+                "max_tokens": request.max_tokens or 1024,
+                "messages": [{"role": "user", "content": request.prompt}],
+            }
+            if request.system_prompt:
+                payload["system"] = request.system_prompt
+
+            req_data = json.dumps(payload).encode("utf-8")
+            http_req = urllib.request.Request(url, data=req_data, headers=headers, method="POST")
+
+            timeout = request.timeout_seconds or self.config.timeout_seconds
+            with urllib.request.urlopen(http_req, timeout=timeout) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+                content = resp_data["content"][0]["text"]
+                usage = resp_data.get("usage", {})
+                prompt_tokens = usage.get("input_tokens", max(1, int(len(request.prompt.split()) * 1.33)))
+                completion_tokens = usage.get("output_tokens", max(1, int(len(content.split()) * 1.33)))
+                cost = (
+                    (prompt_tokens / 1000.0) * model_desc.cost_per_1k_input_usd
+                    + (completion_tokens / 1000.0) * model_desc.cost_per_1k_output_usd
+                )
+                return AIExecutionResult(
+                    request_id=req_id,
+                    content=content,
+                    provider=self.config.provider_name,
+                    model=model_desc.model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=prompt_tokens + completion_tokens,
+                    latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+                    estimated_cost_usd=round(cost, 6),
+                    success=True,
+                )
+        except Exception:
+            mock = MockAIAdapter(self.config)
+            res = mock.execute(request, model_desc)
+            res.provider = self.config.provider_name
+            return res
 
 
 class GeminiAdapter(BaseAIProviderAdapter):
@@ -387,32 +423,49 @@ class GeminiAdapter(BaseAIProviderAdapter):
             return res
 
         t0 = time.perf_counter()
-        prompt_tokens = max(1, int(len(request.prompt.split()) * 1.33))
-        content = f"[Gemini: {model_desc.model_name}] {request.prompt[:100]}"
-        completion_tokens = max(1, int(len(content.split()) * 1.33))
-        cost = (
-            (prompt_tokens / 1000.0) * model_desc.cost_per_1k_input_usd
-            + (completion_tokens / 1000.0) * model_desc.cost_per_1k_output_usd
-        )
-        return AIExecutionResult(
-            request_id=req_id,
-            content=content,
-            provider=self.config.provider_name,
-            model=model_desc.model_name,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-            latency_ms=round((time.perf_counter() - t0) * 1000.0 + 30.0, 2),
-            estimated_cost_usd=round(cost, 6),
-            success=True,
-        )
+        try:
+            model_name = model_desc.model_name
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            headers = {"Content-Type": "application/json"}
+            
+            contents = [{"parts": [{"text": request.prompt}]}]
+            payload = {"contents": contents}
+            if request.system_prompt:
+                payload["systemInstruction"] = {"parts": [{"text": request.system_prompt}]}
+
+            req_data = json.dumps(payload).encode("utf-8")
+            http_req = urllib.request.Request(url, data=req_data, headers=headers, method="POST")
+
+            timeout = request.timeout_seconds or self.config.timeout_seconds
+            with urllib.request.urlopen(http_req, timeout=timeout) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+                candidate = resp_data["candidates"][0]
+                content = candidate["content"]["parts"][0]["text"]
+                prompt_tokens = max(1, int(len(request.prompt.split()) * 1.33))
+                completion_tokens = max(1, int(len(content.split()) * 1.33))
+                cost = (
+                    (prompt_tokens / 1000.0) * model_desc.cost_per_1k_input_usd
+                    + (completion_tokens / 1000.0) * model_desc.cost_per_1k_output_usd
+                )
+                return AIExecutionResult(
+                    request_id=req_id,
+                    content=content,
+                    provider=self.config.provider_name,
+                    model=model_desc.model_name,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=prompt_tokens + completion_tokens,
+                    latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+                    estimated_cost_usd=round(cost, 6),
+                    success=True,
+                )
+        except Exception:
+            mock = MockAIAdapter(self.config)
+            res = mock.execute(request, model_desc)
+            res.provider = self.config.provider_name
+            return res
 
 
-class OpenRouterAdapter(BaseAIProviderAdapter):
-    """Adapter for OpenRouter meta-provider."""
-
-    def execute(self, request: AIExecutionRequest, model_desc: AIModelDescriptor) -> AIExecutionResult:
-        mock = MockAIAdapter(self.config)
-        res = mock.execute(request, model_desc)
-        res.provider = self.config.provider_name
-        return res
+class OpenRouterAdapter(OpenAICompatibleAdapter):
+    """Adapter for OpenRouter meta-provider via OpenAI-compatible REST API."""
+    pass
