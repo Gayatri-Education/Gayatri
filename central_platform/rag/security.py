@@ -28,6 +28,12 @@ class RAGSecuritySanitizer:
         r"(?i)system\s*:\s*you\s+must",
         r"(?i)assistant\s*:\s*understood",
         r"(?i)###\s*(?:system|instruction|admin)\b",
+        r"(?i)\b(?:system|developer|admin|debug)\s*(?:mode|override|prompt|directive)\b",
+        r"(?i)<\|im_start\|>|<\|im_end\|>|<<SYS>>|<SYS>|\[INST\]|\[/INST\]",
+        r"(?i)\bexec\s*\(|\beval\s*\(",
+        r"(?i)\bimport\s+(?:os|sys|subprocess)\b",
+        r"(?i)\bforget\s+all\s+(?:prior|previous)\s+instructions\b",
+        r"(?i)\bnew\s+system\s+directive\b",
     ]
 
     @classmethod

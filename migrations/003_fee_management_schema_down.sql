@@ -1,0 +1,8 @@
+DROP TABLE IF EXISTS refunds;
+DROP TABLE IF EXISTS discounts;
+DROP TABLE IF EXISTS receipts;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS invoices;
+DROP TABLE IF EXISTS fee_accounts;
+DROP TABLE IF EXISTS fee_plans;
+DROP TABLE IF EXISTS fee_structures;

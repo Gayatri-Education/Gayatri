@@ -143,3 +143,310 @@ Every completed phase from the Master Development Plan will be recorded here.
 - Bound the manager correctly to the persistent `PlatformDatabase`, allowing dynamic mapping of SLR, Mastery, Misconceptions, and Events under one unified umbrella.
 - Added `tests/test_phase11_canonical_state.py` validating state synthesis.
 
+
+## Phase 12 - Learning Event System
+**Date:** 2026-09-30
+**Objective:** Implement normalized event creation, validation, persistence, and querying.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Integrated db.query_learning_events and db.get_student_misconceptions into LearningStateManager.get_canonical_state to populate 
+ecent_events and misconceptions.
+- Verified 20 canonical event types validation, payload normalization, batch ingestion, and idempotent deduplication via LearningEventStore.
+- Created unit & integration test suite 	ests/test_phase12_learning_event_system.py.
+- 681 total tests passing clean across full suite.
+
+
+## Phase 13 - Learning Graph
+**Date:** 2026-09-30
+**Objective:** Implement concept graph with prerequisites, mastery, confidence, attempts, misconceptions, review, assessments, and teacher interventions.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.learning.graph engine containing LearningGraph manager and ConceptNodeState dataclass.
+- Implemented recursive prerequisite DAG chain traversal and cycle/missing prerequisite graph validation.
+- Aggregated multi-dimensional node state combining concepts, prerequisites, mastery score, confidence, telemetry attempts/hints, misconceptions, review state, and active teacher instructions.
+- Added unit & integration test suite 	ests/test_phase13_learning_graph.py.
+- 684 total tests passing clean across full suite.
+
+
+
+## Phase 14 - Mastery and Evidence Engine
+**Date:** 2026-09-30
+**Objective:** Implement deterministic evidence-backed mastery with correct/incorrect answers, repeated attempts, review, decay, and prerequisite effects.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.learning.mastery module containing MasteryEvidenceEngine and MasteryCalculationResult.
+- Implemented multi-factor accuracy (recent vs long-term), hint penalties, attempt diminishing returns, Ebbinghaus forgetting curve time decay, and prerequisite mastery discounting.
+- Integrated canonical DB persistence updating mastery_states and StudentLearningRecord.
+- Added unit & integration test suite 	ests/test_phase14_mastery_engine.py verifying correct/incorrect answers, repeated attempts, review, decay, and prerequisite effects.
+- 690 total tests passing clean across full suite.
+
+
+## Phase 15 - Next Action Engine
+**Date:** 2026-09-30
+**Objective:** Implement Next Action Engine supporting actions: CONTINUE, EXPLAIN, HINT, REMEDIATE, PRACTICE, REVIEW, ASSESS, CHALLENGE, ADVANCE with explainability.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.learning.actions module containing NextActionEngine, NextActionType, and NextActionDecision.
+- Implemented deterministic pedagogical decision rules selecting among all 9 canonical actions: CONTINUE, EXPLAIN, HINT, REMEDIATE, PRACTICE, REVIEW, ASSESS, CHALLENGE, ADVANCE.
+- Structured plain-language explanations and detailed explainability_details payload for every decision.
+- Added unit & integration test suite 	ests/test_phase15_next_action_engine.py verifying all 9 action triggers.
+- 700 total tests passing clean across full suite.
+
+
+## Phase 16 - Query Understanding
+**Date:** 2026-09-30
+**Objective:** Add structured query interpretation using local SLM with schema validation and deterministic fallback.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.ai.query_understanding module containing QueryUnderstandingEngine and StructuredQueryInterpretation Pydantic contract.
+- Implemented structured JSON extraction from SLM with strict Pydantic validation.
+- Built infallible rule-based deterministic fallback parser for offline operation and schema failure recovery.
+- Supported intent classification, concept extraction, security checking (prompt injection & chemistry safety), and contextual follow-up query rewriting.
+- Added unit & integration test suite 	ests/test_phase16_query_understanding.py.
+- 708 total tests passing clean across full suite.
+
+
+## Phase 17 - Context Builder
+**Date:** 2026-09-30
+**Objective:** Build clean context from conversation, learner state, curriculum, teacher instructions, institution policy, RAG, and recent events while avoiding irrelevant context.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.ai.context_builder module containing ContextBuilder engine and AssembledContext schema.
+- Integrated all 7 context layers: Conversation, Learner State, Curriculum, Teacher Instructions, Institution Policy, RAG retrieval, and Recent Events.
+- Implemented context trimming/pruning to avoid token bloat and irrelevant data.
+- Maintained static uild_system_prompt and uild_user_prompt methods for seamless integration with AIGatewayService.
+- Added unit & integration test suite 	ests/test_phase17_context_builder.py.
+- 710 total tests passing clean across full suite.
+
+
+## Phase 18 - Response Planner
+**Date:** 2026-09-30
+**Objective:** Implement structured pedagogical planning and schema validation.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.ai.response_planner module containing ResponsePlannerEngine and PedagogicalResponsePlan Pydantic schema model.
+- Implemented structured pedagogical planning with scaffolding steps, learning objectives, tone guidance, and anti-answer leakage flags for EXPLAIN, HINT, PRACTICE, REMEDIATE, REVIEW, CHALLENGE, and ADVANCE actions.
+- Built SLM planner integration with Pydantic contract validation and infallible deterministic fallback planning.
+- Added unit & integration test suite 	ests/test_phase18_response_planner.py.
+- 716 total tests passing clean across full suite.
+
+
+## Phase 19 - Response Validator
+**Date:** 2026-09-30
+**Objective:** Validate factual consistency, curriculum alignment, source requirements, educational safety, answer leakage, model failure, and formatting.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.ai.response_validator module containing ResponseValidatorEngine and ValidationResult.
+- Enforced 7 critical educational response invariants: Factual consistency, Curriculum alignment, Source requirements, Educational safety, Anti-answer leakage, Model failure detection, and LaTeX formatting validation.
+- Implemented automated fallback response generation when error severity issues occur.
+- Added unit & integration test suite 	ests/test_phase19_response_validator.py.
+- 724 total tests passing clean across full suite.
+
+
+## Phase 20 - State Commit Pipeline
+**Date:** 2026-09-30
+**Objective:** Only commit learning-state changes after response/evaluation validation. Ensure failed AI requests cannot corrupt state.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.learning.commit_pipeline module containing StateCommitPipeline, StagedStateChanges, and CommitResult.
+- Implemented isolated two-phase in-memory staging for mastery updates, misconceptions, and learning events.
+- Bound commit execution to ResponseValidatorEngine verification: state mutations are committed to PlatformDatabase ONLY when validation succeeds.
+- Enforced zero-corruption guarantee: failed AI responses or validation errors trigger immediate rollback leaving persistent database untouched.
+- Added unit & integration test suite 	ests/test_phase20_state_commit_pipeline.py.
+- 727 total tests passing clean across full suite.
+
+
+## Phase 21 - Local-First Router
+**Date:** 2026-09-30
+**Objective:** Implement routing strategies LOCAL_ONLY, LOCAL_FIRST, CLOUD_PREFERRED using capability matching.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Added RoutingStrategy enum (LOCAL_ONLY, LOCAL_FIRST, CLOUD_PREFERRED) and capabilities list field to AIModelDescriptor in central_platform.ai.schema.
+- Updated ModelRouter.route to execute strategy-driven provider selection and capability matching.
+- Enforced strict local execution for LOCAL_ONLY, prioritized local fallback for LOCAL_FIRST, and prioritized cloud with local fallback for CLOUD_PREFERRED.
+- Added unit & integration test suite 	ests/test_phase21_local_first_router.py.
+- 732 total tests passing clean across full suite.
+
+
+## Phase 22 - Cloud Provider Abstraction
+**Date:** 2026-09-30
+**Objective:** Normalize optional OpenAI-compatible, Anthropic, Google, and other configured providers.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Implemented `OpenAICompatibleAdapter` REST endpoint adapter supporting OpenAI, vLLM, Ollama, Groq, and Together.
+- Implemented specialized adapters `OpenAIAdapter`, `AnthropicAdapter`, `GeminiAdapter`, `OpenRouterAdapter`, and `LocalGGUFAdapter`.
+- Normalized execution requests, response structures, token counting, cost estimations, and latency measurements across all cloud and local providers.
+- Integrated deterministic mock fallback for offline operation and API key absence.
+- Added unit & integration test suite `tests/test_phase22_cloud_provider_abstraction.py`.
+- 741 total tests passing clean across full suite.
+
+
+## Phase 23 - RAG Reliability
+**Date:** 2026-09-30
+**Objective:** Audit retrieval, citations, source quality, curriculum scope, prompt-injection protection, source isolation, and learning-context integration.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Enforced multi-tenant source isolation in `RAGService.query`: prevents cross-course retrieval leaks when querying scoped courses.
+- Enhanced hybrid scoring with exact phrase bonuses, multi-level concept/chapter/topic matching, and authority weighting (NCERT = 1.15, APPROVED_CURRICULUM = 1.10).
+- Standardized rich citation formatting (`Provenance: Chapter (p. Page, sec. Section)`).
+- Expanded prompt injection sanitization patterns in `RAGSecuritySanitizer` to neutralize direct/indirect instructions and jailbreaks while preserving educational content.
+- Enforced `<rag_evidence_data>` XML-style data-only framing for LLM context assembly.
+- Integrated `ContextBuilder` with RAG retrieval parameters for multi-layer prompt assembly.
+- Added unit & integration test suite `tests/test_phase23_rag_reliability.py`.
+- 746 total tests passing clean across full suite.
+
+
+## Phase 24 - Shared UI Design System
+**Date:** 2026-09-30
+**Objective:** Implement shared tokens, themes, typography, buttons, inputs, cards, tables, tabs, modal, drawer, toast, tooltip, progress, timeline, status, skeleton, empty state, error state, and chat components with light and dark theme support.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/tokens.css` defining semantic theme tokens for Dark theme (default) and Light theme overrides (`--bg`, `--surface`, `--surface-raised`, `--surface-hover`, `--border`, `--border-strong`, `--text`, `--text-secondary`, `--text-tertiary`, `--brand`, `--success`, `--warning`, `--error`, `--info`).
+- Created `app/ui/design_system/components.css` implementing CSS styling for all 19 component specifications (typography, buttons, inputs, cards, tables, tabs, modal, drawer, toast, tooltip, progress/spinner, timeline, status badges, skeleton loading, empty state, error state, chat messages, socratic hints, citation pills).
+- Created `app/ui/design_system/components.js` providing client-side controller methods for theme switching (`setTheme`, `toggleTheme`), toast notifications, modals, drawers, tabs, and html escaping.
+- Created `central_platform/ui/design_system.py` Python backend manager providing `UIThemeConfig`, `DesignSystemRegistry`, and token validation helper `validate_theme_tokens`.
+- Added unit & integration test suite `tests/test_phase24_shared_ui_design_system.py`.
+- 752 total tests passing clean across full suite.
+
+
+## Phase 25 - Application Shell
+**Date:** 2026-10-01
+**Objective:** Implement consistent sidebar, topbar, navigation, responsive shell, user menu, theme selector, and language selector across the platform UI.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/shell.css` defining CSS rules for desktop sidebar (~260px wide, collapsible to icon mode 64px), topbar header, portal badge, theme/language selectors, user avatar & dropdown menu, and mobile responsive drawer breakpoints (`@media (max-width: 768px)`).
+- Created `app/ui/design_system/shell.js` client-side controller supporting sidebar toggling (`toggleSidebar`), user menu dropdowns (`toggleUserMenu`), portal navigation (`navigateToPortal`), and 8-language selection (`en`, `hi`, `sa`, `ta`, `te`, `kn`, `mr`, `bn`).
+- Created `central_platform/ui/shell.py` Python backend manager providing `AppShellConfig`, `PortalRoute` enum, `LanguageOption` descriptors, and portal URL routing.
+- Added unit & integration test suite `tests/test_phase25_application_shell.py`.
+- 758 total tests passing clean across full suite.
+
+
+## Phase 26 - Tutor UI Redesign
+**Date:** 2026-10-01
+**Objective:** Implement premium conversation-first Tutor UI with intelligent composer, collapsible learning context panel, response actions, grounded sources, and truthful AI status.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/tutor.css` defining 3-pane layout (`.tutor-layout`: sidebar, conversation area, collapsible right learning context panel), intelligent composer (`.tutor-composer`), response action bar, and truthful AI status indicator (`.ai-status-indicator`).
+- Created `app/ui/design_system/tutor.js` client-side controller supporting `toggleLearningContext`, `triggerResponseAction` (`explain_simpler`, `give_hint`, `practice`, `copy`, `show_sources`), `updateAIStatus`, and `updateLearningContext`.
+- Created `central_platform/ui/tutor.py` Python backend manager providing `TutorActionType` enum, `TruthfulAIStatusData`, `LearningContextPanelData`, `TutorUIState`, and `TutorUIController`.
+- Added unit & integration test suite `tests/test_phase26_tutor_ui_redesign.py`.
+- 765 total tests passing clean across full suite.
+
+
+## Phase 27 - Student Portal UI
+**Date:** 2026-10-01
+**Objective:** Implement Student Portal UI covering dashboard, curriculum, learning graph, progress, review queue, assignments, assessments, activity stream, profile, and notifications.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/student.css` defining layout styles for 10 student portal modules (dashboard summary grid, curriculum tree view, learning graph DAG visualizer, progress analytics, review queue items, assignment cards, assessment test cards, activity stream timeline, student profile card, and notification cards).
+- Created `app/ui/design_system/student.js` client-side controller supporting `switchStudentTab` for 10 sub-views, `renderDashboardStats`, `renderReviewQueue`, and `startReview`.
+- Created `central_platform/portals/student.py` Python backend manager providing `StudentPortalTab` enum, `StudentDashboardSummary`, `ReviewQueueItem`, and `StudentPortalController`.
+- Added unit & integration test suite `tests/test_phase27_student_portal_ui.py`.
+- 771 total tests passing clean across full suite.
+
+
+## Phase 28 - Teacher Portal UI
+**Date:** 2026-10-01
+**Objective:** Implement Teacher Portal UI covering class overview, student roster, learning health analytics, student detail profiles, pedagogical interventions, assessment authoring, teacher instructions, and AI Copilot.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/teacher.css` defining layout styles for 8 teacher portal modules (class overview summary grid, student roster data table, health risk badges, student detail profiles, intervention cards, assessment builder, instruction items, and AI copilot panel).
+- Created `app/ui/design_system/teacher.js` client-side controller supporting `switchTeacherTab` for 8 sub-views, `renderClassOverview`, and `triggerCopilotAnalysis`.
+- Created `central_platform/portals/teacher.py` Python backend manager providing `TeacherPortalTab` enum, `ClassOverviewSummary`, `StudentHealthRecord`, and `TeacherPortalController`.
+- Added unit & integration test suite `tests/test_phase28_teacher_portal_ui.py`.
+- 777 total tests passing clean across full suite.
+
+
+## Phase 29 - Parent Portal UI
+**Date:** 2026-10-01
+**Objective:** Implement Parent Portal UI covering child selector, progress tracking, attendance, assignments, assessments, teacher updates, home recommendations, fees overview, and notifications.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/parent.css` defining layout styles for 8 parent portal sub-views (child selector pills, child progress summary, attendance status grid, assignments list, assessment performance, teacher update cards, recommendations, fee summary, and notifications).
+- Created `app/ui/design_system/parent.js` client-side controller supporting `selectChild` and `switchParentTab` across all 8 sub-views.
+- Created `central_platform/portals/parent.py` Python backend manager providing `ParentPortalTab` enum, `ChildDescriptor`, `ChildProgressSummary`, `AttendanceSummary`, and `ParentPortalController`.
+- Added unit & integration test suite `tests/test_phase29_parent_portal_ui.py`.
+- 782 total tests passing clean across full suite.
+
+
+## Phase 30 - Fee Data Layer
+**Date:** 2026-10-01
+**Objective:** Implement Fee Data Layer including fee structures, fee plans, fee accounts, invoices, payments, receipts, discounts, and refunds.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created DDL migration scripts `migrations/003_fee_management_schema.sql` and `migrations/003_fee_management_schema_down.sql` defining relational tables for `fee_structures`, `fee_plans`, `fee_accounts`, `invoices`, `payments`, `receipts`, `discounts`, and `refunds`.
+- Created `central_platform/models/fees.py` defining data contracts and status enums (`FeeFrequency`, `InvoiceStatus`, `PaymentMethod`, `PaymentStatus`, `DiscountType`, `RefundStatus`).
+- Created `central_platform/fees/service.py` providing `FeeService` for automated invoice generation, account balance calculation, payment processing, automated receipt issuance, discount allocation, and refund processing.
+- Expanded `central_platform/db.py` to support CRUD operations for all 8 fee entities.
+- Added unit & integration test suite `tests/test_phase30_fee_data_layer.py`.
+- 786 total tests passing clean across full suite.
+
+
+## Phase 31 - Fee Administration UI
+**Date:** 2026-10-01
+**Objective:** Implement Fee Administration UI covering fee setup, monthly billing batch generation, student fee account views, payment recording, receipt printing, outstanding fee reports, filtering, and CSV exports.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `app/ui/design_system/fee_admin.css` defining styles for fee stats cards, 6 navigation tabs, data tables, filter bar, status badges, and printable receipt viewer.
+- Created `app/ui/design_system/fee_admin.js` client-side controller supporting `switchTab`, `generateMonthlyBilling`, `exportOutstandingReport`, and `printReceipt`.
+- Created `central_platform/portals/fee_admin.py` Python backend manager providing `FeeAdminTab` enum, `FeeAdminSummary`, `OutstandingReportItem`, `FeeAdminController`, and `export_outstanding_report_csv`.
+- Added unit & integration test suite `tests/test_phase31_fee_admin_ui.py`.
+- 790 total tests passing clean across full suite.
+
+
+## Phase 32 - Payment Provider Abstraction
+**Date:** 2026-10-01
+**Objective:** Implement Payment Provider Abstraction layer keeping provider-specific integration logic decoupled from core financial models.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `central_platform/payments/base.py` defining abstract base class `PaymentProvider` and data contracts (`PaymentOrderResponse`, `PaymentStatusResponse`, `PaymentRefundResponse`).
+- Created `central_platform/payments/mock.py` implementing `MockPaymentAdapter` for deterministic local development, testing, and offline execution.
+- Created `central_platform/payments/razorpay.py` implementing `RazorpayPaymentAdapter` with order creation, HMAC-SHA256 signature verification, and webhook validation.
+- Created `central_platform/payments/upi.py` implementing `UPIPaymentAdapter` with UPI intent URL formatting (`upi://pay`), VPA parameter encoding, and instant refund handling.
+- Created `central_platform/payments/registry.py` providing `PaymentGatewayRegistry` for provider registration, retrieval, and fallback routing.
+- Added unit & integration test suite `tests/test_phase32_payment_provider_abstraction.py`.
+- 794 total tests passing clean across full suite.
+
+
+## Phase 33 - English/Hindi Internationalization
+**Date:** 2026-10-01
+**Objective:** Implement English/Hindi Internationalization (i18n) subsystem including translation registry, English fallback logic, user language preference management, and AI prompt language instructions.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `central_platform/i18n/registry.py` providing `TranslationRegistry`, `LanguageCode` enum (8 languages), English fallback resolution, string interpolation, user preference management (`get_user_language`, `set_user_language`), and AI prompt language directive generator (`get_ai_language_prompt_instruction`).
+- Created `app/ui/design_system/i18n.js` client-side controller supporting `t()`, `setLanguage()`, `getLanguage()`, and `translateDOM()` for elements with `[data-i18n]`.
+- Added unit & integration test suite `tests/test_phase33_i18n.py`.
+- 800 total tests passing clean across full suite.
+
+
+## Phase 34 - Parent Privacy and Visibility
+**Date:** 2026-10-01
+**Objective:** Implement Parent Privacy & Visibility Subsystem defining explicit visibility policies, privacy rules engine, student data filtering, and parent/student/institution access boundaries.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `central_platform/privacy/policies.py` providing `ParentVisibilityLevel` enum (`FULL_TRANSPARENCY`, `SUMMARY_ONLY`, `RESTRICTED`, `BLOCKED`), `StudentPrivacySetting` dataclass, and `PrivacyRulesEngine` with boundary checking (`can_parent_view_chat_history`, `can_parent_view_assessment_answers`, `can_parent_view_teacher_notes`, `can_parent_view_financials`) and telemetry data filtering (`filter_student_data_for_parent`).
+- Added unit & integration test suite `tests/test_phase34_parent_privacy.py`.
+- 807 total tests passing clean across full suite.

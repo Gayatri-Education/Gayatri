@@ -82,12 +82,16 @@ class LearningStateManager:
         mastery_list = self.db.get_mastery_states_for_slr(slr.id)
         mastery_dict = {m.concept_id: m for m in mastery_list}
         
-        # 3. Fetch Misconceptions (currently all unresolved for this SLR)
-        # Note: DB might not have get_unresolved_misconceptions_for_slr, so we'll mock or add it
-        misconceptions = [] # self.db.get_misconceptions(slr.id)
+        # 3. Fetch Misconceptions
+        student_miscs = self.db.get_student_misconceptions(student_id)
+        misconceptions = []
+        for sm in student_miscs:
+            m = self.db.get_misconception_by_code(sm.misconception_code)
+            if m:
+                misconceptions.append(m)
         
-        # 4. Fetch Events
-        events = [] # To be implemented via specific query
+        # 4. Fetch Recent Events
+        events = self.db.query_learning_events(student_id=student_id, course_id=course_id, limit=20)
         
         return CanonicalLearningState(
             slr=slr,

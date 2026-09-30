@@ -17,6 +17,22 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
 
 from central_platform.rbac.engine import hash_password, verify_password
+from central_platform.models.fees import (
+    Discount,
+    DiscountType,
+    FeeAccount,
+    FeeFrequency,
+    FeePlan,
+    FeeStructure,
+    Invoice,
+    InvoiceStatus,
+    Payment,
+    PaymentMethod,
+    PaymentStatus,
+    Receipt,
+    Refund,
+    RefundStatus,
+)
 
 from central_platform.models.schema import (
     AIExecutionLog,
@@ -986,6 +1002,9 @@ class PlatformDatabase:
             return None
 
     def upsert_mastery_state(self, state: MasteryState) -> MasteryState:
+        # Clamp score/confidence to [0.0, 1.0] as a hard DB-level safety net
+        state.score = max(0.0, min(1.0, round(state.score, 4)))
+        state.confidence = max(0.0, min(1.0, round(state.confidence, 4)))
         with self._get_connection() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO mastery_states (id, slr_id, concept_id, score, confidence, updated_at) VALUES (?, ?, ?, ?, ?, ?);",
@@ -2269,4 +2288,262 @@ class PlatformDatabase:
             metadata_json=metadata,
             created_at=r["created_at"],
         )
+
+    # ── Fee Management Subsystem (Phase 30) ────────────────────────────────────
+
+    def create_fee_structure(self, fs: FeeStructure) -> FeeStructure:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO fee_structures (id, org_id, name, code, description, amount, currency, frequency, is_active, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    fs.id, fs.org_id, fs.name, fs.code, fs.description, fs.amount, fs.currency,
+                    fs.frequency.value if isinstance(fs.frequency, FeeFrequency) else fs.frequency,
+                    int(fs.is_active), fs.created_at, fs.updated_at, int(fs.is_deleted), fs.deleted_at
+                ),
+            )
+            return fs
+
+    def get_fee_structure(self, fs_id: str) -> Optional[FeeStructure]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM fee_structures WHERE id = ? AND is_deleted = 0;", (fs_id,)).fetchone()
+            if not r:
+                return None
+            return FeeStructure(
+                id=r["id"], org_id=r["org_id"], name=r["name"], code=r["code"],
+                description=r["description"] or "", amount=r["amount"], currency=r["currency"],
+                frequency=FeeFrequency(r["frequency"]), is_active=bool(r["is_active"]),
+                created_at=r["created_at"], updated_at=r["updated_at"],
+                is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+            )
+
+    def list_fee_structures(self, org_id: str) -> List[FeeStructure]:
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT * FROM fee_structures WHERE org_id = ? AND is_deleted = 0 ORDER BY created_at DESC;", (org_id,)).fetchall()
+            return [
+                FeeStructure(
+                    id=r["id"], org_id=r["org_id"], name=r["name"], code=r["code"],
+                    description=r["description"] or "", amount=r["amount"], currency=r["currency"],
+                    frequency=FeeFrequency(r["frequency"]), is_active=bool(r["is_active"]),
+                    created_at=r["created_at"], updated_at=r["updated_at"],
+                    is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+                ) for r in rows
+            ]
+
+    def create_fee_plan(self, plan: FeePlan) -> FeePlan:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO fee_plans (id, org_id, name, description, total_amount, installments_count, fee_structure_ids_json, is_active, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    plan.id, plan.org_id, plan.name, plan.description, plan.total_amount,
+                    plan.installments_count, json.dumps(plan.fee_structure_ids),
+                    int(plan.is_active), plan.created_at, plan.updated_at, int(plan.is_deleted), plan.deleted_at
+                ),
+            )
+            return plan
+
+    def get_fee_plan(self, plan_id: str) -> Optional[FeePlan]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM fee_plans WHERE id = ? AND is_deleted = 0;", (plan_id,)).fetchone()
+            if not r:
+                return None
+            return FeePlan(
+                id=r["id"], org_id=r["org_id"], name=r["name"], description=r["description"] or "",
+                total_amount=r["total_amount"], installments_count=r["installments_count"],
+                fee_structure_ids=json.loads(r["fee_structure_ids_json"] or "[]"),
+                is_active=bool(r["is_active"]), created_at=r["created_at"], updated_at=r["updated_at"],
+                is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+            )
+
+    def create_fee_account(self, account: FeeAccount) -> FeeAccount:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO fee_accounts (id, student_id, org_id, fee_plan_id, total_due, total_paid, total_discount, balance_due, status, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    account.id, account.student_id, account.org_id, account.fee_plan_id,
+                    account.total_due, account.total_paid, account.total_discount, account.balance_due,
+                    account.status, account.created_at, account.updated_at, int(account.is_deleted), account.deleted_at
+                ),
+            )
+            return account
+
+    def update_fee_account(self, account: FeeAccount) -> FeeAccount:
+        account.updated_at = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            conn.execute(
+                """UPDATE fee_accounts SET fee_plan_id = ?, total_due = ?, total_paid = ?, total_discount = ?, balance_due = ?, status = ?, updated_at = ?
+                   WHERE id = ?;""",
+                (account.fee_plan_id, account.total_due, account.total_paid, account.total_discount, account.balance_due, account.status, account.updated_at, account.id),
+            )
+            return account
+
+    def get_fee_account(self, account_id: str) -> Optional[FeeAccount]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM fee_accounts WHERE id = ? AND is_deleted = 0;", (account_id,)).fetchone()
+            if not r:
+                return None
+            return FeeAccount(
+                id=r["id"], student_id=r["student_id"], org_id=r["org_id"], fee_plan_id=r["fee_plan_id"],
+                total_due=r["total_due"], total_paid=r["total_paid"], total_discount=r["total_discount"],
+                balance_due=r["balance_due"], status=r["status"], created_at=r["created_at"],
+                updated_at=r["updated_at"], is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+            )
+
+    def get_fee_account_by_student(self, student_id: str) -> Optional[FeeAccount]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM fee_accounts WHERE student_id = ? AND is_deleted = 0;", (student_id,)).fetchone()
+            if not r:
+                return None
+            return FeeAccount(
+                id=r["id"], student_id=r["student_id"], org_id=r["org_id"], fee_plan_id=r["fee_plan_id"],
+                total_due=r["total_due"], total_paid=r["total_paid"], total_discount=r["total_discount"],
+                balance_due=r["balance_due"], status=r["status"], created_at=r["created_at"],
+                updated_at=r["updated_at"], is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+            )
+
+    def create_invoice(self, invoice: Invoice) -> Invoice:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO invoices (id, fee_account_id, student_id, org_id, invoice_number, amount_due, amount_paid, due_date, status, notes, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    invoice.id, invoice.fee_account_id, invoice.student_id, invoice.org_id,
+                    invoice.invoice_number, invoice.amount_due, invoice.amount_paid, invoice.due_date,
+                    invoice.status.value if isinstance(invoice.status, InvoiceStatus) else invoice.status,
+                    invoice.notes, invoice.created_at, invoice.updated_at, int(invoice.is_deleted), invoice.deleted_at
+                ),
+            )
+            return invoice
+
+    def update_invoice(self, invoice: Invoice) -> Invoice:
+        invoice.updated_at = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            conn.execute(
+                """UPDATE invoices SET amount_paid = ?, status = ?, notes = ?, updated_at = ? WHERE id = ?;""",
+                (
+                    invoice.amount_paid,
+                    invoice.status.value if isinstance(invoice.status, InvoiceStatus) else invoice.status,
+                    invoice.notes, invoice.updated_at, invoice.id
+                ),
+            )
+            return invoice
+
+    def get_invoice(self, invoice_id: str) -> Optional[Invoice]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM invoices WHERE id = ? AND is_deleted = 0;", (invoice_id,)).fetchone()
+            if not r:
+                return None
+            return Invoice(
+                id=r["id"], fee_account_id=r["fee_account_id"], student_id=r["student_id"],
+                org_id=r["org_id"], invoice_number=r["invoice_number"], amount_due=r["amount_due"],
+                amount_paid=r["amount_paid"], due_date=r["due_date"], status=InvoiceStatus(r["status"]),
+                notes=r["notes"] or "", created_at=r["created_at"], updated_at=r["updated_at"],
+                is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+            )
+
+    def list_invoices_for_account(self, fee_account_id: str) -> List[Invoice]:
+        with self._get_connection() as conn:
+            rows = conn.execute("SELECT * FROM invoices WHERE fee_account_id = ? AND is_deleted = 0 ORDER BY created_at DESC;", (fee_account_id,)).fetchall()
+            return [
+                Invoice(
+                    id=r["id"], fee_account_id=r["fee_account_id"], student_id=r["student_id"],
+                    org_id=r["org_id"], invoice_number=r["invoice_number"], amount_due=r["amount_due"],
+                    amount_paid=r["amount_paid"], due_date=r["due_date"], status=InvoiceStatus(r["status"]),
+                    notes=r["notes"] or "", created_at=r["created_at"], updated_at=r["updated_at"],
+                    is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+                ) for r in rows
+            ]
+
+    def create_payment(self, payment: Payment) -> Payment:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO payments (id, invoice_id, fee_account_id, student_id, org_id, amount, payment_method, transaction_reference, status, payment_date, notes, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    payment.id, payment.invoice_id, payment.fee_account_id, payment.student_id, payment.org_id,
+                    payment.amount, payment.payment_method.value if isinstance(payment.payment_method, PaymentMethod) else payment.payment_method,
+                    payment.transaction_reference, payment.status.value if isinstance(payment.status, PaymentStatus) else payment.status,
+                    payment.payment_date, payment.notes, payment.created_at, payment.updated_at, int(payment.is_deleted), payment.deleted_at
+                ),
+            )
+            return payment
+
+    def update_payment(self, payment: Payment) -> Payment:
+        payment.updated_at = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            conn.execute(
+                """UPDATE payments SET status = ?, updated_at = ? WHERE id = ?;""",
+                (payment.status.value if isinstance(payment.status, PaymentStatus) else payment.status, payment.updated_at, payment.id),
+            )
+            return payment
+
+    def get_payment(self, payment_id: str) -> Optional[Payment]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM payments WHERE id = ? AND is_deleted = 0;", (payment_id,)).fetchone()
+            if not r:
+                return None
+            return Payment(
+                id=r["id"], invoice_id=r["invoice_id"], fee_account_id=r["fee_account_id"],
+                student_id=r["student_id"], org_id=r["org_id"], amount=r["amount"],
+                payment_method=PaymentMethod(r["payment_method"]), transaction_reference=r["transaction_reference"] or "",
+                status=PaymentStatus(r["status"]), payment_date=r["payment_date"], notes=r["notes"] or "",
+                created_at=r["created_at"], updated_at=r["updated_at"],
+                is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+            )
+
+    def create_receipt(self, receipt: Receipt) -> Receipt:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO receipts (id, payment_id, receipt_number, amount, issued_to, issued_at, notes, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    receipt.id, receipt.payment_id, receipt.receipt_number, receipt.amount,
+                    receipt.issued_to, receipt.issued_at, receipt.notes, receipt.created_at,
+                    receipt.updated_at, int(receipt.is_deleted), receipt.deleted_at
+                ),
+            )
+            return receipt
+
+    def get_receipt_for_payment(self, payment_id: str) -> Optional[Receipt]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM receipts WHERE payment_id = ? AND is_deleted = 0;", (payment_id,)).fetchone()
+            if not r:
+                return None
+            return Receipt(
+                id=r["id"], payment_id=r["payment_id"], receipt_number=r["receipt_number"],
+                amount=r["amount"], issued_to=r["issued_to"], issued_at=r["issued_at"],
+                notes=r["notes"] or "", created_at=r["created_at"], updated_at=r["updated_at"],
+                is_deleted=bool(r["is_deleted"]), deleted_at=r["deleted_at"]
+            )
+
+    def create_discount(self, discount: Discount) -> Discount:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO discounts (id, fee_account_id, invoice_id, code, discount_type, value, applied_amount, reason, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    discount.id, discount.fee_account_id, discount.invoice_id, discount.code,
+                    discount.discount_type.value if isinstance(discount.discount_type, DiscountType) else discount.discount_type,
+                    discount.value, discount.applied_amount, discount.reason, discount.created_at,
+                    discount.updated_at, int(discount.is_deleted), discount.deleted_at
+                ),
+            )
+            return discount
+
+    def create_refund(self, refund: Refund) -> Refund:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO refunds (id, payment_id, fee_account_id, amount, reason, refund_date, status, created_at, updated_at, is_deleted, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);""",
+                (
+                    refund.id, refund.payment_id, refund.fee_account_id, refund.amount,
+                    refund.reason, refund.refund_date,
+                    refund.status.value if isinstance(refund.status, RefundStatus) else refund.status,
+                    refund.created_at, refund.updated_at, int(refund.is_deleted), refund.deleted_at
+                ),
+            )
+            return refund
+
 
