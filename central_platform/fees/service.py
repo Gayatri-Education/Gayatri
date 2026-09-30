@@ -110,6 +110,9 @@ class FeeService:
         invoice_number: Optional[str] = None,
         notes: str = "",
     ) -> Invoice:
+        if amount_due <= 0:
+            raise ValueError("Invoice amount_due must be positive.")
+
         if not invoice_number:
             inv_count = getattr(fee_account, "invoice_count", 1)
             invoice_number = f"INV-{fee_account.student_id[:6].upper()}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
@@ -146,6 +149,9 @@ class FeeService:
         transaction_reference: str = "",
         notes: str = "",
     ) -> tuple[Payment, Receipt]:
+        if amount <= 0:
+            raise ValueError("Payment amount must be positive.")
+
         payment = Payment(
             invoice_id=invoice.id,
             fee_account_id=fee_account.id,
@@ -203,6 +209,9 @@ class FeeService:
         reason: str = "",
         invoice: Optional[Invoice] = None,
     ) -> Discount:
+        if value <= 0:
+            raise ValueError("Discount value must be positive.")
+
         if discount_type == DiscountType.PERCENTAGE:
             base_amount = invoice.amount_due if invoice else fee_account.balance_due
             applied_amount = (value / 100.0) * base_amount
@@ -242,6 +251,9 @@ class FeeService:
         amount: float,
         reason: str = "",
     ) -> Refund:
+        if amount <= 0 or amount > payment.amount:
+            raise ValueError(f"Refund amount must be between 0 and payment amount ({payment.amount}).")
+
         refund = Refund(
             payment_id=payment.id,
             fee_account_id=fee_account.id,
