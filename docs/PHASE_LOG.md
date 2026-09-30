@@ -209,3 +209,17 @@ ecent_events and misconceptions.
 - Supported intent classification, concept extraction, security checking (prompt injection & chemistry safety), and contextual follow-up query rewriting.
 - Added unit & integration test suite 	ests/test_phase16_query_understanding.py.
 - 708 total tests passing clean across full suite.
+
+
+## Phase 17 - Context Builder
+**Date:** 2026-09-30
+**Objective:** Build clean context from conversation, learner state, curriculum, teacher instructions, institution policy, RAG, and recent events while avoiding irrelevant context.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.ai.context_builder module containing ContextBuilder engine and AssembledContext schema.
+- Integrated all 7 context layers: Conversation, Learner State, Curriculum, Teacher Instructions, Institution Policy, RAG retrieval, and Recent Events.
+- Implemented context trimming/pruning to avoid token bloat and irrelevant data.
+- Maintained static uild_system_prompt and uild_user_prompt methods for seamless integration with AIGatewayService.
+- Added unit & integration test suite 	ests/test_phase17_context_builder.py.
+- 710 total tests passing clean across full suite.
