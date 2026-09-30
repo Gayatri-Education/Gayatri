@@ -1,0 +1,200 @@
+/**
+ * Gayatri AI Platform — Fee Administration UI System (Phase 31)
+ * Styles for fee setup, monthly billing, student fee accounts,
+ * payment recording, receipt views, outstanding reports, filtering & exports.
+ */
+
+:root {
+  --fee-paid-color: #10b981;
+  --fee-pending-color: #f59e0b;
+  --fee-overdue-color: #ef4444;
+  --fee-card-bg: var(--color-bg-card, #ffffff);
+  --fee-border: var(--color-border, #e5e7eb);
+}
+
+.dark {
+  --fee-card-bg: var(--color-bg-card-dark, #1f2937);
+  --fee-border: var(--color-border-dark, #374151);
+}
+
+/* Container */
+.fee-admin-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header & Stat Cards */
+.fee-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.fee-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.fee-stat-card {
+  background: var(--fee-card-bg);
+  border: 1px solid var(--fee-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.fee-stat-card .label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.fee-stat-card .value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text-primary, #111827);
+}
+
+.fee-stat-card.paid .value { color: var(--fee-paid-color); }
+.fee-stat-card.pending .value { color: var(--fee-pending-color); }
+.fee-stat-card.overdue .value { color: var(--fee-overdue-color); }
+
+/* Navigation Tabs */
+.fee-admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 2px solid var(--fee-border);
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.fee-admin-tab-btn {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.fee-admin-tab-btn:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: #4f46e5;
+}
+
+.fee-admin-tab-btn.active {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+/* View Panels */
+.fee-admin-panel {
+  display: none;
+  background: var(--fee-card-bg);
+  border: 1px solid var(--fee-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.fee-admin-panel.active {
+  display: block;
+}
+
+/* Filter Bar */
+.fee-filter-bar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(0,0,0,0.02);
+  border-radius: 8px;
+}
+
+.fee-filter-bar input,
+.fee-filter-bar select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--fee-border);
+  border-radius: 6px;
+  background: var(--fee-card-bg);
+  color: inherit;
+  font-size: 0.875rem;
+}
+
+/* Tables */
+.fee-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.fee-table th,
+.fee-table td {
+  padding: 0.875rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--fee-border);
+  font-size: 0.875rem;
+}
+
+.fee-table th {
+  background: rgba(0,0,0,0.03);
+  font-weight: 600;
+  color: #4b5563;
+}
+
+/* Status Badges */
+.fee-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.fee-badge.paid { background: #d1fae5; color: #065f46; }
+.fee-badge.issued { background: #fef3c7; color: #92400e; }
+.fee-badge.overdue { background: #fee2e2; color: #991b1b; }
+.fee-badge.partially_paid { background: #e0e7ff; color: #3730a3; }
+
+/* Modal & Receipts */
+.receipt-card {
+  max-width: 600px;
+  margin: 0 auto;
+  border: 2px dashed #9ca3af;
+  padding: 2rem;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.receipt-header {
+  text-align: center;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media print {
+  .fee-admin-container > *:not(#fee-panel-receipts) {
+    display: none !important;
+  }
+  .receipt-card {
+    border: none;
+    box-shadow: none;
+  }
+}
