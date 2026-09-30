@@ -182,3 +182,16 @@ ecent_events and misconceptions.
 - Integrated canonical DB persistence updating mastery_states and StudentLearningRecord.
 - Added unit & integration test suite 	ests/test_phase14_mastery_engine.py verifying correct/incorrect answers, repeated attempts, review, decay, and prerequisite effects.
 - 690 total tests passing clean across full suite.
+
+
+## Phase 15 - Next Action Engine
+**Date:** 2026-09-30
+**Objective:** Implement Next Action Engine supporting actions: CONTINUE, EXPLAIN, HINT, REMEDIATE, PRACTICE, REVIEW, ASSESS, CHALLENGE, ADVANCE with explainability.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created central_platform.learning.actions module containing NextActionEngine, NextActionType, and NextActionDecision.
+- Implemented deterministic pedagogical decision rules selecting among all 9 canonical actions: CONTINUE, EXPLAIN, HINT, REMEDIATE, PRACTICE, REVIEW, ASSESS, CHALLENGE, ADVANCE.
+- Structured plain-language explanations and detailed explainability_details payload for every decision.
+- Added unit & integration test suite 	ests/test_phase15_next_action_engine.py verifying all 9 action triggers.
+- 700 total tests passing clean across full suite.
