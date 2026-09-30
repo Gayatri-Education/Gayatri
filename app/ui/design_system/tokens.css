@@ -1,0 +1,78 @@
+/* Gayatri AI Platform — Shared UI Design System Tokens (Phase 24) */
+
+:root {
+  /* Dark Theme Tokens (Default) */
+  --bg: #0B0D10;
+  --surface: #111418;
+  --surface-raised: #171B21;
+  --surface-hover: #1C2128;
+
+  --border: #262C34;
+  --border-strong: #343B45;
+
+  --text: #F3F4F6;
+  --text-secondary: #A7AFBA;
+  --text-tertiary: #737C88;
+  --text-disabled: #505761;
+
+  --brand: #D6A85F;
+  --brand-hover: #E2B96D;
+  --brand-soft: rgba(214, 168, 95, 0.12);
+
+  --success: #4CAF7D;
+  --success-soft: rgba(76, 175, 125, 0.12);
+  --warning: #D9A441;
+  --warning-soft: rgba(217, 164, 65, 0.12);
+  --error: #D76565;
+  --error-soft: rgba(215, 101, 101, 0.12);
+  --info: #6D9ED8;
+  --info-soft: rgba(109, 158, 216, 0.12);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  --font-ui: 'Inter', 'Manrope', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Light Theme Tokens Override */
+html[data-theme="light"], body.theme-light {
+  --bg: #F7F7F5;
+  --surface: #FFFFFF;
+  --surface-raised: #F1F2EF;
+  --surface-hover: #ECEDE9;
+
+  --border: #E2E4E0;
+  --border-strong: #D1D4CE;
+
+  --text: #17191C;
+  --text-secondary: #626A73;
+  --text-tertiary: #858C94;
+  --text-disabled: #A3A8AF;
+
+  --brand: #A87528;
+  --brand-hover: #8F631F;
+  --brand-soft: rgba(168, 117, 40, 0.10);
+
+  --success: #2E7D52;
+  --success-soft: rgba(46, 125, 82, 0.10);
+  --warning: #B37D20;
+  --warning-soft: rgba(179, 125, 32, 0.10);
+  --error: #C0392B;
+  --error-soft: rgba(192, 57, 43, 0.10);
+  --info: #2980B9;
+  --info-soft: rgba(41, 128, 185, 0.10);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
