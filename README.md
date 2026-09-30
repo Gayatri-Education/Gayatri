@@ -1,112 +1,87 @@
-# Gayatri Chemistry Tutor --- Adaptive AI Learning Platform
+# Gayatri AI Platform — Next-Generation Adaptive Education Platform
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Build & Tests](https://img.shields.io/badge/tests-305%20passed-brightgreen.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-845%20passed-brightgreen.svg)]()
+[![Platform Version](https://img.shields.io/badge/platform-v4.0.0-purple.svg)]()
 
-**Gayatri Chemistry Tutor** is an evidence-driven, NCERT-aligned adaptive AI tutoring system for High School & Entrance Exam Chemistry (specifically focused on **Thermodynamics** and **Inorganic Chemistry**).
-
-Unlike generic LLM wrappers, Gayatri Tutor pairs a neural language model with a **deterministic adaptive learning engine**, persistent student mastery tracking, structured answer evaluation, concept-aware RAG, and isolated conversation states.
+**Gayatri AI Platform** is an enterprise-grade, evidence-driven, NCERT & multi-curriculum aligned adaptive learning platform. It integrates local-first Small Language Models (SLMs), multi-cloud AI provider routing, concept-aware RAG, deterministic evidence-backed mastery tracking, multi-persona UI portals (Student, Teacher, Parent, Fee Administration), payment provider abstractions, and real-time learning analytics.
 
 ---
 
-## Key Capabilities & Architecture
+## 🚀 Key Capabilities & Architecture Overview
 
 ```text
-             ┌─────────────────────────┐
-             │                         │
-             v                         │
-       Student Evidence                │
-             │                         │
-             v                         │
-      Answer Evaluation                │
-             │                         │
-             v                         │
-       Learning Event                  │
-             │                         │
-             v                         │
-      Student Mastery State            │
-             │                         │
-             v                         │
-   Adaptive Policy / Scheduler         │
-             │                         │
-             v                         │
-       Next Learning Action            │
-             │                         │
-             v                         │
-        Tutor Response                 │
-             │                         │
-             └─────────────────────────┘
+                                GAYATRI AI PLATFORM
+                                         │
+       ┌───────────────────┬─────────────┴─────────────┬───────────────────┐
+       ▼                   ▼                           ▼                   ▼
+  Student Portal     Teacher Portal              Parent Portal       Fee Admin UI
+  (Learner Hub)      (Class Roster & Copilot)   (Privacy & Feed)    (Billing & Payments)
+       │                   │                           │                   │
+       └───────────────────┴─────────────┬─────────────┴───────────────────┘
+                                         │
+                                         ▼
+                            Unified Application Shell
+                                         │
+       ┌─────────────────────────────────┼─────────────────────────────────┐
+       ▼                                 ▼                                 ▼
+ AI Gateway Router             Canonical Learning State            Fee & Payment Subsystem
+ (Local SLM + Cloud Fallbacks)  (Learning Graph & Mastery)         (Razorpay, UPI, Mock)
+       │                                 │                                 │
+       ▼                                 ▼                                 ▼
+ RAG Reliability Service        State Commit Pipeline              Parent Privacy Rules
+ (Hybrid Retrieval & Provenance) (Two-Phase Commit Isolation)       (Data Visibility Boundary)
 ```
 
-1. **Student-Scoped Learning State (`core/tutor/state.py`)**
-   - Separate global curriculum definitions from student mastery (`student_concept_mastery`).
-   - Append-only evidence logs (`learning_events`) with unique turn IDs (`turn_id`) and idempotency checks.
-   - Complete isolation between students (Student A cannot access or mutate Student B data).
-   - Strict separation between **General Assistant** conversation history and **Chemistry Tutor** mastery state.
+### 1. Multi-Persona UI Shell & Portal System (`app/ui/design_system/`)
+- Shared Design System supporting **Dark Theme** (default) and **Light Theme**.
+- Collapsible Application Shell supporting 8 languages (**English, Hindi, Sanskrit, Tamil, Telugu, Kannada, Marathi, Bengali**).
+- **Student Portal**: Dashboard analytics, curriculum tree, learning graph DAG visualization, spaced review queue, assignment management, and activity stream.
+- **Teacher Portal**: Class overview, student health metrics (`EXCELLENT`, `GOOD`, `NEEDS_ATTENTION`, `AT_RISK`), student profiles, pedagogical intervention authoring, and AI Copilot.
+- **Parent Portal**: Multi-child switcher, progress summary, attendance records, recommendation feed, and fee payment summaries.
+- **Fee Admin UI**: Monthly batch billing generation, student fee accounts, receipt issuance, outstanding fee reporting, and CSV exports.
 
-2. **Structured Chemistry Answer Evaluator (`core/tutor/evaluator.py`)**
-   - Zero keyword matching fallbacks (`["yes", "400"]` deleted).
-   - Deterministic evaluators for MCQ, numeric tolerances (with unit checks), formula/reaction normalization.
-   - Returns structured `EvaluationResult` with `correct`, `partially_correct`, `incorrect`, or `uncertain` confidence states.
+### 2. Local-First AI Gateway & Model Router (`central_platform/ai/`)
+- Dual-tier routing strategy (`LOCAL_ONLY`, `LOCAL_FIRST`, `CLOUD_PREFERRED`).
+- Integrated local GGUF model execution (`llama.cpp` CPU-optimized) and cloud provider adapters (**OpenAI**, **Anthropic**, **Gemini**, **OpenRouter**).
+- **Structured Query Understanding**: Dynamic intent classification, concept parsing, and prompt-injection defense.
+- **Context Builder**: 7-layer context assembly (Conversation, Learner State, Curriculum, Teacher Instructions, Institution Policy, RAG evidence, Recent Events).
+- **Response Validator & Pedagogical Planner**: Factual verification, anti-answer leakage flags, LaTeX math verification, and self-healing automated fallback.
 
-3. **Adaptive Learning Engine (`core/learning/`)**
-   - **Multi-factor Mastery Model (`mastery.py`)**: `mastery = 0.45*recent_acc + 0.25*long_term_acc + 0.15*diff_score + 0.10*independent_success + 0.05*retention_score`.
-   - **Adaptive Difficulty Policy (`policy.py`)**: Dynamic difficulty level adjustment (1 to 5) based on independent recall and conceptual errors.
-   - **Misconception Tracking (`misconceptions.py`)**: Controlled misconception codes for Thermodynamics & Inorganic Chemistry.
-   - **Concept Selector (`selector.py`)**: Multi-factor candidate ranking considering prerequisite readiness, mastery gap, review urgency, and misconception risk.
-   - **Spaced Review (`scheduler.py`)**: Configurable interval progression (1d -> 3d -> 7d -> 14d -> 30d) with delayed recall retention enforcement.
-   - **Progress Service (`progress.py`)**: Single authoritative progress API computing domain/concept analytics.
+### 3. Canonical Learning Engine & Graph (`central_platform/learning/`)
+- **Canonical Learning State**: Unified memory layer replacing legacy disjoint dictionaries.
+- **Learning Event Store**: Append-only idempotent log of 20 canonical learning event types.
+- **Learning Graph Engine**: Recursive prerequisite DAG traversal, cycle detection, and concept node states.
+- **Evidence-Backed Mastery Engine**: Accuracy scoring, hint penalties, attempt diminishing returns, Ebbinghaus time decay, and prerequisite propagation.
+- **Next Action Engine**: Pedagogical decision rules selecting across 9 actions (`CONTINUE`, `EXPLAIN`, `HINT`, `REMEDIATE`, `PRACTICE`, `REVIEW`, `ASSESS`, `CHALLENGE`, `ADVANCE`).
+- **State Commit Pipeline**: Two-phase state staging and atomic database transaction commit contingent on validation success.
 
-4. **Assessment Engine (`core/assessment/manager.py`)**
-   - Question bank schema, assessment session management, attempt recording, anti-leakage question sanitization, and score computation.
+### 4. Fee & Payment Subsystem (`central_platform/fees/` & `central_platform/payments/`)
+- SQL DDL migration schema (`003_fee_management_schema.sql`) for fee structures, accounts, invoices, payments, receipts, discounts, and refunds.
+- Abstract Payment Gateway Adapter supporting **Mock Adapter**, **Razorpay Adapter** (with HMAC signature verification), and **UPI Adapter** (`upi://pay` URI formatting).
 
-5. **NCERT Concept-Aware RAG (`core/rag/`)**
-   - Enriches retrieval queries with active curriculum context.
-   - Priority ranking: `NCERT` > `TRUSTED_CURRICULUM` > `FALLBACK`.
-   - Observable RAG status (`RAG_STATUS_OK`, `RAG_STATUS_EMPTY`, `RAG_STATUS_ERROR`).
-
-6. **Reliability & Crash Recovery (`core/tutor/lifecycle.py`)**
-   - Step-by-step turn lifecycle persistence (`TURN_STARTED` -> ... -> `TURN_COMMITTED`).
-   - Automatic startup recovery for interrupted turns.
-
-7. **Model & Configuration Consistency (`model_manifest.json` & `core/model_fetch/manifest_validator.py`)**
-   - Declarative model manifest file ensuring consistent local model loading and quantization details.
-
----
-
-## Core Scope
-
-- **Primary Curriculum Domains:**
-  - **Thermodynamics:** Enthalpy, First Law, Hess's Law, Entropy, Gibbs Free Energy, Heat Capacities ($C_p, C_v$), Work conventions.
-  - **Inorganic Chemistry:** Periodic Trends, Atomic Structure, Coordination Compounds, Oxidation States, Redox Reactions, Metallurgy.
+### 5. Privacy, Security & Resilience (`central_platform/privacy/`, `security/`, `recovery/`)
+- **Parent Privacy Engine**: 4 policy levels (`FULL_TRANSPARENCY`, `SUMMARY_ONLY`, `RESTRICTED`, `BLOCKED`) governing student data visibility.
+- **Security Audit Runner**: Automated PII masking (emails & phone numbers), prompt-injection scanning, filename path traversal checks, and tenant isolation verification.
+- **Failure Recovery Manager**: Degradation policies, self-healing JSON repair, RAG fallback, and payment rollback handling.
+- **Performance Profiler**: Latency context manager, memory growth measurement, token throughput calculation, and p95 bottleneck detection.
+- **Deployment Validator**: 9 automated infrastructure validation checks (environment, secrets, migrations, backups, logging, health endpoints, models, static assets, HTTPS).
 
 ---
 
-## Socratic SLM Architecture (v3.0.1)
-
-The application utilizes an ultra-lean, specialized 0.5B Small Language Model:
-- **Base Architecture:** `Qwen/Qwen2.5-0.5B-Instruct`
-- **Model Format:** GGUF `Q4_K_M` (~379 MB)
-- **Local Inference:** Native `llama.cpp` (CPU-optimized, zero GPU required)
-- **Fine-Tuning:** 2,500 curated Socratic dialogues spanning 5 pedagogical pillars (Persona, Explain, Question, Evaluate, Remediate)
-- **Context Profile:** Bounded 3-turn history with compact atomic RAG evidence cards (<75 tokens) for sub-second CPU generation and minimal memory consumption (<800 MB RAM).
-
----
-
-## Installation & Setup
+## 🛠️ Installation & Setup
 
 ### Prerequisites
-
 - Python 3.12+
 - Git
 
-### Installation
+### Quickstart
 
 ```bash
 # Clone the repository
-git clone https://github.com/ainabhinavsharma/Gayatri-Tutor-Chemistry.git
-cd Gayatri-Tutor-Chemistry
+git clone https://github.com/Gayatri-Education/Gayatri.git
+cd Gayatri
 
 # Create virtual environment
 python -m venv .venv
@@ -120,58 +95,57 @@ pip install -r requirements.txt
 
 ---
 
-## Running Tests
+## 🧪 Running Tests
 
-Execute the full regression suite:
+Execute the full regression test suite (845 tests):
 
 ```bash
-pytest
+python -m pytest --tb=short -q
 ```
 
-Run specific phase test suites:
+Run specific subsystem test modules:
 
 ```bash
-pytest tests/test_phase1_learning_state.py
-pytest tests/test_phase2_evaluator.py
-pytest tests/test_phase3_concept_resolution.py
-pytest tests/test_phase4_adaptive_engine.py
-pytest tests/test_phase5_spaced_review.py
-pytest tests/test_phase6_assessment_engine.py
-pytest tests/test_phase7_rag.py
-pytest tests/test_phase8_state_machine.py
-pytest tests/test_phase9_progress.py
-pytest tests/test_phase10_reliability.py
-pytest tests/test_phase11_curriculum_validation.py
-pytest tests/test_phase12_security.py
-pytest tests/test_phase13_model_config.py
+python -m pytest tests/test_phase39_full_regression_master.py
+python -m pytest tests/test_phase40_performance.py
+python -m pytest tests/test_phase41_deployment_validation.py
 ```
 
 ---
 
-## Verification & Status
+## 📊 Platform Progress Matrix
 
-All 14 Execution Plan phases and v4 engineering upgrades have been fully implemented, verified, and integrated with **305 passed unit and integration tests**.
+All 43 Master Plan phases have been fully implemented, verified, documented, and tested.
 
-| Phase | Description | Status |
-|---|---|---|
-| Phase 0 | Baseline & Discovery | `DONE` |
-| Phase 1 | Student-Scoped Learning State & Two-Mode Architecture | `DONE` |
-| Phase 2 | Chemistry Answer Evaluator & Bonding Domain Expansion | `DONE` |
-| Phase 3 | Dynamic Concept Resolution | `DONE` |
-| Phase 4 | Adaptive Learning Engine | `DONE` |
-| Phase 5 | Spaced Review & Retention Queue | `DONE` |
-| Phase 6 | Interactive Assessment Engine & UI Runner | `DONE` |
-| Phase 7 | NCERT Concept-Aware RAG | `DONE` |
-| Phase 8 | Tutor State Machine Integration | `DONE` |
-| Phase 9 | Progress & Analytics Service & JSON Export | `DONE` |
-| Phase 10 | Reliability & Crash Recovery | `DONE` |
-| Phase 11 | Curriculum Validation | `DONE` |
-| Phase 12 | Security & Student Isolation | `DONE` |
-| Phase 13 | Model Manifest & Config | `DONE` |
-| Phase 14 | Documentation & Production Cleanup | `DONE` |
+| Phase Range | Subsystem | Status | Tests Passed |
+|---|---|---|---|
+| **Phase 00 – 05** | Baseline, Audits, Model Manifest, Demo Isolation | `COMPLETE` | 664 / 664 |
+| **Phase 06 – 10** | Identity, Hierarchy, RBAC, Curriculum Plugins | `COMPLETE` | 675 / 675 |
+| **Phase 11 – 15** | Canonical State, Events, Learning Graph, Mastery, Next Action | `COMPLETE` | 700 / 700 |
+| **Phase 16 – 20** | Query Understanding, Context Builder, Planner, Validator, State Commit | `COMPLETE` | 727 / 727 |
+| **Phase 21 – 23** | Local-First Router, Cloud Providers, RAG Reliability | `COMPLETE` | 746 / 746 |
+| **Phase 24 – 29** | Shared UI, App Shell, Tutor UI, Student, Teacher, Parent Portals | `COMPLETE` | 782 / 782 |
+| **Phase 30 – 33** | Fee Data Layer, Fee Admin UI, Payment Adapters, i18n (8 Languages) | `COMPLETE` | 800 / 800 |
+| **Phase 34 – 38** | Parent Privacy, Analytics, Explainability, Security Audit, Failure Recovery | `COMPLETE` | 827 / 827 |
+| **Phase 39 – 41** | Full Regression Master, Performance Profiler, Deployment Validation | `COMPLETE` | 845 / 845 |
+| **Phase 42 – 43** | Documentation Completion & Production Readiness Gate | `COMPLETE` | 845 / 845 |
 
 ---
 
-## License
+## 📄 Documentation Sitemap
 
-This project is licensed under the MIT License.
+Full system documentation is located in the `docs/` directory:
+
+- [System Architecture](docs/ARCHITECTURE.md)
+- [Data Model & Database Schema](docs/DATA_MODEL.md)
+- [Learning Graph & Mastery Engine](docs/LEARNING_GRAPH.md)
+- [UI/UX & Design System](docs/UI_UX_SYSTEM.md)
+- [Security & Privacy Model](docs/SECURITY_MODEL.md)
+- [Testing Strategy & Backtesting](docs/TESTING_STRATEGY.md)
+- [Deployment & Operations Guide](docs/DEPLOYMENT.md)
+
+---
+
+## 📜 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
