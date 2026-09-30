@@ -412,3 +412,18 @@ ecent_events and misconceptions.
 - Created `central_platform/portals/fee_admin.py` Python backend manager providing `FeeAdminTab` enum, `FeeAdminSummary`, `OutstandingReportItem`, `FeeAdminController`, and `export_outstanding_report_csv`.
 - Added unit & integration test suite `tests/test_phase31_fee_admin_ui.py`.
 - 790 total tests passing clean across full suite.
+
+
+## Phase 32 - Payment Provider Abstraction
+**Date:** 2026-10-01
+**Objective:** Implement Payment Provider Abstraction layer keeping provider-specific integration logic decoupled from core financial models.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Created `central_platform/payments/base.py` defining abstract base class `PaymentProvider` and data contracts (`PaymentOrderResponse`, `PaymentStatusResponse`, `PaymentRefundResponse`).
+- Created `central_platform/payments/mock.py` implementing `MockPaymentAdapter` for deterministic local development, testing, and offline execution.
+- Created `central_platform/payments/razorpay.py` implementing `RazorpayPaymentAdapter` with order creation, HMAC-SHA256 signature verification, and webhook validation.
+- Created `central_platform/payments/upi.py` implementing `UPIPaymentAdapter` with UPI intent URL formatting (`upi://pay`), VPA parameter encoding, and instant refund handling.
+- Created `central_platform/payments/registry.py` providing `PaymentGatewayRegistry` for provider registration, retrieval, and fallback routing.
+- Added unit & integration test suite `tests/test_phase32_payment_provider_abstraction.py`.
+- 794 total tests passing clean across full suite.
