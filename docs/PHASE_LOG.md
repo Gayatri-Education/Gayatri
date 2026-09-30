@@ -290,3 +290,19 @@ ecent_events and misconceptions.
 - Integrated deterministic mock fallback for offline operation and API key absence.
 - Added unit & integration test suite `tests/test_phase22_cloud_provider_abstraction.py`.
 - 741 total tests passing clean across full suite.
+
+
+## Phase 23 - RAG Reliability
+**Date:** 2026-09-30
+**Objective:** Audit retrieval, citations, source quality, curriculum scope, prompt-injection protection, source isolation, and learning-context integration.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Enforced multi-tenant source isolation in `RAGService.query`: prevents cross-course retrieval leaks when querying scoped courses.
+- Enhanced hybrid scoring with exact phrase bonuses, multi-level concept/chapter/topic matching, and authority weighting (NCERT = 1.15, APPROVED_CURRICULUM = 1.10).
+- Standardized rich citation formatting (`Provenance: Chapter (p. Page, sec. Section)`).
+- Expanded prompt injection sanitization patterns in `RAGSecuritySanitizer` to neutralize direct/indirect instructions and jailbreaks while preserving educational content.
+- Enforced `<rag_evidence_data>` XML-style data-only framing for LLM context assembly.
+- Integrated `ContextBuilder` with RAG retrieval parameters for multi-layer prompt assembly.
+- Added unit & integration test suite `tests/test_phase23_rag_reliability.py`.
+- 746 total tests passing clean across full suite.

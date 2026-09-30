@@ -345,7 +345,9 @@ class RAGService:
                 limit=10,
             )
             for s in sources:
-                chunks.extend(self.db.get_rag_chunks(s.id, limit=100))
+                # Source isolation: only include global sources (no course_id) or matching course_id
+                if not s.course_id or s.course_id == course_id:
+                    chunks.extend(self.db.get_rag_chunks(s.id, limit=100))
 
         if not chunks:
             # Check legacy JSON files in data/rag if DB is empty
@@ -359,19 +361,25 @@ class RAGService:
             text_lower = chunk.clean_text.lower()
             chunk_terms = set(re.findall(r"\w+", text_lower))
             overlap = query_terms.intersection(chunk_terms)
-            if not overlap:
-                continue
 
-            # Jaccard / term overlap score
-            lexical_score = len(overlap) / (math.sqrt(len(query_terms)) * math.sqrt(len(chunk_terms) + 1))
+            lexical_score = 0.0
+            if overlap:
+                lexical_score = len(overlap) / (math.sqrt(len(query_terms)) * math.sqrt(len(chunk_terms) + 1))
 
             # Exact phrase bonus
             if sanitized_query.lower() in text_lower:
                 lexical_score += 0.35
 
-            # Concept match bonus
-            if concept and chunk.concept and concept.lower() in chunk.concept.lower():
-                lexical_score += 0.25
+            # Concept / Chapter / Topic match bonus
+            if concept:
+                c_lower = concept.lower()
+                if chunk.concept and c_lower in chunk.concept.lower():
+                    lexical_score += 0.25
+                elif (chunk.chapter and c_lower in chunk.chapter.lower()) or (chunk.topic and c_lower in chunk.topic.lower()):
+                    lexical_score += 0.15
+
+            if lexical_score == 0.0:
+                continue
 
             # Authority weight
             authority_multiplier = 1.0
@@ -401,7 +409,8 @@ class RAGService:
         result_items = []
         evidence_cards = []
         for score, chunk in top_results:
-            cit = f"{chunk.provenance_type}: {chunk.chapter} (p. {chunk.page})"
+            sec_info = f", sec. {chunk.section}" if chunk.section else ""
+            cit = f"{chunk.provenance_type}: {chunk.chapter} (p. {chunk.page}{sec_info})"
             item = {
                 "chunk_id": chunk.id,
                 "source_id": chunk.source_id,
@@ -409,9 +418,12 @@ class RAGService:
                 "topic": chunk.topic,
                 "concept": chunk.concept,
                 "page": chunk.page,
+                "section": chunk.section,
+                "content_type": chunk.content_type,
                 "text": chunk.clean_text,
                 "score": score,
                 "citation": cit,
+                "provenance_type": chunk.provenance_type,
             }
             result_items.append(item)
             evidence_cards.append(item)
