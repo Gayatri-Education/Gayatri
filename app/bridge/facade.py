@@ -441,8 +441,8 @@ class Bridge(QObject):
             logger.warning(f"Failed to align student concept on launch: {exc}")
 
     @Slot(result=str)
-    def get_demo_telemetry(self) -> str:
-        """Return real-time demo telemetry (Section 40) for UI observability."""
+    def get_system_telemetry(self) -> str:
+        """Return real-time system telemetry (Section 40) for UI observability."""
         try:
             from core.tutor.adaptive import EventLogger, StudentProfile
             student = StudentProfile.load_from_file()

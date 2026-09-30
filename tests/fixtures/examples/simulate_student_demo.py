@@ -128,7 +128,7 @@ def simulate_student_demo() -> bool:
         assert resp_s4.misconception == "THERMO_SIGN_CONVENTION"
         # Verify telemetry provides humanized info
         bridge = Bridge()
-        telemetry = json.loads(bridge.get_demo_telemetry())
+        telemetry = json.loads(bridge.get_system_telemetry())
         assert telemetry["misconception_info"] is not None
         assert telemetry["misconception_info"]["code"] == "THERMO_SIGN_CONVENTION"
         assert telemetry["misconception_info"]["title"] == "Sign Convention"

@@ -60,3 +60,15 @@ Every completed phase from the Master Development Plan will be recorded here.
 - Updated integration tests (`test_phase16_model_config.py` and `test_phase17_final_matrix.py`) to validate against the new schema.
 - Successfully ran full `pytest` regression suite.
 
+
+## Phase 05 - Demo Isolation
+**Date:** 2026-09-30
+**Objective:** Remove hardcoded demo scenarios from production execution.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Removed `"Demo Student"` hardcoding from `core/learning/progress.py`.
+- Renamed `get_demo_telemetry` to `get_system_telemetry` in `app/bridge/facade.py` and `app/ui/index.html` to reflect production UI observability rather than demo code.
+- Moved 5 standalone demo scripts (`reset_demo.py`, `run_demo_scenarios.py`, `seed_demo.py`, `seed_demo_student.py`, `simulate_student_demo.py`) from `scripts/` to `tests/fixtures/examples/` to isolate them from the production CLI/scripts path.
+- Ran full regression suite to verify isolation didn't break integration layers.
+

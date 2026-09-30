@@ -2340,9 +2340,9 @@
     }
 
     async function updateDemoTelemetry() {
-      if (!bridge || typeof bridge.get_demo_telemetry !== 'function') return;
+      if (!bridge || typeof bridge.get_system_telemetry !== 'function') return;
       try {
-        var raw = await bridge.get_demo_telemetry();
+        var raw = await bridge.get_system_telemetry();
         var data = JSON.parse(raw);
         if (!data || !data.ok) return;
 
