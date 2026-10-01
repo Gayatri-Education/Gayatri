@@ -402,11 +402,17 @@ class AnthropicAdapter(BaseAIProviderAdapter):
                     estimated_cost_usd=round(cost, 6),
                     success=True,
                 )
-        except Exception:
-            mock = MockAIAdapter(self.config)
-            res = mock.execute(request, model_desc)
-            res.provider = self.config.provider_name
-            return res
+        except Exception as e:
+            logger.error(f"OpenAICompatibleAdapter execution error for provider '{self.config.provider_name}': {e}", exc_info=True)
+            return AIExecutionResult(
+                request_id=req_id,
+                content="",
+                provider=self.config.provider_name,
+                model=model_desc.model_name,
+                success=False,
+                error=f"Execution failure: {str(e)}",
+                latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+            )
 
 
 class GeminiAdapter(BaseAIProviderAdapter):
@@ -417,10 +423,15 @@ class GeminiAdapter(BaseAIProviderAdapter):
         req_id = request.request_id or f"req-gem-{int(time.time()*1000)}"
 
         if not api_key:
-            mock = MockAIAdapter(self.config)
-            res = mock.execute(request, model_desc)
-            res.provider = self.config.provider_name
-            return res
+            logger.warning(f"GeminiAdapter: missing API key for provider '{self.config.provider_name}'.")
+            return AIExecutionResult(
+                request_id=req_id,
+                content="",
+                provider=self.config.provider_name,
+                model=model_desc.model_name,
+                success=False,
+                error="API key missing",
+            )
 
         t0 = time.perf_counter()
         try:
@@ -459,11 +470,17 @@ class GeminiAdapter(BaseAIProviderAdapter):
                     estimated_cost_usd=round(cost, 6),
                     success=True,
                 )
-        except Exception:
-            mock = MockAIAdapter(self.config)
-            res = mock.execute(request, model_desc)
-            res.provider = self.config.provider_name
-            return res
+        except Exception as e:
+            logger.error(f"GeminiAdapter execution error for provider '{self.config.provider_name}': {e}", exc_info=True)
+            return AIExecutionResult(
+                request_id=req_id,
+                content="",
+                provider=self.config.provider_name,
+                model=model_desc.model_name,
+                success=False,
+                error=f"Execution failure: {str(e)}",
+                latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+            )
 
 
 class OpenRouterAdapter(OpenAICompatibleAdapter):

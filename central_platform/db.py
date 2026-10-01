@@ -50,6 +50,12 @@ from central_platform.models.schema import (
     Cohort,
     Concept,
     Course,
+    CourseOffering,
+    CoursePolicy,
+    CourseStatus,
+    CourseToolPolicy,
+    CourseVersion,
+    CourseVisibility,
     Curriculum,
     CurriculumBoard,
     CurriculumVersion,
@@ -426,25 +432,66 @@ class PlatformDatabase:
 
     # ── 2. Academic Curriculum Hierarchy ────────────────────────────────────
 
+    def _row_to_course(self, r: sqlite3.Row) -> Course:
+        keys = r.keys()
+        vis_val = r["visibility"] if "visibility" in keys and r["visibility"] else "PRIVATE"
+        try:
+            vis = CourseVisibility(vis_val)
+        except Exception:
+            vis = CourseVisibility.PRIVATE
+        return Course(
+            id=r["id"],
+            organization_id=r["organization_id"],
+            code=r["code"],
+            title=r["title"],
+            description=r["description"] if "description" in keys and r["description"] else "",
+            visibility=vis,
+            created_at=r["created_at"],
+            updated_at=r["updated_at"],
+            is_deleted=bool(r["is_deleted"]),
+            deleted_at=r["deleted_at"] if "deleted_at" in keys else None,
+        )
+
     def create_course(self, course: Course) -> Course:
+        vis_val = course.visibility.value if isinstance(course.visibility, CourseVisibility) else str(course.visibility)
         with self._get_connection() as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO courses (id, organization_id, code, title, description, created_at, updated_at, is_deleted, deleted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (
-                    course.id,
-                    course.organization_id,
-                    course.code,
-                    course.title,
-                    course.description,
-                    course.created_at,
-                    course.updated_at,
-                    1 if course.is_deleted else 0,
-                    course.deleted_at,
-                ),
-            )
+            try:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO courses (id, organization_id, code, title, description, visibility, created_at, updated_at, is_deleted, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        course.id,
+                        course.organization_id,
+                        course.code,
+                        course.title,
+                        course.description,
+                        vis_val,
+                        course.created_at,
+                        course.updated_at,
+                        1 if course.is_deleted else 0,
+                        course.deleted_at,
+                    ),
+                )
+            except sqlite3.OperationalError:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO courses (id, organization_id, code, title, description, created_at, updated_at, is_deleted, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        course.id,
+                        course.organization_id,
+                        course.code,
+                        course.title,
+                        course.description,
+                        course.created_at,
+                        course.updated_at,
+                        1 if course.is_deleted else 0,
+                        course.deleted_at,
+                    ),
+                )
         return course
 
     def get_course(self, course_id: str, include_deleted: bool = False) -> Optional[Course]:
@@ -454,17 +501,7 @@ class PlatformDatabase:
                 sql += " AND is_deleted = 0"
             r = conn.execute(sql, (course_id,)).fetchone()
             if r:
-                return Course(
-                    id=r["id"],
-                    organization_id=r["organization_id"],
-                    code=r["code"],
-                    title=r["title"],
-                    description=r["description"],
-                    created_at=r["created_at"],
-                    updated_at=r["updated_at"],
-                    is_deleted=bool(r["is_deleted"]),
-                    deleted_at=r["deleted_at"],
-                )
+                return self._row_to_course(r)
             return None
 
     def get_courses_by_organization(self, organization_id: str, include_deleted: bool = False) -> List[Course]:
@@ -474,20 +511,179 @@ class PlatformDatabase:
                 sql += " AND is_deleted = 0"
             sql += " ORDER BY code ASC;"
             rows = conn.execute(sql, (organization_id,)).fetchall()
-            return [
-                Course(
+            return [self._row_to_course(r) for r in rows]
+
+    def get_public_courses(self, include_deleted: bool = False) -> List[Course]:
+        with self._get_connection() as conn:
+            try:
+                sql = "SELECT * FROM courses WHERE visibility = 'PUBLIC'"
+                if not include_deleted:
+                    sql += " AND is_deleted = 0"
+                sql += " ORDER BY code ASC;"
+                rows = conn.execute(sql).fetchall()
+                return [self._row_to_course(r) for r in rows]
+            except sqlite3.OperationalError:
+                return []
+
+    def create_course_version(self, version: CourseVersion) -> CourseVersion:
+        status_val = version.status.value if isinstance(version.status, CourseStatus) else str(version.status)
+        tool_policy_json = json.dumps(version.tool_policy.to_dict() if hasattr(version.tool_policy, "to_dict") else version.tool_policy)
+        tutor_policy_json = json.dumps(version.tutor_policy.to_dict() if hasattr(version.tutor_policy, "to_dict") else version.tutor_policy)
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO course_versions (id, course_id, version_number, status, tool_policy, tutor_policy, checksum, created_by, published_by, created_at, published_at, is_deleted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    version.id,
+                    version.course_id,
+                    version.version_number,
+                    status_val,
+                    tool_policy_json,
+                    tutor_policy_json,
+                    version.checksum,
+                    version.created_by,
+                    version.published_by,
+                    version.created_at,
+                    version.published_at,
+                    1 if version.is_deleted else 0,
+                ),
+            )
+        return version
+
+    def get_course_version(self, version_id: str, include_deleted: bool = False) -> Optional[CourseVersion]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM course_versions WHERE id = ?"
+            if not include_deleted:
+                sql += " AND is_deleted = 0"
+            r = conn.execute(sql, (version_id,)).fetchone()
+            if r:
+                return self._row_to_course_version(r)
+            return None
+
+    def get_course_versions_by_course(self, course_id: str, include_deleted: bool = False) -> List[CourseVersion]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM course_versions WHERE course_id = ?"
+            if not include_deleted:
+                sql += " AND is_deleted = 0"
+            sql += " ORDER BY version_number ASC;"
+            rows = conn.execute(sql, (course_id,)).fetchall()
+            return [self._row_to_course_version(r) for r in rows]
+
+    def get_latest_published_course_version(self, course_id: str) -> Optional[CourseVersion]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM course_versions WHERE course_id = ? AND status = 'PUBLISHED' AND is_deleted = 0 ORDER BY version_number DESC LIMIT 1;"
+            r = conn.execute(sql, (course_id,)).fetchone()
+            if r:
+                return self._row_to_course_version(r)
+            return None
+
+    def publish_course_version(self, version_id: str, published_by: str) -> bool:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE course_versions
+                SET status = 'PUBLISHED', published_by = ?, published_at = ?
+                WHERE id = ? AND is_deleted = 0;
+                """,
+                (published_by, now_iso, version_id),
+            )
+            return cursor.rowcount > 0
+
+    def _row_to_course_version(self, r: sqlite3.Row) -> CourseVersion:
+        try:
+            status = CourseStatus(r["status"])
+        except Exception:
+            status = CourseStatus.DRAFT
+        try:
+            tool_dict = json.loads(r["tool_policy"]) if r["tool_policy"] else {}
+        except Exception:
+            tool_dict = {}
+        try:
+            tutor_dict = json.loads(r["tutor_policy"]) if r["tutor_policy"] else {}
+        except Exception:
+            tutor_dict = {}
+        return CourseVersion(
+            id=r["id"],
+            course_id=r["course_id"],
+            version_number=r["version_number"],
+            status=status,
+            tool_policy=CourseToolPolicy.from_dict(tool_dict),
+            tutor_policy=CoursePolicy.from_dict(tutor_dict),
+            checksum=r["checksum"] or "",
+            created_by=r["created_by"] or "",
+            published_by=r["published_by"],
+            created_at=r["created_at"],
+            published_at=r["published_at"],
+            is_deleted=bool(r["is_deleted"]),
+        )
+
+    def create_course_offering(self, offering: CourseOffering) -> CourseOffering:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO organization_course_offerings (id, org_id, course_id, pinned_version_id, is_active, enrolled_at)
+                VALUES (?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    offering.id,
+                    offering.organization_id,
+                    offering.course_id,
+                    offering.pinned_version_id,
+                    1 if offering.is_active else 0,
+                    offering.enrolled_at,
+                ),
+            )
+        return offering
+
+    def get_course_offering(self, offering_id: str) -> Optional[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE id = ?"
+            r = conn.execute(sql, (offering_id,)).fetchone()
+            if r:
+                return CourseOffering(
                     id=r["id"],
-                    organization_id=r["organization_id"],
-                    code=r["code"],
-                    title=r["title"],
-                    description=r["description"],
-                    created_at=r["created_at"],
-                    updated_at=r["updated_at"],
-                    is_deleted=bool(r["is_deleted"]),
-                    deleted_at=r["deleted_at"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
+                )
+            return None
+
+    def get_course_offerings_by_org(self, organization_id: str) -> List[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE org_id = ? AND is_active = 1;"
+            rows = conn.execute(sql, (organization_id,)).fetchall()
+            return [
+                CourseOffering(
+                    id=r["id"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
                 )
                 for r in rows
             ]
+
+    def get_course_offering_by_org_and_course(self, organization_id: str, course_id: str) -> Optional[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE org_id = ? AND course_id = ? AND is_active = 1 LIMIT 1;"
+            r = conn.execute(sql, (organization_id, course_id)).fetchone()
+            if r:
+                return CourseOffering(
+                    id=r["id"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
+                )
+            return None
+
 
     def create_subject(self, subject: Subject) -> Subject:
         with self._get_connection() as conn:

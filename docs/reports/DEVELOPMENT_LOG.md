@@ -60,6 +60,39 @@ This log records every development phase and architectural transition in chronol
 - **Bugs Fixed:** BUG-ARCH-005 (resolved duplicate `assignments` table in `migrations/001_initial_schema.sql`).
 - **Tests Run:** 12 architecture guard tests collected, 12 passed in 4.35s (`pytest tests/architecture -v`). Bytecode compilation passed with 0 errors across 600+ files.
 - **Remaining Risks:**
-  - Refactoring generic curriculum and state without disturbing existing course-dependent tests.
+---
+
+## Entry 003 — Phase 02: Canonical Course, Version & Offering Domain
+
+- **Timestamp:** 2026-10-01T17:50:00+05:30
+- **Phase:** `PHASE 02 — CANONICAL COURSE, VERSION & OFFERING DOMAIN`
+- **Active Commit:** `48e5e5f`
+- **What Changed:**
+  - Implemented core domain models in `central_platform/models/schema.py`:
+    - `CourseVisibility` (`PUBLIC`, `PRIVATE`)
+    - `CourseStatus` (`DRAFT`, `PROCESSING`, `READY_FOR_REVIEW`, `PUBLISHED`, `ARCHIVED`, `FAILED`)
+    - `CourseToolPolicy` and `CoursePolicy` dataclasses with serialization and server-side feature validation.
+    - `CourseVersion` dataclass with status lifecycle, content hash, and timestamp auditing.
+    - `OrganizationCourseOffering` (and alias `CourseOffering`) managing institutional adoption and pinned versioning.
+  - Implemented versioned relational database migration:
+    - `migrations/004_course_domain_model.sql`: Added columns `visibility` to courses, `course_offering_id` to sessions, and tables `course_versions` and `organization_course_offerings`.
+    - `migrations/004_course_domain_model_down.sql`: Implemented complete rollback script with SQLite 3.35+ column drop support.
+  - Extended `central_platform/db.py` (`PlatformDatabase`): Added CRUD operations for `course_versions` and `organization_course_offerings`.
+  - Implemented `central_platform/courses/service.py` (`CourseService`):
+    - Course creation, retrieval with visibility-aware isolation (public vs private cross-tenant separation).
+    - Version draft creation, publishing state transitions with tool policy validation.
+    - Organization course offering enrollment, version pinning, and active listing.
+    - Runtime tool access verification (`validate_tool_access`).
+  - Implemented unit and integration test suites:
+    - `tests/test_phase02_course_domain_model.py`: 4 tests verifying CourseService, visibility security denial, version lifecycles, and tool enforcement.
+    - `tests/test_phase02_migrations.py`: 2 tests verifying migration 004 execution, clean rollback, and re-application idempotency.
+  - Generated reports: `docs/reports/PHASE_02_MIGRATION_REPORT.md`, `docs/reports/PHASE_02_TEST_REPORT.md`, `docs/reports/PHASE_02_TEST_RESULTS.json`.
+- **Bugs Found:**
+  - Rollback bug in SQLite where dropping a table left altered columns in `courses` and `sessions`, causing rerun failures. Fixed in `004_course_domain_model_down.sql`.
+- **Bugs Fixed:** 1 SQLite rollback edge-case.
+- **Tests Run:** 874 tests collected (856 regression + 12 guards + 6 Phase 2 tests), 874 passed in 91.27s.
+- **Remaining Risks:**
+  - Namespacing existing concept keys across chapters when implementing Phase 03 curriculum DAG.
+
 
 

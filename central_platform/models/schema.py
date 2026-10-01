@@ -137,6 +137,121 @@ class Permission:
 
 # ── 2. Academic Curriculum Hierarchy ────────────────────────────────────
 
+class CourseVisibility(str, Enum):
+    PUBLIC = "PUBLIC"
+    PRIVATE = "PRIVATE"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().upper()
+            for member in cls:
+                if member.value == val_norm or member.name == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
+class CourseStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PROCESSING = "PROCESSING"
+    READY_FOR_REVIEW = "READY_FOR_REVIEW"
+    PUBLISHED = "PUBLISHED"
+    ARCHIVED = "ARCHIVED"
+    FAILED = "FAILED"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().upper()
+            for member in cls:
+                if member.value == val_norm or member.name == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
+@dataclass
+class CourseToolPolicy:
+    calculator: bool = False
+    graphing: bool = False
+    code_execution: bool = False
+    equation_balancer: bool = False
+    periodic_table: bool = False
+    custom_tools: Dict[str, bool] = field(default_factory=dict)
+
+    def is_tool_enabled(self, tool_name: str) -> bool:
+        if tool_name in self.custom_tools:
+            return self.custom_tools[tool_name]
+        return getattr(self, tool_name, False)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> CourseToolPolicy:
+        if not data:
+            return cls()
+        known = {k: bool(v) for k, v in data.items() if k in {"calculator", "graphing", "code_execution", "equation_balancer", "periodic_table"}}
+        custom = {k: bool(v) for k, v in data.items() if k not in known}
+        return cls(**known, custom_tools=custom)
+
+
+@dataclass
+class CoursePolicy:
+    allow_cloud_fallback: bool = True
+    strict_prerequisites: bool = True
+    max_hints_per_concept: int = 3
+    remediation_threshold: float = 0.5
+    custom_rules: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> CoursePolicy:
+        if not data:
+            return cls()
+        known = {k: v for k, v in data.items() if k in {"allow_cloud_fallback", "strict_prerequisites", "max_hints_per_concept", "remediation_threshold"}}
+        custom = {k: v for k, v in data.items() if k not in known}
+        return cls(**known, custom_rules=custom)
+
+
+@dataclass
+class CourseVersion:
+    id: str
+    course_id: str
+    version_number: str = "1.0"
+    status: CourseStatus = CourseStatus.DRAFT
+    tool_policy: CourseToolPolicy = field(default_factory=CourseToolPolicy)
+    tutor_policy: CoursePolicy = field(default_factory=CoursePolicy)
+    checksum: str = ""
+    created_by: str = ""
+    published_by: Optional[str] = None
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    published_at: Optional[str] = None
+    is_deleted: bool = False
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["status"] = self.status.value if isinstance(self.status, CourseStatus) else str(self.status)
+        return d
+
+
+@dataclass
+class OrganizationCourseOffering:
+    id: str
+    organization_id: str
+    course_id: str
+    pinned_version_id: Optional[str] = None
+    is_active: bool = True
+    enrolled_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+CourseOffering = OrganizationCourseOffering
+
+
 @dataclass
 class Course:
     id: str
@@ -144,13 +259,17 @@ class Course:
     code: str
     title: str
     description: str = ""
+    visibility: CourseVisibility = CourseVisibility.PRIVATE
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     is_deleted: bool = False
     deleted_at: Optional[str] = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d["visibility"] = self.visibility.value if isinstance(self.visibility, CourseVisibility) else str(self.visibility)
+        return d
+
 
 
 @dataclass

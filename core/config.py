@@ -82,6 +82,7 @@ def _detect_initial_model_file() -> str:
         return env_override
     # 1. Check preferred models (SLM, v3, 3B, Qwen)
     for preferred in (
+        "qwen2.5-0.5b-instruct-q4_k_m.gguf",
         "Gayatri-Tutor-v3-Q4_K_M.gguf",
         "Gayatri-Tutor-v3.gguf",
         "Gayatri-Tutor-SLM-Q4_K_M.gguf",

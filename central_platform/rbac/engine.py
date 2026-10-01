@@ -43,6 +43,12 @@ class Permission(str):
     MANAGE_USERS = "org_admin.manage_users"
     VIEW_ORG_ANALYTICS = "org_admin.view_org_analytics"
 
+    # Parent permissions
+    PARENT_VIEW_CHILD_PROGRESS = "parent.view_child_progress"
+    PARENT_VIEW_CHILD_ATTENDANCE = "parent.view_child_attendance"
+    PARENT_VIEW_CHILD_INVOICES = "parent.view_child_invoices"
+    PARENT_VIEW_TEACHER_UPDATES = "parent.view_teacher_updates"
+
     # Super Admin permissions
     GLOBAL_SYSTEM_CONTROL = "super_admin.global_system_control"
     MANAGE_ALL_ORGANIZATIONS = "super_admin.manage_all_organizations"
@@ -69,6 +75,10 @@ ROLE_PERMISSIONS: dict[UserRole, Set[str]] = {
         Permission.STUDENT_VIEW_OWN_PROGRESS,
         Permission.STUDENT_VIEW_OWN_SLR,
         Permission.STUDENT_ATTEMPT_ASSESSMENT,
+        Permission.PARENT_VIEW_CHILD_PROGRESS,
+        Permission.PARENT_VIEW_CHILD_ATTENDANCE,
+        Permission.PARENT_VIEW_CHILD_INVOICES,
+        Permission.PARENT_VIEW_TEACHER_UPDATES,
     },
     UserRole.ORG_ADMIN: {
         Permission.MANAGE_ORGANIZATION,
@@ -100,6 +110,12 @@ ROLE_PERMISSIONS: dict[UserRole, Set[str]] = {
         Permission.STUDENT_VIEW_OWN_PROGRESS,
         Permission.STUDENT_VIEW_OWN_SLR,
         Permission.STUDENT_ATTEMPT_ASSESSMENT,
+    },
+    UserRole.PARENT: {
+        Permission.PARENT_VIEW_CHILD_PROGRESS,
+        Permission.PARENT_VIEW_CHILD_ATTENDANCE,
+        Permission.PARENT_VIEW_CHILD_INVOICES,
+        Permission.PARENT_VIEW_TEACHER_UPDATES,
     },
 }
 
@@ -171,7 +187,16 @@ def check_resource_access(
             return False
         return True
 
-    # 4. Teacher Scope:
+    # 4. Parent Scope:
+    # Parents can access records of their linked children
+    if norm_role == UserRole.PARENT:
+        if target_student_id:
+            if assigned_student_ids is not None:
+                if target_student_id not in assigned_student_ids and target_student_id != actor_user_id:
+                    return False
+        return True
+
+    # 5. Teacher Scope:
     # Teachers can access students assigned to their courses/cohorts
     if norm_role == UserRole.TEACHER:
         if target_student_id and assigned_student_ids is not None:
@@ -179,7 +204,7 @@ def check_resource_access(
                 return False
         return True
 
-    # 5. Org Admin & Course Admin Scope:
+    # 6. Org Admin & Course Admin Scope:
     # Bounded to organization (verified in check #2 above)
     if norm_role in (UserRole.ORG_ADMIN, UserRole.COURSE_ADMIN):
         return True

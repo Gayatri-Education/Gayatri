@@ -689,19 +689,24 @@
       studentsCache: [],
       baseUrl: window.location.origin || 'http://127.0.0.1:8000',
 
-      async init() {
-        // Auto-authenticate with demo teacher token if not set
-        if (!localStorage.getItem('teacher_token')) {
+      async ensureToken(forceRefresh = false) {
+        if (forceRefresh || !localStorage.getItem('teacher_token')) {
           try {
             const res = await fetch(`${this.baseUrl}/api/v1/auth/demo-tokens`);
             if (res.ok) {
               const json = await res.json();
-              if (json.data && json.data.teacher) {
+              if (json.data && json.data.teacher && json.data.teacher.token) {
                 localStorage.setItem('teacher_token', json.data.teacher.token);
+                return json.data.teacher.token;
               }
             }
           } catch (e) {}
         }
+        return localStorage.getItem('teacher_token') || '';
+      },
+
+      async init() {
+        await this.ensureToken();
         window.addEventListener('hashchange', () => this.handleRoute());
         this.handleRoute();
       },
@@ -732,18 +737,25 @@
         }
       },
 
-      retry() {
+      async retry() {
         document.getElementById('stateApiError').classList.remove('active');
         document.getElementById('stateOffline').classList.remove('active');
+        await this.ensureToken(true);
         this.handleRoute();
       },
 
       async apiGet(path) {
-        const token = localStorage.getItem('teacher_token') || '';
-        const headers = { 'Accept': 'application/json' };
+        let token = await this.ensureToken();
+        let headers = { 'Accept': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, { headers });
+        let res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, { headers });
+        if (res.status === 401 || res.status === 403) {
+          // Token expired or invalid, auto-refresh and retry once
+          token = await this.ensureToken(true);
+          headers['Authorization'] = `Bearer ${token}`;
+          res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, { headers });
+        }
         if (res.status === 403) {
           this.setUIState('permission_error', { message: '403 Forbidden: Teacher authorization required to access this resource.' });
           throw new Error('403 Forbidden');
@@ -754,15 +766,25 @@
       },
 
       async apiPost(path, body) {
-        const token = localStorage.getItem('teacher_token') || '';
-        const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        let token = await this.ensureToken();
+        let headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, {
+        let res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, {
           method: 'POST',
           headers,
           body: JSON.stringify(body)
         });
+        if (res.status === 401 || res.status === 403) {
+          // Token expired or invalid, auto-refresh and retry once
+          token = await this.ensureToken(true);
+          headers['Authorization'] = `Bearer ${token}`;
+          res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+          });
+        }
         if (res.status === 403) {
           this.setUIState('permission_error', { message: '403 Forbidden: Teacher authorization required to access this resource.' });
           throw new Error('403 Forbidden');
