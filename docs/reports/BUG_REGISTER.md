@@ -53,9 +53,9 @@
 - **Root Cause:** Placeholder bridge methods developed for quick demoing without real service backing.
 - **Fix:** Connect bridge methods directly to `central_platform.db` repositories with honest empty states.
 - **Test:** Clean database startup test verifying 0 fake students rendered.
-- **Verification:** PARTIAL (Phase 12 eliminated mock in-memory `_COURSES` and `_ENROLLMENTS` in API layer; UI bridge decoupling scheduled Phase 22).
+- **Verification:** **VERIFIED FIXED** (Phase 13 completely removed hardcoded fake demo roster seeding in `app/bridge/facade.py`; verified via `test_zero_fake_demo_roster_in_bridge_and_portal` and `test_first_offline_launch_clean_environment` in `tests/test_phase13_offline_local_runtime.py`).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
-- **Status:** IN_PROGRESS.
+- **Status:** VERIFIED.
 
 ---
 

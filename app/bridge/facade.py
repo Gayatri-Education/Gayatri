@@ -24,75 +24,38 @@ _teacher_instruction_engine_singleton = None
 _teacher_intervention_engine_singleton = None
 
 
+def reset_teacher_singletons() -> None:
+    """Reset singleton instances for clean testing and offline launch verification."""
+    global _teacher_portal_singleton, _teacher_instruction_engine_singleton, _teacher_intervention_engine_singleton
+    _teacher_portal_singleton = None
+    _teacher_instruction_engine_singleton = None
+    _teacher_intervention_engine_singleton = None
+
+
 def get_teacher_portal_service():
+    """Retrieve TeacherPortalService backed by real platform database or honest empty state (BUG-ARCH-003)."""
     global _teacher_portal_singleton
     if _teacher_portal_singleton is None:
         from central_platform.teacher.portal import TeacherPortalService
         _teacher_portal_singleton = TeacherPortalService()
-        _teacher_portal_singleton.register_student_snapshot(
-            "local_student_1", "Rahul Kumar", "crs-chem-101", 0.85, needs_attention=False,
-            chapter_mastery={"Thermodynamics": 0.88, "Chemical Bonding": 0.84, "Coordination Chemistry": 0.80, "Periodic Trends": 0.90},
-            recent_activity="Solved Hess Law numerical",
-        )
-        _teacher_portal_singleton.register_student_snapshot(
-            "local_student_2", "Priya Sharma", "crs-chem-101", 0.94, needs_attention=False,
-            chapter_mastery={"Thermodynamics": 0.95, "Chemical Bonding": 0.92, "Coordination Chemistry": 0.94, "Periodic Trends": 0.95},
-            recent_activity="Practicing Gibbs free energy",
-        )
-        _teacher_portal_singleton.register_student_snapshot(
-            "local_student_3", "Amit Patel", "crs-chem-101", 0.42, needs_attention=True,
-            misconceptions=["THERMO_SIGN_CONVENTION"],
-            hint_count=7,
-            retention_rate=0.60,
-            chapter_mastery={"Thermodynamics": 0.36, "Chemical Bonding": 0.52, "Coordination Chemistry": 0.38, "Periodic Trends": 0.58},
-            recent_activity="Failed sign convention in expansion work",
-        )
     return _teacher_portal_singleton
 
 
 def get_teacher_instruction_engine():
+    """Retrieve TeacherInstructionEngine without hardcoded demo seeds."""
     global _teacher_instruction_engine_singleton
     if _teacher_instruction_engine_singleton is None:
-        from central_platform.teacher.instruction import TeacherInstruction, TeacherInstructionEngine
+        from central_platform.teacher.instruction import TeacherInstructionEngine
         _teacher_instruction_engine_singleton = TeacherInstructionEngine()
-        _teacher_instruction_engine_singleton.add_instruction(
-            TeacherInstruction(
-                instruction_id="inst-seed-01",
-                teacher_id="tchr-101",
-                student_id="all",
-                course_id="crs-chem-101",
-                instruction_text="Emphasize IUPAC sign conventions: work done by system is negative (-w).",
-                priority=2,
-            )
-        )
     return _teacher_instruction_engine_singleton
 
 
 def get_teacher_intervention_engine():
+    """Retrieve TeacherInterventionEngine without hardcoded demo seeds."""
     global _teacher_intervention_engine_singleton
     if _teacher_intervention_engine_singleton is None:
-        from central_platform.teacher.intervention import AlertSeverity, TeacherAlert, TeacherInterventionEngine
+        from central_platform.teacher.intervention import TeacherInterventionEngine
         _teacher_intervention_engine_singleton = TeacherInterventionEngine()
-        _teacher_intervention_engine_singleton.raise_alert(
-            TeacherAlert(
-                alert_id="alt-b01",
-                student_id="local_student_3",
-                course_id="crs-chem-101",
-                alert_type="repeated_failure",
-                severity=AlertSeverity.CRITICAL,
-                message="Amit Patel encountered repeated sign convention error in Thermodynamics expansion work.",
-            )
-        )
-        _teacher_intervention_engine_singleton.raise_alert(
-            TeacherAlert(
-                alert_id="alt-b02",
-                student_id="local_student_1",
-                course_id="crs-chem-101",
-                alert_type="advancement_ready",
-                severity=AlertSeverity.INFO,
-                message="Rahul Kumar reached 85% mastery. Ready for advanced numerical practice.",
-            )
-        )
     return _teacher_intervention_engine_singleton
 
 

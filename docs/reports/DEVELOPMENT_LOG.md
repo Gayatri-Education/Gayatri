@@ -472,6 +472,43 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 981 tests collected, 981 passed in 129.56s (100% green).
 - **Remaining Risks:** None for Phase 12. Phase 13 (Offline Local Runtime) next.
 
+---
+
+### Entry: Phase 13 — Offline Local Runtime Package & Sync Readiness (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Typed Offline Errors (`local_runtime/errors.py`):
+    - Defined `OfflineRuntimeError`, `OfflineCourseNotCachedError`, `ModelUnavailableError`, `CorruptedCacheError`, and `ReadOnlyDatabaseError`.
+  - Local Course Cache & Quarantine Subsystem (`local_runtime/course_cache.py`):
+    - Implemented `LocalCourseCache` managing `.gpk` (zip) and JSON package distribution.
+    - Added deterministic SHA-256 package checksum validation on import and export.
+    - Automated quarantine protocol isolating corrupted/tampered files into `data/cache/quarantine/`.
+  - Course-Isolated Local RAG Engine (`local_runtime/rag_cache.py`):
+    - Implemented `LocalRAGCache` with BM25 keyword retrieval.
+    - Enforced strict course and version scoping: chunks from Course A can never leak into Course B.
+  - Transactional Session Persistence (`local_runtime/session.py`):
+    - Built SQLite session storage supporting atomic `begin_turn()`, `commit_turn()`, and `rollback_turn()`.
+    - Implemented crash/interruption recovery on startup (`recover_interrupted_turns()` rolling back `PENDING_COMMIT` turns).
+    - Added graceful read-only degraded mode for locked volumes or filesystems.
+  - Offline Capability Diagnostics (`local_runtime/detector.py`):
+    - Built `OfflineCapabilityDetector` providing `OfflineCapabilitiesReport` (network reachability, DB writability, local models, cached courses) and `DegradedStateInfo`.
+  - Offline Local Runtime Engine (`local_runtime/engine.py`, `local_runtime/__init__.py`):
+    - Unified cache, RAG, session persistence, and diagnostics to run offline tutor turns without internet connection.
+  - Decoupled Desktop Bridge (`app/bridge/facade.py`):
+    - Remediated `BUG-ARCH-003`: Removed hardcoded fake demo roster (`Rahul Kumar`, `Priya Sharma`, `Amit Patel`), fake instructions, and fake alerts.
+    - Wired bridge to `PlatformDatabase` with honest empty states.
+  - Test Suite (`tests/test_phase13_offline_local_runtime.py`):
+    - Implemented 12 comprehensive unit and integration tests covering clean launch, capability detection, package caching, quarantine, uncached courses, tutor turns, state persistence across restarts, crash rollback, read-only mode, missing models, bridge zero-demo-roster guard, and zero-chemistry invariant.
+  - Regression Suite:
+    - 993 tests passing in 131.81s (100% green, zero regressions).
+- **Bugs Found & Fixed:**
+  - Resolved substring assertion in `test_local_state_persistence_across_restart`.
+  - Isolated database in `test_zero_fake_demo_roster_in_bridge_and_portal` and `test_first_offline_launch_clean_environment` using `monkeypatch` to prevent state leakage from preceding tests.
+  - Updated bridge fixture in `tests/test_teacher_dashboard_bridge.py` to seed its own test students, maintaining 100% test compatibility while removing demo data from production bridge code.
+- **Tests Run:** 993 tests collected, 993 passed in 131.81s (100% green).
+- **Remaining Risks:** None for Phase 13. Phase 14 (Bidirectional Sync & Conflict Resolution) next.
+
+
 
 
 
