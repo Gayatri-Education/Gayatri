@@ -508,6 +508,43 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 993 tests collected, 993 passed in 131.81s (100% green).
 - **Remaining Risks:** None for Phase 13. Phase 14 (Bidirectional Sync & Conflict Resolution) next.
 
+---
+
+### Entry: Phase 14 — Sync & Conflict Resolution (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Database Migration 008 (`migrations/008_sync_operations.sql` & `migrations/008_sync_operations_down.sql`):
+    - Added `sync_operations` table tracking operation_id, student_id, device_id, course_id, status, counts (events, duplicates, conflicts), client/server timestamps, error messages, and payload checksum.
+    - Verified migration execution and down-migration reversibility.
+  - Platform Database Extensions (`central_platform/models/schema.py`, `central_platform/db.py`):
+    - Created `SyncOperationRecord` model with `to_dict()` and `from_row()` serialization.
+    - Added `record_sync_operation`, `get_sync_operation`, and `get_sync_operations_for_student` persistence methods.
+  - Durable Local Sync Outbox (`local_runtime/sync_outbox.py`):
+    - Built SQLite-backed `LocalSyncOutbox` with batch staging, transactional commit, and exponential backoff retry scheduling.
+    - Stored microsecond-resolution float timestamps (`next_retry_ts REAL`) to prevent integer truncation issues on Windows.
+    - Implemented crash/restart recovery ensuring pending events survive desktop process restarts.
+  - Authoritative Server-Side Ingestion (`central_platform/sync/service.py`):
+    - Added operation-level deduplication: retries with existing `operation_id` return cached authoritative replay response (`is_replay=True`).
+    - Integrated `LearningEventStore` event deduplication and append-only ledger verification.
+    - Added partial sync acknowledgement: valid events are committed and acknowledged while corrupted/invalid events return `PARTIAL` status with error reporting.
+    - Reconciled out-of-order events by sequence and timestamp with deterministic SLR mastery recalculation.
+    - Added multi-device concurrent sync convergence guarantees.
+    - Added course version mismatch checks returning client update directives.
+    - Enforced device authentication and quarantine blocking (403 Forbidden).
+  - Sync API Endpoints (`central_platform/api/schemas.py`, `central_platform/api/routes/sync.py`):
+    - Extended `SyncBatchRequest` to support `operation_id`, `course_id`, `device_id`, and `course_version`.
+    - Added `GET /api/v1/sync/status` endpoint for retrieving device/student sync history and operation records.
+  - Test Suite (`tests/test_phase14_sync_conflict_resolution.py`):
+    - 12/12 passing tests covering complete sync lifecycle, duplicate deduplication, replay idempotency, partial acknowledgement, network timeout/retry, device quarantine, client crash recovery, server restart persistence, multi-device convergence, version mismatch resolution, out-of-order reconciliation, and sync audit API.
+  - Regression Suite:
+    - 1,005 tests passing in 153.13s (100% green, 0 failures, 0 regressions).
+- **Bugs Found & Fixed:**
+  - Added missing `import uuid` to `central_platform/sync/service.py`.
+  - Replaced integer-second `next_retry_ts` with microsecond-resolution float `REAL` column in `LocalSyncOutbox`.
+- **Tests Run:** 1,005 tests collected, 1,005 passed in 153.13s (100% green).
+- **Remaining Risks:** None for Phase 14. Phase 15 (Plug-and-Play Extensibility / Curriculum Data Isolation) next.
+
+
 
 
 

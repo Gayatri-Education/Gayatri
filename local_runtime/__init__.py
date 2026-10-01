@@ -25,12 +25,14 @@ from local_runtime.errors import (
 )
 from local_runtime.rag_cache import LocalRAGCache
 from local_runtime.session import LocalSessionPersistence
+from local_runtime.sync_outbox import LocalSyncOutbox
 
 __all__ = [
     "CoursePackageMetadata",
     "LocalCourseCache",
     "LocalRAGCache",
     "LocalSessionPersistence",
+    "LocalSyncOutbox",
     "OfflineCapabilityDetector",
     "OfflineCapabilitiesReport",
     "DegradedStateInfo",

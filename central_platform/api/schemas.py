@@ -1134,17 +1134,36 @@ class NotificationQueueStatsResponse(BaseModel):
 class BatchSyncEventsRequest(BaseModel):
     student_id: str
     events: List[Dict[str, Any]]
+    operation_id: Optional[str] = None
+    course_id: Optional[str] = None
+    device_id: Optional[str] = None
+    course_version: Optional[str] = None
 
 
 class BatchSyncEventsResponse(BaseModel):
     ok: bool = True
+    operation_id: Optional[str] = None
     synced_count: int
     duplicate_count: int = 0
     failed_count: int = 0
     acknowledged_ids: List[str] = Field(default_factory=list)
+    conflicts_resolved: int = 0
     status: str = "SYNCED"
     latest_mastery: float = 0.50
     server_timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    is_replay: bool = False
+
+
+class SyncStatusResponse(BaseModel):
+    student_id: str
+    course_id: str
+    total_operations: int
+    total_synced_events: int
+    registered_devices: List[str] = Field(default_factory=list)
+    last_operation_id: Optional[str] = None
+    last_synced_at: Optional[str] = None
+    latest_mastery: float = 0.0
+    status: str = "HEALTHY"
 
 
 

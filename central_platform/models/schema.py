@@ -977,10 +977,24 @@ class RAGChunk:
     class_id: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+@dataclass
+class SyncOperationRecord:
+    operation_id: str
+    student_id: str
+    device_id: Optional[str] = None
+    course_id: Optional[str] = None
+    synced_count: int = 0
+    duplicate_count: int = 0
+    failed_count: int = 0
+    acknowledged_ids: List[str] = field(default_factory=list)
+    conflicts_resolved: int = 0
+    status: str = "SYNCED"
+    latest_mastery: float = 0.0
+    server_timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
     def to_dict(self) -> dict:
-        d = asdict(self)
-        if isinstance(self.visibility_scope, Enum):
-            d["visibility_scope"] = self.visibility_scope.value
-        return d
+        return asdict(self)
+
 
 

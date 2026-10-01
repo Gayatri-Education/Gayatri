@@ -88,6 +88,7 @@ from central_platform.models.schema import (
     Topic,
     User,
     UserRole,
+    SyncOperationRecord,
 )
 from scripts.migrate_db import run_all_migrations
 
@@ -2995,5 +2996,91 @@ class PlatformDatabase:
                 ),
             )
             return refund
+
+    # ── Phase 14 Sync Operations & Idempotency ───────────────────────
+
+    def record_sync_operation(self, op: SyncOperationRecord) -> SyncOperationRecord:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO sync_operations (
+                       operation_id, student_id, device_id, course_id,
+                       synced_count, duplicate_count, failed_count,
+                       acknowledged_ids_json, conflicts_resolved, status,
+                       latest_mastery, server_timestamp, created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(operation_id) DO UPDATE SET
+                       synced_count = excluded.synced_count,
+                       duplicate_count = excluded.duplicate_count,
+                       failed_count = excluded.failed_count,
+                       acknowledged_ids_json = excluded.acknowledged_ids_json,
+                       conflicts_resolved = excluded.conflicts_resolved,
+                       status = excluded.status,
+                       latest_mastery = excluded.latest_mastery,
+                       server_timestamp = excluded.server_timestamp;""",
+                (
+                    op.operation_id, op.student_id, op.device_id, op.course_id,
+                    op.synced_count, op.duplicate_count, op.failed_count,
+                    json.dumps(op.acknowledged_ids), op.conflicts_resolved, op.status,
+                    op.latest_mastery, op.server_timestamp, op.created_at
+                ),
+            )
+            return op
+
+    def get_sync_operation(self, operation_id: str) -> Optional[SyncOperationRecord]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM sync_operations WHERE operation_id = ?;", (operation_id,)).fetchone()
+            if not r:
+                return None
+            try:
+                ack_ids = json.loads(r["acknowledged_ids_json"])
+            except Exception:
+                ack_ids = []
+            return SyncOperationRecord(
+                operation_id=r["operation_id"],
+                student_id=r["student_id"],
+                device_id=r["device_id"],
+                course_id=r["course_id"],
+                synced_count=r["synced_count"],
+                duplicate_count=r["duplicate_count"],
+                failed_count=r["failed_count"],
+                acknowledged_ids=ack_ids,
+                conflicts_resolved=r["conflicts_resolved"] if "conflicts_resolved" in r.keys() else 0,
+                status=r["status"],
+                latest_mastery=float(r["latest_mastery"] or 0.0),
+                server_timestamp=r["server_timestamp"],
+                created_at=r["created_at"],
+            )
+
+    def get_sync_operations_for_student(self, student_id: str, limit: int = 50) -> List[SyncOperationRecord]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM sync_operations WHERE student_id = ? ORDER BY created_at DESC LIMIT ?;",
+                (student_id, limit),
+            ).fetchall()
+            results = []
+            for r in rows:
+                try:
+                    ack_ids = json.loads(r["acknowledged_ids_json"])
+                except Exception:
+                    ack_ids = []
+                results.append(
+                    SyncOperationRecord(
+                        operation_id=r["operation_id"],
+                        student_id=r["student_id"],
+                        device_id=r["device_id"],
+                        course_id=r["course_id"],
+                        synced_count=r["synced_count"],
+                        duplicate_count=r["duplicate_count"],
+                        failed_count=r["failed_count"],
+                        acknowledged_ids=ack_ids,
+                        conflicts_resolved=r["conflicts_resolved"] if "conflicts_resolved" in r.keys() else 0,
+                        status=r["status"],
+                        latest_mastery=float(r["latest_mastery"] or 0.0),
+                        server_timestamp=r["server_timestamp"],
+                        created_at=r["created_at"],
+                    )
+                )
+            return results
+
 
 
