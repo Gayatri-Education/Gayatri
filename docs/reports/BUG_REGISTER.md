@@ -107,3 +107,21 @@
 - **Verification:** Pending (Scheduled for Phase 8).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** CONFIRMED.
+
+---
+
+### BUG-RAG-007
+- **Severity:** P2
+- **Date Found:** 2026-10-01
+- **Commit Found:** `424f343`
+- **Subsystem:** Plug-and-Play RAG Retrieval (`central_platform/db.py`)
+- **Reproduction:** Insert RAG source with uppercase enum status (`PUBLISHED`); query `get_rag_chunks_by_course(only_published=True)`.
+- **Expected:** Chunks are returned regardless of whether the status string is uppercase or lowercase.
+- **Actual:** Exact match `rs.status = 'published'` filtered out records stored with uppercase enum value.
+- **Root Cause:** Direct literal comparison in SQLite/PostgreSQL SQL condition without `LOWER()`.
+- **Fix:** Updated `central_platform/db.py` to use `LOWER(rs.status) = 'published'` and `LOWER(status) = ?`.
+- **Test:** `tests/test_phase05_knowledge_assets.py::test_phase_gate_student_visibility_invariant`.
+- **Verification:** **VERIFIED FIXED** (All 12 Phase 05 tests pass; all 898 suite tests pass).
+- **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
+- **Status:** VERIFIED.
+

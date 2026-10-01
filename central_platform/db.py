@@ -14,6 +14,7 @@ import json
 import os
 import sqlite3
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 
 from central_platform.rbac.engine import hash_password, verify_password
@@ -2238,15 +2239,49 @@ class PlatformDatabase:
                 for r in rows
             ]
 
-    # ── 9. Plug-and-Play RAG Subsystem ──────────────────────────────────────
+    def _row_to_rag_source(self, r: sqlite3.Row) -> RAGSource:
+        metadata = {}
+        if r["metadata_json"]:
+            try:
+                metadata = json.loads(r["metadata_json"])
+            except Exception:
+                pass
+        keys = r.keys()
+        return RAGSource(
+            id=r["id"],
+            organization_id=r["organization_id"],
+            course_id=r["course_id"],
+            subject=r["subject"],
+            title=r["title"],
+            source_type=r["source_type"],
+            authority=r["authority"],
+            version=r["version"],
+            status=r["status"],
+            checksum=r["checksum"] or "",
+            metadata_json=metadata,
+            chunk_count=r["chunk_count"],
+            content_type=r["content_type"] if "content_type" in keys and r["content_type"] else "textbook",
+            uploaded_by=r["uploaded_by"] if "uploaded_by" in keys else None,
+            published_by=r["published_by"] if "published_by" in keys else None,
+            published_at=r["published_at"] if "published_at" in keys else None,
+            error_message=r["error_message"] if "error_message" in keys else None,
+            created_at=r["created_at"],
+            updated_at=r["updated_at"],
+        )
 
     def create_rag_source(self, source: RAGSource) -> RAGSource:
         with self._get_connection() as conn:
             metadata_str = json.dumps(source.metadata_json) if isinstance(source.metadata_json, dict) else str(source.metadata_json)
+            status_val = source.status.value if isinstance(source.status, Enum) else str(source.status)
+            content_type_val = source.content_type.value if isinstance(source.content_type, Enum) else str(source.content_type or "textbook")
             conn.execute(
                 """
-                INSERT INTO rag_sources (id, organization_id, course_id, subject, title, source_type, authority, version, status, checksum, metadata_json, chunk_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO rag_sources (
+                    id, organization_id, course_id, subject, title, source_type, authority,
+                    version, status, checksum, metadata_json, chunk_count, content_type,
+                    uploaded_by, published_by, published_at, error_message, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     organization_id=excluded.organization_id,
                     course_id=excluded.course_id,
@@ -2259,6 +2294,11 @@ class PlatformDatabase:
                     checksum=excluded.checksum,
                     metadata_json=excluded.metadata_json,
                     chunk_count=excluded.chunk_count,
+                    content_type=excluded.content_type,
+                    uploaded_by=excluded.uploaded_by,
+                    published_by=excluded.published_by,
+                    published_at=excluded.published_at,
+                    error_message=excluded.error_message,
                     updated_at=excluded.updated_at;
                 """,
                 (
@@ -2270,10 +2310,15 @@ class PlatformDatabase:
                     source.source_type,
                     source.authority,
                     source.version,
-                    source.status,
+                    status_val,
                     source.checksum,
                     metadata_str,
                     source.chunk_count,
+                    content_type_val,
+                    source.uploaded_by,
+                    source.published_by,
+                    source.published_at,
+                    source.error_message,
                     source.created_at,
                     source.updated_at,
                 ),
@@ -2284,28 +2329,7 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             r = conn.execute("SELECT * FROM rag_sources WHERE id = ?;", (source_id,)).fetchone()
             if r:
-                metadata = {}
-                if r["metadata_json"]:
-                    try:
-                        metadata = json.loads(r["metadata_json"])
-                    except Exception:
-                        pass
-                return RAGSource(
-                    id=r["id"],
-                    organization_id=r["organization_id"],
-                    course_id=r["course_id"],
-                    subject=r["subject"],
-                    title=r["title"],
-                    source_type=r["source_type"],
-                    authority=r["authority"],
-                    version=r["version"],
-                    status=r["status"],
-                    checksum=r["checksum"] or "",
-                    metadata_json=metadata,
-                    chunk_count=r["chunk_count"],
-                    created_at=r["created_at"],
-                    updated_at=r["updated_at"],
-                )
+                return self._row_to_rag_source(r)
             return None
 
     def list_rag_sources(
@@ -2314,6 +2338,7 @@ class PlatformDatabase:
         subject: Optional[str] = None,
         status: Optional[str] = None,
         authority: Optional[str] = None,
+        content_type: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[RAGSource]:
@@ -2327,44 +2352,22 @@ class PlatformDatabase:
                 conditions.append("subject = ?")
                 params.append(subject)
             if status:
-                conditions.append("status = ?")
-                params.append(status)
+                conditions.append("LOWER(status) = ?")
+                params.append(status.lower())
             if authority:
                 conditions.append("authority = ?")
                 params.append(authority)
+            if content_type:
+                conditions.append("LOWER(content_type) = ?")
+                params.append(content_type.lower())
 
             where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
             sql = f"SELECT * FROM rag_sources {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?;"
             params.extend([limit, offset])
 
             rows = conn.execute(sql, params).fetchall()
-            results = []
-            for r in rows:
-                metadata = {}
-                if r["metadata_json"]:
-                    try:
-                        metadata = json.loads(r["metadata_json"])
-                    except Exception:
-                        pass
-                results.append(
-                    RAGSource(
-                        id=r["id"],
-                        organization_id=r["organization_id"],
-                        course_id=r["course_id"],
-                        subject=r["subject"],
-                        title=r["title"],
-                        source_type=r["source_type"],
-                        authority=r["authority"],
-                        version=r["version"],
-                        status=r["status"],
-                        checksum=r["checksum"] or "",
-                        metadata_json=metadata,
-                        chunk_count=r["chunk_count"],
-                        created_at=r["created_at"],
-                        updated_at=r["updated_at"],
-                    )
-                )
-            return results
+            return [self._row_to_rag_source(r) for r in rows]
+
 
     def update_rag_source(self, source: RAGSource) -> RAGSource:
         source.updated_at = datetime.now(timezone.utc).isoformat()
@@ -2457,7 +2460,7 @@ class PlatformDatabase:
             params: List[Any] = [course_id]
 
             if only_published:
-                conditions.append("rs.status = 'published'")
+                conditions.append("LOWER(rs.status) = 'published'")
             if subject:
                 conditions.append("rc.subject = ?")
                 params.append(subject)

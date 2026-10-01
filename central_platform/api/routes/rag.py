@@ -32,6 +32,29 @@ def get_rag_service() -> RAGService:
     return RAGService(db=db)
 
 
+def _build_source_response(s: RAGSource) -> RAGSourceResponse:
+    return RAGSourceResponse(
+        id=s.id,
+        organization_id=s.organization_id,
+        course_id=s.course_id,
+        subject=s.subject,
+        title=s.title,
+        source_type=s.source_type,
+        authority=s.authority,
+        version=s.version,
+        status=s.status,
+        checksum=s.checksum,
+        chunk_count=s.chunk_count,
+        content_type=s.content_type,
+        uploaded_by=s.uploaded_by,
+        published_by=s.published_by,
+        published_at=s.published_at,
+        error_message=s.error_message,
+        created_at=s.created_at,
+        updated_at=s.updated_at,
+    )
+
+
 @router.post("/sources", response_model=ApiResponse[RAGSourceResponse], status_code=status.HTTP_201_CREATED)
 async def create_rag_source(req: RAGSourceCreateRequest):
     """Register a new plug-and-play knowledge source for a course."""
@@ -45,25 +68,12 @@ async def create_rag_source(req: RAGSourceCreateRequest):
             source_type=req.source_type,
             authority=req.authority,
             version=req.version,
+            content_type=req.content_type,
             metadata=req.metadata,
         )
         return ApiResponse(
             ok=True,
-            data=RAGSourceResponse(
-                id=source.id,
-                organization_id=source.organization_id,
-                course_id=source.course_id,
-                subject=source.subject,
-                title=source.title,
-                source_type=source.source_type,
-                authority=source.authority,
-                version=source.version,
-                status=source.status,
-                checksum=source.checksum,
-                chunk_count=source.chunk_count,
-                created_at=source.created_at,
-                updated_at=source.updated_at,
-            ),
+            data=_build_source_response(source),
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -75,6 +85,7 @@ async def list_rag_sources(
     subject: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     authority: Optional[str] = Query(None),
+    content_type: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -85,29 +96,13 @@ async def list_rag_sources(
         subject=subject,
         status=status,
         authority=authority,
+        content_type=content_type,
         limit=limit,
         offset=offset,
     )
     return ApiResponse(
         ok=True,
-        data=[
-            RAGSourceResponse(
-                id=s.id,
-                organization_id=s.organization_id,
-                course_id=s.course_id,
-                subject=s.subject,
-                title=s.title,
-                source_type=s.source_type,
-                authority=s.authority,
-                version=s.version,
-                status=s.status,
-                checksum=s.checksum,
-                chunk_count=s.chunk_count,
-                created_at=s.created_at,
-                updated_at=s.updated_at,
-            )
-            for s in sources
-        ],
+        data=[_build_source_response(s) for s in sources],
     )
 
 
@@ -120,22 +115,9 @@ async def get_rag_source(source_id: str):
         raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
     return ApiResponse(
         ok=True,
-        data=RAGSourceResponse(
-            id=source.id,
-            organization_id=source.organization_id,
-            course_id=source.course_id,
-            subject=source.subject,
-            title=source.title,
-            source_type=source.source_type,
-            authority=source.authority,
-            version=source.version,
-            status=source.status,
-            checksum=source.checksum,
-            chunk_count=source.chunk_count,
-            created_at=source.created_at,
-            updated_at=source.updated_at,
-        ),
+        data=_build_source_response(source),
     )
+
 
 
 @router.post("/sources/{source_id}/ingest", response_model=ApiResponse[RAGIngestResponse])

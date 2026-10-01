@@ -178,7 +178,36 @@ This log records every development phase and architectural transition in chronol
 - **Remaining Risks:**
   - Course content packaging and manifest publishing gates (scheduled for Phase 05).
 
+---
 
-
-
-
+### [2026-10-01] — Phase 05: Knowledge Asset Ingestion & Publication Pipeline
+- **Driver:** Antigravity (Advanced Agentic Coding)
+- **Phase Goal:** Establish controlled multi-format academic asset ingestion, chunking, sanitization, role-based approval/publication gates, and guarantee the student visibility invariant.
+- **Changes Implemented:**
+  - `central_platform/models/schema.py`:
+    - Defined `KnowledgeContentType` enum (`TEXTBOOK`, `REFERENCE`, `TEACHER_NOTE`, `WORKSHEET`, `REMEDIAL`, `ASSESSMENT_SOURCE`, `SOLUTION_GUIDE`, `OTHER`).
+    - Expanded `RAGSourceStatus` / `KnowledgeAssetStatus` (`DRAFT`, `PROCESSING`, `INGESTED`, `VALIDATED`, `READY_FOR_REVIEW`, `APPROVED`, `PUBLISHED`, `ARCHIVED`, `FAILED`) with case-insensitive normalization.
+    - Extended `RAGSource` dataclass with `content_type`, `uploaded_by`, `published_by`, `published_at`, `error_message`.
+  - Database Migration 005:
+    - Added `migrations/005_knowledge_assets.sql` and `migrations/005_knowledge_assets_down.sql`.
+    - Tested forward application, full database rollback, and idempotent reapplication.
+  - `central_platform/db.py`:
+    - Updated `create_rag_source` and `get_rag_source` to persist and load new attributes.
+    - Updated `list_rag_sources` with `content_type` filtering and case-insensitive status matching.
+    - Updated `get_rag_chunks_by_course` with `LOWER(rs.status) = 'published'`.
+  - `central_platform/rag/service.py`:
+    - Implemented `upload_knowledge_asset()`: Teacher/Admin upload permitted, student upload forbidden (403 PermissionError), 10MB bounds check, automatic transition to `READY_FOR_REVIEW` on success or `FAILED` on parser error.
+    - Implemented `approve_knowledge_asset()`: Restricted strictly to `ORG_ADMIN` and `SUPER_ADMIN`.
+    - Implemented `publish_knowledge_asset()`: Sets `published_at` and `published_by`; failed assets cannot be published.
+    - Implemented `archive_knowledge_asset()`: Restricts access to admins or author.
+    - Updated `query()`: Enforced student visibility invariant where unpublished content in any state is completely hidden from student retrieval queries.
+  - `central_platform/api/schemas.py` and `central_platform/api/routes/rag.py`:
+    - Updated schemas and REST routes to expose `content_type` and publication metadata.
+  - Test Suite & Invariant Verification (`tests/test_phase05_knowledge_assets.py`):
+    - 12 comprehensive unit, integration, and security tests: multi-format ingestion (Markdown, JSON, Text), full lifecycle (`DRAFT/PROCESSING` -> `READY_FOR_REVIEW` -> `APPROVED` -> `PUBLISHED` -> `ARCHIVED`), malformed content failure isolation, student upload denial, non-admin approval denial, and zero-leakage student visibility invariant.
+  - Reports Generated: `docs/reports/PHASE_05_PLAN.md`, `docs/reports/PHASE_05_TEST_REPORT.md`, `docs/reports/PHASE_05_TEST_RESULTS.json`.
+- **Bugs Found & Fixed:**
+  - Case sensitivity in SQL status matching: Fixed with `LOWER(rs.status) = 'published'` to tolerate both uppercase and lowercase enum values.
+- **Tests Run:** 898 tests collected, 898 passed in 106.60s (100% green).
+- **Remaining Risks:**
+  - Cross-course teacher instruction scoping (scheduled for Phase 06).

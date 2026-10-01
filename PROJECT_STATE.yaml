@@ -1,30 +1,30 @@
 project: "Gayatri Platform — Course-Independent Architecture"
 current_branch: "master"
 current_commit: "0f8e178"
-phase: "PHASE 04 — COURSE-SCOPED STUDENT LEARNING STATE & SESSIONS"
+phase: "PHASE 05 — KNOWLEDGE ASSET INGESTION & PUBLICATION PIPELINE"
 phase_status: "VERIFIED"
 overall_status: "IN_PROGRESS"
 
 requirements:
-  course_independent: "IN_PROGRESS (Generic curriculum and multi-course state isolation verified)"
+  course_independent: "IN_PROGRESS (Generic curriculum, multi-course state, and knowledge assets pipeline verified)"
   public_private_courses: "VERIFIED (Public/Private visibility and org isolation enforced in CourseService)"
   versioned_content: "VERIFIED (CourseVersion model and GenericCurriculum DAG verified)"
-  content_approval: "NOT_STARTED (Scheduled Phase 5)"
+  content_approval: "VERIFIED (Teacher upload, ORG_ADMIN/SUPER_ADMIN approval and publication, student visibility invariant)"
   multi_course_students: "VERIFIED (Multi-course student learning record and mastery isolation verified)"
   scoped_teacher_instructions: "PARTIAL (Legacy instructions exist; hierarchical scoping scheduled Phase 7)"
   course_tools: "VERIFIED (CourseToolPolicy implemented with server-side enforcement and custom tool policy)"
-  online: "VERIFIED (FastAPI server active, 886 tests pass)"
+  online: "VERIFIED (FastAPI server active, 898 tests pass)"
   offline: "PARTIAL (SQLite functional; full offline package scheduled Phase 13)"
   sync: "PARTIAL (Basic sync tests pass; idempotent outbox scheduled Phase 14)"
 
 quality:
-  unit_tests: "886 tests passing (856 regression + 12 guards + 6 Phase 2 tests + 6 Phase 3 tests + 6 Phase 4 tests)"
-  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, 4-course curriculum, and multi-course state tested)"
+  unit_tests: "898 tests passing (856 regression + 12 guards + 6 Phase 2 tests + 6 Phase 3 tests + 6 Phase 4 tests + 12 Phase 5 tests)"
+  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, 4-course curriculum, multi-course state, and knowledge asset pipeline tested)"
   e2e_tests: "PARTIAL (Direct service flows verified; true UI->API->DB->RAG->AI boundary required in Phase 24)"
-  failure_tests: "VERIFIED (DAG cycle detection, missing prerequisite detection, negative validation gates, cross-course isolation)"
-  security_tests: "VERIFIED (Cross-org course visibility, offering access 403 authorization, and empty identity denial tested)"
-  static_checks: "VERIFIED (compileall 0 errors)"
-  migration_tests: "VERIFIED (Migration 004 up/down rollback and idempotent reapply tested)"
+  failure_tests: "VERIFIED (Malformed JSON failure, unpublishable failed assets, student visibility invariant, negative validation gates)"
+  security_tests: "VERIFIED (Student upload denial, non-admin approval denial, unpublished asset zero-leakage, cross-course isolation)"
+  static_checks: "VERIFIED (py_compile 0 errors)"
+  migration_tests: "VERIFIED (Migration 005 up/down rollback and idempotent reapply tested)"
 
 bugs:
   open_p0: 2
@@ -34,10 +34,11 @@ bugs:
 
 github:
   remote_sync: "ACTIVE (git push active to origin/master)"
-  last_issue: "Item 005 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
-  last_commit: "fc5dd18"
+  last_issue: "Item 006 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
+  last_commit: "pending Phase 05 commit"
   last_push: "origin/master"
-  last_update: "2026-10-01T20:38:00+05:30"
+  last_update: "2026-10-01T20:58:00+05:30"
 
-last_verified: "2026-10-01T20:38:00+05:30"
-test_report: "docs/reports/PHASE_04_TEST_REPORT.md"
+last_verified: "2026-10-01T20:58:00+05:30"
+test_report: "docs/reports/PHASE_05_TEST_REPORT.md"
+

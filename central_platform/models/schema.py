@@ -842,12 +842,48 @@ class AuditLog:
 
 # ── 9. Plug-and-Play RAG Knowledge Subsystem ────────────────────────────
 
+class KnowledgeContentType(str, Enum):
+    TEXTBOOK = "textbook"
+    REFERENCE = "reference"
+    TEACHER_NOTE = "teacher_note"
+    WORKSHEET = "worksheet"
+    REMEDIAL = "remedial"
+    ASSESSMENT_SOURCE = "assessment_source"
+    SOLUTION_GUIDE = "solution_guide"
+    OTHER = "other"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
 class RAGSourceStatus(str, Enum):
     DRAFT = "draft"
+    PROCESSING = "processing"
     INGESTED = "ingested"
     VALIDATED = "validated"
+    READY_FOR_REVIEW = "ready_for_review"
+    APPROVED = "approved"
     PUBLISHED = "published"
     ARCHIVED = "archived"
+    FAILED = "failed"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
+KnowledgeAssetStatus = RAGSourceStatus
 
 
 @dataclass
@@ -864,11 +900,21 @@ class RAGSource:
     checksum: str = ""
     metadata_json: Dict[str, Any] = field(default_factory=dict)
     chunk_count: int = 0
+    content_type: str = "textbook"
+    uploaded_by: Optional[str] = None
+    published_by: Optional[str] = None
+    published_at: Optional[str] = None
+    error_message: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        if isinstance(self.status, Enum):
+            d["status"] = self.status.value
+        if isinstance(self.content_type, Enum):
+            d["content_type"] = self.content_type.value
+        return d
 
 
 @dataclass

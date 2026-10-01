@@ -599,6 +599,7 @@ class RAGSourceCreateRequest(BaseModel):
     source_type: str = Field(default="text")
     authority: str = Field(default="NCERT")
     version: str = Field(default="1.0.0")
+    content_type: str = Field(default="textbook")
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -614,6 +615,11 @@ class RAGSourceResponse(BaseModel):
     status: str
     checksum: str = ""
     chunk_count: int = 0
+    content_type: str = "textbook"
+    uploaded_by: Optional[str] = None
+    published_by: Optional[str] = None
+    published_at: Optional[str] = None
+    error_message: Optional[str] = None
     created_at: str
     updated_at: str
 
