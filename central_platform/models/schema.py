@@ -401,6 +401,27 @@ class Enrollment:
         return asdict(self)
 
 
+@dataclass
+class CourseLearningContext:
+    """Authoritative scoped context binding a student to a specific course and version."""
+    student_id: str
+    course_id: str
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    course_offering_id: Optional[str] = None
+    cohort_id: Optional[str] = None
+    class_id: Optional[str] = None
+
+    def validate(self) -> None:
+        if not self.student_id or not str(self.student_id).strip():
+            raise ValueError("CourseLearningContext requires a non-empty student_id.")
+        if not self.course_id or not str(self.course_id).strip():
+            raise ValueError("CourseLearningContext requires a non-empty course_id.")
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
 # ── 4. Sessions & Granular Telemetry ─────────────────────────────────────
 
 @dataclass
@@ -412,6 +433,9 @@ class Session:
     status: SessionStatus = SessionStatus.ACTIVE
     started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     ended_at: Optional[str] = None
+    course_version_id: Optional[str] = None
+    course_offering_id: Optional[str] = None
+    class_id: Optional[str] = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -428,6 +452,7 @@ class LearningEvent:
     event_type: str = "question_attempted"
     organization_id: Optional[str] = None
     course_id: Optional[str] = None
+    course_version_id: Optional[str] = None
     source: str = "student_desktop"
     payload: Dict[str, Any] = field(default_factory=dict)
     score: Optional[float] = None
@@ -442,6 +467,7 @@ class LearningEvent:
         d = asdict(self)
         d["event_id"] = self.id
         return d
+
 
 
 # ── 5. Student Learning Records & Mastery ────────────────────────────────

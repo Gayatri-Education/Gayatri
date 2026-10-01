@@ -1010,8 +1010,22 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             status_val = session.status.value if isinstance(session.status, SessionStatus) else str(session.status)
             conn.execute(
-                "INSERT OR REPLACE INTO sessions (id, student_id, course_id, concept_id, status, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?);",
-                (session.id, session.student_id, session.course_id, session.concept_id, status_val, session.started_at, session.ended_at),
+                """
+                INSERT OR REPLACE INTO sessions 
+                (id, student_id, course_id, concept_id, status, started_at, ended_at, course_version_id, class_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    session.id,
+                    session.student_id,
+                    session.course_id,
+                    session.concept_id,
+                    status_val,
+                    session.started_at,
+                    session.ended_at,
+                    session.course_version_id,
+                    session.class_id,
+                ),
             )
         return session
 
@@ -1019,6 +1033,7 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             r = conn.execute("SELECT * FROM sessions WHERE id = ?;", (session_id,)).fetchone()
             if r:
+                keys = r.keys()
                 return Session(
                     id=r["id"],
                     student_id=r["student_id"],
@@ -1027,6 +1042,8 @@ class PlatformDatabase:
                     status=SessionStatus(r["status"]),
                     started_at=r["started_at"],
                     ended_at=r["ended_at"],
+                    course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+                    class_id=r["class_id"] if "class_id" in keys else None,
                 )
             return None
 
@@ -1039,24 +1056,36 @@ class PlatformDatabase:
             )
             return cursor.rowcount > 0
 
-    def get_sessions_for_student(self, student_id: str, limit: int = 20) -> List[Session]:
+    def get_sessions_for_student(self, student_id: str, course_id: Optional[str] = None, limit: int = 20) -> List[Session]:
         with self._get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT ?;",
-                (student_id, limit),
-            ).fetchall()
-            return [
-                Session(
-                    id=r["id"],
-                    student_id=r["student_id"],
-                    course_id=r["course_id"],
-                    concept_id=r["concept_id"],
-                    status=SessionStatus(r["status"]),
-                    started_at=r["started_at"],
-                    ended_at=r["ended_at"],
+            if course_id:
+                rows = conn.execute(
+                    "SELECT * FROM sessions WHERE student_id = ? AND course_id = ? ORDER BY started_at DESC LIMIT ?;",
+                    (student_id, course_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT ?;",
+                    (student_id, limit),
+                ).fetchall()
+            result = []
+            for r in rows:
+                keys = r.keys()
+                result.append(
+                    Session(
+                        id=r["id"],
+                        student_id=r["student_id"],
+                        course_id=r["course_id"],
+                        concept_id=r["concept_id"],
+                        status=SessionStatus(r["status"]),
+                        started_at=r["started_at"],
+                        ended_at=r["ended_at"],
+                        course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+                        class_id=r["class_id"] if "class_id" in keys else None,
+                    )
                 )
-                for r in rows
-            ]
+            return result
+
 
     def record_learning_event(self, event: LearningEvent) -> LearningEvent:
         with self._get_connection() as conn:
@@ -1157,12 +1186,14 @@ class PlatformDatabase:
             event_type=r["event_type"],
             organization_id=r["organization_id"] if "organization_id" in keys else None,
             course_id=r["course_id"] if "course_id" in keys else None,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
             source=r["source"] if "source" in keys and r["source"] else "student_desktop",
             payload=payload_data,
             score=float(r["score"]) if r["score"] is not None else None,
             schema_version=r["schema_version"] if "schema_version" in keys and r["schema_version"] else "1.0.0",
             created_at=r["created_at"],
         )
+
 
     # ── 5. Student Learning Records & Mastery ────────────────────────────────
 

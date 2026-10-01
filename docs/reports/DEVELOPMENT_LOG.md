@@ -135,8 +135,49 @@ This log records every development phase and architectural transition in chronol
   - `STABLE_ID_PATTERN` previously lacked `:` support, which would reject namespaced IDs. Resolved.
 - **Bugs Fixed:** 1 validation regex edge-case.
 - **Tests Run:** 880 tests collected, 880 passed in 105.67s.
+- **Remaining Risks:** None for Phase 03.
+
+---
+
+## Entry 005 — Phase 04: Course-Scoped Student Learning State & Sessions
+
+- **Timestamp:** 2026-10-01T20:38:00+05:30
+- **Phase:** `PHASE 04 — COURSE-SCOPED STUDENT LEARNING STATE & SESSIONS`
+- **Active Commit:** `fc5dd18`
+- **What Changed:**
+  - Implemented authoritative `CourseLearningContext` in `central_platform/models/schema.py`:
+    - Validates presence of non-empty `student_id` and `course_id`.
+    - Holds optional `organization_id`, `course_version_id`, `course_offering_id`, `cohort_id`, and `class_id`.
+  - Extended domain models in `central_platform/models/schema.py`:
+    - `Session`: Added `course_version_id`, `course_offering_id`, `class_id`.
+    - `LearningEvent`: Added `course_version_id`.
+  - Extended persistence layer in `central_platform/db.py`:
+    - Updated `create_session` and `get_session` to persist and retrieve `course_version_id` and `class_id`.
+    - Updated `get_sessions_for_student` to accept optional `course_id` parameter.
+    - Updated `_row_to_learning_event` to map `course_version_id`.
+  - Refactored `LearningStateManager` in `central_platform/learning/state.py`:
+    - Updated `SessionRuntimeState` and `CanonicalLearningState` to track `course_version_id`, `course_offering_id`, `class_id`.
+    - `get_canonical_state`: Enforced mandatory non-empty `course_id` and `student_id`. Partitioned SLRs and masteries by composite `(student_id, course_id)`.
+    - `update_mastery`: Strictly isolated mastery updates to the course-specific SLR.
+    - `initialize_session`: Added support for `CourseLearningContext` or explicit kwargs with validation gates.
+    - `log_event`: Bound session's `course_id` and `course_version_id` to events, with idempotent deduplication.
+    - `get_student_courses`: Added helper returning all distinct enrolled course IDs for a student.
+  - Updated `core/tutor/state.py`:
+    - Added optional `course_id: str = "chemistry"` to `StudentConceptMastery` and `LearningEvent` for backward compatibility.
+  - Implemented Comprehensive Test Suite `tests/test_phase04_course_learning_state.py`:
+    - Cross-course contamination test: Verified student practicing identical concept `"thermo"` in Chemistry and Physics achieves completely independent mastery records.
+    - Session and event isolation: Verified sessions and events in Course A do not bleed into Course B.
+    - Idempotent telemetry: Verified duplicate event IDs are ignored without double-counting.
+    - State persistence and exact recovery: Verified complete process restart restores exact multi-course state.
+    - Validation gates: Verified empty `course_id` or `student_id` raises `ValueError`.
+  - Generated reports: `docs/reports/PHASE_04_PLAN.md`, `docs/reports/PHASE_04_TEST_REPORT.md`, `docs/reports/PHASE_04_TEST_RESULTS.json`.
+- **Bugs Found:**
+  - `initialize_session` originally named its first argument `student_id_or_context` which broke callers expecting keyword argument `student_id`. Resolved with alias support.
+- **Bugs Fixed:** 1 parameter signature edge-case.
+- **Tests Run:** 886 tests collected, 886 passed in 85.51s.
 - **Remaining Risks:**
-  - Multi-course student learning record isolation (scheduled for Phase 04).
+  - Course content packaging and manifest publishing gates (scheduled for Phase 05).
+
 
 
 
