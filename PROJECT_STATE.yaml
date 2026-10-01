@@ -1,43 +1,43 @@
 project: "Gayatri Platform — Course-Independent Architecture"
 current_branch: "master"
-current_commit: "6edbf5e"
-phase: "PHASE 02 — CANONICAL COURSE, VERSION & OFFERING DOMAIN"
+current_commit: "db870df"
+phase: "PHASE 03 — GENERIC CURRICULUM & VERSIONED LEARNING GRAPH"
 phase_status: "VERIFIED"
 overall_status: "IN_PROGRESS"
 
 requirements:
-  course_independent: "IN_PROGRESS (Guards active; course domain established; curriculum scheduled Phase 3)"
+  course_independent: "IN_PROGRESS (Generic curriculum engine verified across Chemistry, Physics, History, Programming)"
   public_private_courses: "VERIFIED (Public/Private visibility and org isolation enforced in CourseService)"
-  versioned_content: "PARTIAL (CourseVersion model and migration 004 verified; DAG scheduled Phase 3)"
+  versioned_content: "VERIFIED (CourseVersion model and GenericCurriculum DAG verified)"
   content_approval: "NOT_STARTED (Scheduled Phase 5)"
   multi_course_students: "NOT_STARTED (Scheduled Phase 4)"
   scoped_teacher_instructions: "PARTIAL (Legacy instructions exist; hierarchical scoping scheduled Phase 7)"
   course_tools: "VERIFIED (CourseToolPolicy implemented with server-side enforcement and custom tool policy)"
-  online: "VERIFIED (FastAPI server active, 874 tests pass)"
+  online: "VERIFIED (FastAPI server active, 880 tests pass)"
   offline: "PARTIAL (SQLite functional; full offline package scheduled Phase 13)"
   sync: "PARTIAL (Basic sync tests pass; idempotent outbox scheduled Phase 14)"
 
 quality:
-  unit_tests: "874 tests passing (856 regression + 12 architecture guards + 6 Phase 2 tests)"
-  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, and migration rollback tested)"
+  unit_tests: "880 tests passing (856 regression + 12 guards + 6 Phase 2 tests + 6 Phase 3 tests)"
+  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, 4-course curriculum ingestion tested)"
   e2e_tests: "PARTIAL (Direct service flows verified; true UI->API->DB->RAG->AI boundary required in Phase 24)"
-  failure_tests: "VERIFIED (Negative permission tests, illegal tool access denial, duplicate code denial)"
+  failure_tests: "VERIFIED (DAG cycle detection, missing prerequisite detection, negative tool/course authorization)"
   security_tests: "VERIFIED (Cross-org course visibility and offering access 403 authorization tested)"
   static_checks: "VERIFIED (compileall 0 errors)"
   migration_tests: "VERIFIED (Migration 004 up/down rollback and idempotent reapply tested)"
 
 bugs:
-  open_p0: 3
+  open_p0: 2
   open_p1: 2
   open_p2: 0
   open_p3: 0
 
 github:
   remote_sync: "ACTIVE (git push active to origin/master)"
-  last_issue: "Item 003 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
-  last_commit: "48e5e5f"
+  last_issue: "Item 004 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
+  last_commit: "db870df"
   last_push: "origin/master"
-  last_update: "2026-10-01T17:50:00+05:30"
+  last_update: "2026-10-01T19:07:00+05:30"
 
-last_verified: "2026-10-01T17:50:00+05:30"
-test_report: "docs/reports/PHASE_02_TEST_REPORT.md"
+last_verified: "2026-10-01T19:07:00+05:30"
+test_report: "docs/reports/PHASE_03_TEST_REPORT.md"

@@ -1,0 +1,110 @@
+{
+  "subject": "History",
+  "course_id": "world_history_intro",
+  "version": "1.0",
+  "title": "Survey of World History: Ancient to Modern Era",
+  "description": "Comprehensive historical analysis of ancient civilizations, state formations, revolutions, and modern transformations",
+  "modules": [
+    {
+      "id": "hist_mod_ancient",
+      "name": "Ancient Civilizations & Classical States",
+      "sequence_order": 1,
+      "topics": [
+        {
+          "id": "hist_top_near_east",
+          "name": "Early Civilizations of the Near East",
+          "sequence_order": 1,
+          "concepts": [
+            {
+              "id": "hist_fertile_crescent",
+              "name": "The Fertile Crescent & Agricultural Revolution",
+              "description": "Transition from foraging to agrarian settlements along the Tigris and Euphrates rivers",
+              "difficulty": 0.2,
+              "prerequisites": [],
+              "keywords": ["fertile crescent", "mesopotamia", "agriculture", "neolithic revolution", "sumer"],
+              "aliases": ["neolithic transition", "rise of agriculture"],
+              "domain": "Ancient History",
+              "chapter": "Origins of Civilization"
+            },
+            {
+              "id": "hist_hammurabi_code",
+              "name": "Code of Hammurabi and Early Codified Law",
+              "description": "Babylonian legal principles, lex talionis, social stratifications and civil jurisprudence",
+              "difficulty": 0.3,
+              "prerequisites": ["hist_fertile_crescent"],
+              "keywords": ["hammurabi", "babylon", "legal code", "codified law", "lex talionis", "cuneiform"],
+              "aliases": ["hammurabi's code", "ancient babylonian law"],
+              "domain": "Ancient History",
+              "chapter": "Early Empires"
+            }
+          ]
+        },
+        {
+          "id": "hist_top_mediterranean",
+          "name": "Classical Mediterranean Antiquity",
+          "sequence_order": 2,
+          "concepts": [
+            {
+              "id": "hist_roman_republic",
+              "name": "The Roman Republic & Constitutional Structure",
+              "description": "Senate, magistrates, tribunes of the plebs, checks and balances, and civic expansion",
+              "difficulty": 0.4,
+              "prerequisites": ["hist_hammurabi_code"],
+              "keywords": ["roman republic", "senate", "consuls", "patricians", "plebeians", "twelve tables"],
+              "aliases": ["republican rome", "roman constitution"],
+              "domain": "Classical Antiquity",
+              "chapter": "The Roman World"
+            },
+            {
+              "id": "hist_roman_empire",
+              "name": "The Roman Empire & Pax Romana",
+              "description": "Transition from republic to principate under Augustus, imperial administration, and provincial integration",
+              "difficulty": 0.5,
+              "prerequisites": ["hist_roman_republic"],
+              "keywords": ["roman empire", "augustus", "principate", "pax romana", "caesar"],
+              "aliases": ["imperial rome", "the principate"],
+              "domain": "Classical Antiquity",
+              "chapter": "The Roman World"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hist_mod_modern",
+      "name": "The Modern World and Global Revolutions",
+      "sequence_order": 2,
+      "topics": [
+        {
+          "id": "hist_top_transformations",
+          "name": "Enlightenment and Industrialization",
+          "sequence_order": 1,
+          "concepts": [
+            {
+              "id": "hist_enlightenment",
+              "name": "The Enlightenment and Social Contract Theory",
+              "description": "Philosophical principles of Locke, Rousseau, Montesquieu; rationalism, individual liberty, and governance",
+              "difficulty": 0.5,
+              "prerequisites": [],
+              "keywords": ["enlightenment", "social contract", "locke", "rousseau", "montesquieu", "liberty", "rationalism"],
+              "aliases": ["age of reason", "enlightenment philosophy"],
+              "domain": "Modern History",
+              "chapter": "The Age of Revolutions"
+            },
+            {
+              "id": "hist_industrial_revolution",
+              "name": "The Industrial Revolution and Urban Transformation",
+              "description": "Mechanization of production, steam engine, factory system, capitalist expansion, and demographic shifts",
+              "difficulty": 0.5,
+              "prerequisites": ["hist_enlightenment"],
+              "keywords": ["industrial revolution", "steam power", "factory system", "urbanization", "mechanization"],
+              "aliases": ["first industrial revolution", "industrialization"],
+              "domain": "Modern History",
+              "chapter": "The Industrial Age"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

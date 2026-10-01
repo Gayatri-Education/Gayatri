@@ -114,7 +114,61 @@ class LearningGraph:
             "missing_prerequisites": missing,
         }
 
+    @staticmethod
+    def validate_curriculum_dag(curriculum: Any) -> Dict[str, Any]:
+        """Validate an in-memory GenericCurriculum for cycles, missing prereqs, and orphan concepts."""
+        concepts = curriculum.all_concepts() if hasattr(curriculum, "all_concepts") else []
+        cid_set = {c.id for c in concepts}
+        adj = {c.id: list(c.prerequisites) for c in concepts}
+
+        # 1. Missing prerequisites
+        missing = []
+        for c in concepts:
+            for p in c.prerequisites:
+                if p not in cid_set:
+                    missing.append({"concept_id": c.id, "missing_prerequisite": p})
+
+        # 2. Cycle detection using DFS with recursion stack
+        visited: Dict[str, int] = {}
+        cycles = []
+
+        def dfs(node: str, path: List[str]):
+            visited[node] = 1  # in progress
+            for neighbor in adj.get(node, []):
+                if neighbor not in cid_set:
+                    continue
+                if visited.get(neighbor) == 1:
+                    cycles.append((node, neighbor))
+                elif visited.get(neighbor) != 2:
+                    dfs(neighbor, path + [neighbor])
+            visited[node] = 2  # done
+
+        for cid in cid_set:
+            if visited.get(cid) is None:
+                dfs(cid, [cid])
+
+        # 3. Orphan detection
+        dependents: Dict[str, List[str]] = {cid: [] for cid in cid_set}
+        for cid, prereqs in adj.items():
+            for p in prereqs:
+                if p in dependents:
+                    dependents[p].append(cid)
+
+        orphans = []
+        if len(cid_set) > 1:
+            for cid in cid_set:
+                if not adj.get(cid) and not dependents.get(cid):
+                    orphans.append(cid)
+
+        return {
+            "valid": len(cycles) == 0 and len(missing) == 0,
+            "cycles": cycles,
+            "missing_prerequisites": missing,
+            "orphan_concepts": orphans,
+        }
+
     def get_concept_node_state(
+
         self,
         student_id: str,
         course_id: str,

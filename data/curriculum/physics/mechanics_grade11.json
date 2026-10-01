@@ -1,0 +1,110 @@
+{
+  "subject": "Physics",
+  "course_id": "physics_grade11",
+  "version": "1.0",
+  "title": "Grade 11 Classical Mechanics & Thermodynamics",
+  "description": "Foundational classical physics covering kinematics, dynamics, energy, gravitation, and thermal physics",
+  "modules": [
+    {
+      "id": "phys_mod_kinematics",
+      "name": "Kinematics",
+      "sequence_order": 1,
+      "topics": [
+        {
+          "id": "phys_top_motion_1d",
+          "name": "One-Dimensional Motion",
+          "sequence_order": 1,
+          "concepts": [
+            {
+              "id": "phys_vectors",
+              "name": "Vectors and Scalars",
+              "description": "Vector addition, resolution of components, dot and cross products",
+              "difficulty": 0.3,
+              "prerequisites": [],
+              "keywords": ["vector", "scalar", "magnitude", "direction", "unit vector", "dot product", "cross product"],
+              "aliases": ["vector mathematics", "vector components"],
+              "domain": "Classical Mechanics",
+              "chapter": "Motion in a Straight Line"
+            },
+            {
+              "id": "phys_kinematics_1d",
+              "name": "Kinematic Equations in 1D",
+              "description": "Displacement, velocity, uniform acceleration equations: v = u + at, s = ut + 0.5at^2",
+              "difficulty": 0.4,
+              "prerequisites": ["phys_vectors"],
+              "keywords": ["kinematics", "velocity", "acceleration", "displacement", "free fall"],
+              "aliases": ["equations of motion", "rectilinear motion"],
+              "domain": "Classical Mechanics",
+              "chapter": "Motion in a Straight Line"
+            }
+          ]
+        },
+        {
+          "id": "phys_top_projectile",
+          "name": "Two-Dimensional Motion",
+          "sequence_order": 2,
+          "concepts": [
+            {
+              "id": "phys_projectile",
+              "name": "Projectile Motion",
+              "description": "Trajectory, time of flight, horizontal range, maximum height under gravity",
+              "difficulty": 0.5,
+              "prerequisites": ["phys_kinematics_1d"],
+              "keywords": ["projectile", "trajectory", "range", "flight time", "parabolic motion"],
+              "aliases": ["motion in a plane", "2d kinematics"],
+              "domain": "Classical Mechanics",
+              "chapter": "Motion in a Plane"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phys_mod_dynamics",
+      "name": "Laws of Motion & Energy",
+      "sequence_order": 2,
+      "topics": [
+        {
+          "id": "phys_top_newton",
+          "name": "Newtonian Dynamics",
+          "sequence_order": 1,
+          "concepts": [
+            {
+              "id": "phys_newton_laws",
+              "name": "Newton's Laws of Motion",
+              "description": "Inertia, F = ma, action-reaction pairs, momentum conservation",
+              "difficulty": 0.4,
+              "prerequisites": ["phys_kinematics_1d"],
+              "keywords": ["newton's laws", "newton", "inertia", "force", "momentum", "action reaction", "f=ma"],
+              "aliases": ["laws of motion", "newtonian mechanics"],
+              "domain": "Classical Mechanics",
+              "chapter": "Laws of Motion"
+            },
+            {
+              "id": "phys_work_energy",
+              "name": "Work-Energy Theorem",
+              "description": "Work done by conservative and non-conservative forces, kinetic energy, potential energy",
+              "difficulty": 0.5,
+              "prerequisites": ["phys_newton_laws"],
+              "keywords": ["work", "kinetic energy", "potential energy", "work energy theorem", "conservative force"],
+              "aliases": ["energy theorem", "conservation of energy"],
+              "domain": "Classical Mechanics",
+              "chapter": "Work, Energy and Power"
+            },
+            {
+              "id": "phys_gravitation",
+              "name": "Universal Gravitation",
+              "description": "Newton's law of universal gravitation, gravitational potential, orbital velocity, Kepler's laws",
+              "difficulty": 0.5,
+              "prerequisites": ["phys_work_energy"],
+              "keywords": ["gravitation", "gravity", "kepler's laws", "escape velocity", "orbital motion"],
+              "aliases": ["gravitational force", "celestial mechanics"],
+              "domain": "Classical Mechanics",
+              "chapter": "Gravitation"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

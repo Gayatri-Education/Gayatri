@@ -91,8 +91,53 @@ This log records every development phase and architectural transition in chronol
   - Rollback bug in SQLite where dropping a table left altered columns in `courses` and `sessions`, causing rerun failures. Fixed in `004_course_domain_model_down.sql`.
 - **Bugs Fixed:** 1 SQLite rollback edge-case.
 - **Tests Run:** 874 tests collected (856 regression + 12 guards + 6 Phase 2 tests), 874 passed in 91.27s.
+- **Remaining Risks:** None for Phase 02.
+
+---
+
+## Entry 004 — Phase 03: Generic Curriculum & Versioned Learning Graph
+
+- **Timestamp:** 2026-10-01T19:07:00+05:30
+- **Phase:** `PHASE 03 — GENERIC CURRICULUM & VERSIONED LEARNING GRAPH`
+- **Active Commit:** `db870df`
+- **What Changed:**
+  - Implemented canonical generic curriculum domain models in `core/curriculum/models.py`:
+    - `GenericConcept`, `GenericTopic`, `GenericModule`, and `GenericCurriculum`.
+    - Canonical namespacing helpers `format_concept_id(course_id, version_id, concept_key)` producing collision-free keys (`course:<cid>:version:<vid>:concept:<key>`).
+    - Bidirectional parsing helper `parse_concept_id()` handling both modern namespaced formats and legacy keys (`chem_*`, `thermo.*`).
+  - Decoupled Chemistry concept knowledge into dedicated `core/curriculum/chemistry_adapter.py`:
+    - Isolated `CHEMISTRY_CONCEPT_KEYWORD_MAP` from generic core.
+    - Added `ChemistryCurriculumAdapter` with toggleable runtime enablement (`is_enabled`).
+  - Generalized `ConceptResolver` in `core/curriculum/resolver.py`:
+    - Added course-scoped registry (`register_curriculum`, `get_curriculum`, `clear_curricula`).
+    - Multi-stage resolution: Course curriculum keywords/aliases/names → Chemistry adapter fallback (for backwards compatibility) → student learning history → neutral undetermined fallback (`general_undetermined`).
+  - Extensible `CurriculumValidator` in `core/curriculum/validator.py`:
+    - Updated `STABLE_ID_PATTERN` to support colon (`:`) characters in canonical namespaced concept IDs.
+    - Replaced hardcoded `ALLOWED_DOMAINS` restriction with data-driven configuration.
+  - Extensible Generic Ingestion Engine in `core/curriculum/loader.py`:
+    - Added `load_generic_curriculum()` supporting nested modules/topics as well as flat concept catalogs.
+  - Implemented Canonical Four-Course Curriculum Fixtures:
+    - Chemistry: `data/curriculum/chemistry/ncert_class11_12.json`
+    - Physics: `data/curriculum/physics/mechanics_grade11.json`
+    - History: `data/curriculum/history/world_history.json`
+    - Programming: `data/curriculum/programming/intro_cs.json`
+  - Scoped DAG and Cycle Detection in `central_platform/learning/graph.py`:
+    - Added `validate_curriculum_dag()` supporting DFS cycle detection, missing prerequisite detection, and orphan node detection.
+  - Created Comprehensive Test Suite `tests/test_phase03_generic_curriculum.py`:
+    - Four-course ingestion test.
+    - Cross-course resolution test (Physics, History, Programming, Chemistry).
+    - Phase gate test: verified complete platform functionality with Chemistry adapter disabled.
+    - Namespaced collision resistance test.
+    - DAG cycle and missing prerequisite injection test.
+    - Multi-hop prerequisite dependency traversal test.
+  - Generated reports: `docs/reports/PHASE_03_PLAN.md`, `docs/reports/PHASE_03_TEST_REPORT.md`, `docs/reports/PHASE_03_TEST_RESULTS.json`.
+- **Bugs Found:**
+  - `STABLE_ID_PATTERN` previously lacked `:` support, which would reject namespaced IDs. Resolved.
+- **Bugs Fixed:** 1 validation regex edge-case.
+- **Tests Run:** 880 tests collected, 880 passed in 105.67s.
 - **Remaining Risks:**
-  - Namespacing existing concept keys across chapters when implementing Phase 03 curriculum DAG.
+  - Multi-course student learning record isolation (scheduled for Phase 04).
+
 
 
 
