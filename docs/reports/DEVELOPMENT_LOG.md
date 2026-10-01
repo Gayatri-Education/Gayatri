@@ -42,18 +42,24 @@ This log records every development phase and architectural transition in chronol
 
 ## Entry 002 — Phase 01: Architecture Freeze
 
-- **Timestamp:** 2026-10-01T11:28:30+05:30
-- **Phase:** `PHASE 01 — ARCHITECTURE FREEZE`
-- **Active Commit:** `bf47a63273e936b7617937be199e44efb4d9cb5d`
+- **Timestamp:** 2026-10-01T17:43:30+05:30
+- **Phase:** `PHASE 01 — ARCHITECTURE CONTRACT & REPOSITORY GUARDRAILS`
+- **Active Commit:** `f9854f8`
 - **What Changed:**
-  - Created and locked `docs/ARCHITECTURE_TARGET.md` defining Generic Tutor Core, Dual-Mode Online/Offline execution, AI Gateway, Learning Engine, Scoped Instructions, and Chemistry Domain Adapter.
-  - Created and locked `docs/DATA_MODEL_TARGET.md` establishing relational schema (unified SQLite/PostgreSQL DDL), canonical Python dataclasses, and composite identities (`student_id`, `course_id`, `course_version_id`, `concept_id`).
-  - Created and locked `docs/SECURITY_MODEL_TARGET.md` formalizing multi-tenant authorization matrix, pre-retrieval RAG filtering, server-side tool validation, and prompt injection structural firewalls.
-  - Created and locked `docs/TESTING_STRATEGY_TARGET.md` detailing 5-level testing pyramid, formal specifications for mandatory Acceptance Journeys A through G, anti-false-green testing guidelines, and static architecture guard definitions.
-  - Published `docs/reports/PHASE_01_TEST_REPORT.md` and `docs/reports/PHASE_01_TEST_RESULTS.json`.
+  - Locked all 4 target specifications: `docs/ARCHITECTURE_TARGET.md`, `docs/DATA_MODEL_TARGET.md`, `docs/SECURITY_MODEL_TARGET.md`, `docs/TESTING_STRATEGY_TARGET.md`.
+  - Created `docs/AGENT_DEVELOPMENT_RULES.md` formalizing agent discipline and non-negotiable coding invariants.
+  - Implemented automated architecture guard suite in `tests/architecture/` (12 tests):
+    - `test_anti_chemistry_coupling.py`: Asserts 0 chemistry keywords in `central_platform/courses/`.
+    - `test_anti_demo_roster.py`: Asserts 0 hardcoded demo users in courses & models.
+    - `test_anti_legacy_imports.py`: Asserts 0 legacy imports in `central_platform/` and bounds legacy to known decommission list.
+    - `test_migration_integrity.py`: Asserts all migrations have matching down scripts and no duplicate `CREATE TABLE` statements.
+    - `test_model_config_registry.py`: Asserts model manifest and configuration integrity.
+  - Updated `.github/workflows/ci.yml` to trigger on both `main` and `master`, verifying compile hygiene and architecture guards.
+  - Generated `docs/reports/PHASE_01_TEST_REPORT.md` and `docs/reports/PHASE_01_TEST_RESULTS.json`.
 - **Bugs Found:** 0 new bugs.
-- **Bugs Fixed:** 0 (Architecture definition phase; no code changes).
-- **Tests Run:** Target documentation audited for internal consistency and cross-contract alignment.
+- **Bugs Fixed:** BUG-ARCH-005 (resolved duplicate `assignments` table in `migrations/001_initial_schema.sql`).
+- **Tests Run:** 12 architecture guard tests collected, 12 passed in 4.35s (`pytest tests/architecture -v`). Bytecode compilation passed with 0 errors across 600+ files.
 - **Remaining Risks:**
-  - Maintaining backward compatibility for existing 856 tests as course domain models are introduced in Phase 2.
+  - Refactoring generic curriculum and state without disturbing existing course-dependent tests.
+
 

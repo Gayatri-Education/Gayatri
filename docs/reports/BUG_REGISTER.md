@@ -85,11 +85,11 @@
 - **Expected:** Each table defined exactly once in canonical DDL.
 - **Actual:** `assignments` table defined twice with differing column definitions.
 - **Root Cause:** Merge conflict concatenation in initial migration file.
-- **Fix:** Deduplicate and consolidate `assignments` table definition into a single authoritative schema.
-- **Test:** Migration idempotency and schema validation test on clean database.
-- **Verification:** Pending (Scheduled for Phase 2).
+- **Fix:** Deduplicated and consolidated `assignments` table definition into a single authoritative schema in `migrations/001_initial_schema.sql`.
+- **Test:** Migration integrity architecture guard test (`tests/architecture/test_migration_integrity.py`).
+- **Verification:** **VERIFIED FIXED** (Migration integrity test passes; zero duplicate tables).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
-- **Status:** CONFIRMED.
+- **Status:** VERIFIED.
 
 ---
 
