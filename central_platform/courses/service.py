@@ -17,6 +17,7 @@ from typing import List, Optional
 
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import (
+    AuditLog,
     Course,
     CourseOffering,
     CoursePolicy,
@@ -49,6 +50,28 @@ class CourseService:
 
     def __init__(self, db: Optional[PlatformDatabase] = None) -> None:
         self.db = db or PlatformDatabase()
+
+    def _record_audit(
+        self,
+        actor: User,
+        action: str,
+        target: str,
+        org_id: Optional[str] = None,
+        details: Optional[dict] = None,
+    ) -> None:
+        try:
+            self.db.record_audit_log(
+                AuditLog(
+                    id=f"aud_{uuid.uuid4().hex[:12]}",
+                    organization_id=org_id or actor.organization_id or "system",
+                    user_id=actor.id,
+                    action=action,
+                    resource=target,
+                    details=details or {},
+                )
+            )
+        except Exception:
+            pass
 
     def create_course(
         self,
@@ -104,6 +127,14 @@ class CourseService:
             pinned_version_id=version_id,
         )
         self.db.create_course_offering(offering)
+
+        self._record_audit(
+            actor,
+            "CREATE_COURSE",
+            f"Course:{course_id}",
+            org_id,
+            {"code": code, "title": title, "visibility": visibility.value if hasattr(visibility, "value") else str(visibility)},
+        )
 
         return course
 
@@ -182,7 +213,15 @@ class CourseService:
             checksum=checksum,
             created_by=actor.id,
         )
-        return self.db.create_course_version(version)
+        created_ver = self.db.create_course_version(version)
+        self._record_audit(
+            actor,
+            "CREATE_COURSE_VERSION",
+            f"CourseVersion:{version.id}",
+            course.organization_id,
+            {"course_id": course_id, "version_number": version_number},
+        )
+        return created_ver
 
     def submit_version_for_review(self, actor: User, version_id: str) -> CourseVersion:
         """Submit a draft/processing version for administrative review."""
@@ -208,7 +247,15 @@ class CourseService:
             created_by=version.created_by,
             created_at=version.created_at,
         )
-        return self.db.create_course_version(updated_version)
+        saved_ver = self.db.create_course_version(updated_version)
+        self._record_audit(
+            actor,
+            "SUBMIT_VERSION_FOR_REVIEW",
+            f"CourseVersion:{version.id}",
+            course.organization_id,
+            {"course_id": version.course_id, "version_number": version.version_number},
+        )
+        return saved_ver
 
     def approve_and_publish_version(self, actor: User, version_id: str) -> CourseVersion:
         """Approve and publish a course version. Requires ORG_ADMIN or SUPER_ADMIN role."""
@@ -224,6 +271,13 @@ class CourseService:
             raise CourseAuthorizationError("Cannot approve courses belonging to another organization.")
 
         self.db.publish_course_version(version_id, published_by=actor.id)
+        self._record_audit(
+            actor,
+            "APPROVE_AND_PUBLISH_VERSION",
+            f"CourseVersion:{version_id}",
+            course.organization_id,
+            {"course_id": version.course_id, "version_number": version.version_number},
+        )
         return self.db.get_course_version(version_id)
 
     def select_course_for_org(
@@ -262,7 +316,83 @@ class CourseService:
             course_id=course_id,
             pinned_version_id=pinned_version_id,
         )
-        return self.db.create_course_offering(offering)
+        saved_off = self.db.create_course_offering(offering)
+        self._record_audit(
+            actor,
+            "SELECT_COURSE_OFFERING",
+            f"CourseOffering:{offering_id}",
+            organization_id,
+            {"course_id": course_id, "pinned_version_id": pinned_version_id},
+        )
+        return saved_off
+
+    def archive_course(self, actor: User, course_id: str) -> bool:
+        """Archive / soft-delete a course. Requires ORG_ADMIN or SUPER_ADMIN role."""
+        if actor.role not in (UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN):
+            raise CourseAuthorizationError("Only Organization Admins or Super Admins can archive courses.")
+        course = self.db.get_course(course_id)
+        if not course:
+            raise CourseNotFoundError(f"Course '{course_id}' not found.")
+        if actor.role != UserRole.SUPER_ADMIN and actor.organization_id != course.organization_id:
+            raise CourseAuthorizationError("Cannot archive courses belonging to another organization.")
+        ok = self.db.archive_course(course_id)
+        if ok:
+            self._record_audit(
+                actor,
+                "ARCHIVE_COURSE",
+                f"Course:{course_id}",
+                course.organization_id,
+                {"code": course.code, "title": course.title},
+            )
+        return ok
+
+    def archive_course_version(self, actor: User, version_id: str) -> CourseVersion:
+        """Archive a course version. Requires ORG_ADMIN or SUPER_ADMIN role."""
+        if actor.role not in (UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN):
+            raise CourseAuthorizationError("Only Organization Admins or Super Admins can archive course versions.")
+        version = self.db.get_course_version(version_id)
+        if not version:
+            raise CourseNotFoundError(f"Course version '{version_id}' not found.")
+        course = self.get_course(actor, version.course_id)
+        if actor.role != UserRole.SUPER_ADMIN and actor.organization_id != course.organization_id:
+            raise CourseAuthorizationError("Cannot archive versions belonging to another organization.")
+        self.db.archive_course_version(version_id, archived_by=actor.id)
+        self._record_audit(
+            actor,
+            "ARCHIVE_COURSE_VERSION",
+            f"CourseVersion:{version_id}",
+            course.organization_id,
+            {"course_id": version.course_id, "version_number": version.version_number},
+        )
+        return self.db.get_course_version(version_id)
+
+    def get_review_queue(self, actor: User, organization_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Retrieve course versions pending administrative review with tenant scoping."""
+        if actor.role not in (UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN):
+            raise CourseAuthorizationError("Only Organization Admins and Super Admins can view the review queue.")
+
+        target_org = organization_id if actor.role == UserRole.SUPER_ADMIN else actor.organization_id
+        pending_versions = self.db.get_course_versions_by_status(CourseStatus.READY_FOR_REVIEW, organization_id=target_org)
+
+        queue: List[Dict[str, Any]] = []
+        for v in pending_versions:
+            course = self.db.get_course(v.course_id)
+            if not course:
+                continue
+            created_at_str = v.created_at.isoformat() if hasattr(v.created_at, "isoformat") else str(v.created_at or "")
+            queue.append({
+                "version_id": v.id,
+                "course_id": v.course_id,
+                "course_code": course.code,
+                "course_title": course.title,
+                "version_number": v.version_number,
+                "status": v.status.value if hasattr(v.status, "value") else str(v.status),
+                "created_by": v.created_by,
+                "created_at": created_at_str,
+                "organization_id": course.organization_id,
+                "visibility": course.visibility.value if hasattr(course.visibility, "value") else str(course.visibility),
+            })
+        return queue
 
     def get_active_course_version(self, organization_id: str, course_id: str) -> Optional[CourseVersion]:
         """Resolve the active course version pinned by the organization offering."""
@@ -278,3 +408,4 @@ class CourseService:
         if not version or not version.tool_policy:
             return False
         return version.tool_policy.is_tool_enabled(tool_name)
+

@@ -322,6 +322,27 @@ class CourseVersionApiResponse(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
+class CourseArchiveResponse(BaseModel):
+    ok: bool = True
+    course_id: str
+    status: str = "ARCHIVED"
+    message: str = "Course successfully archived"
+
+
+class CourseReviewQueueItemResponse(BaseModel):
+    version_id: str
+    course_id: str
+    course_code: str
+    course_title: str
+    version_number: str
+    status: str
+    created_by: str
+    created_at: str
+    organization_id: Optional[str] = None
+    visibility: str = "PRIVATE"
+
+
+
 class EnrollmentCreateRequest(BaseModel):
     student_id: str = Field(..., min_length=1)
     course_id: str = Field(..., min_length=1)

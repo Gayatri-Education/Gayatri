@@ -42,15 +42,9 @@ from central_platform.models.schema import User, UserRole
 router = APIRouter(prefix="/curricula", tags=["Curricula"])
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
-_curriculum_service: Optional[CurriculumService] = None
-
-
 def get_curriculum_service() -> CurriculumService:
-    global _curriculum_service
-    if _curriculum_service is None:
-        db = get_db()
-        _curriculum_service = CurriculumService(db)
-    return _curriculum_service
+    db = get_db()
+    return CurriculumService(db)
 
 
 def _enforce_authoring_auth(current_user: Optional[User]) -> User:

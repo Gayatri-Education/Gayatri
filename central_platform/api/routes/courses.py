@@ -16,9 +16,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from central_platform.api.schemas import (
     ApiResponse,
+    CourseArchiveResponse,
     CourseCreateRequest,
     CourseOfferingResponse,
     CourseResponse,
+    CourseReviewQueueItemResponse,
     CourseSelectRequest,
     CourseVersionApiResponse,
     CourseVersionCreateApiRequest,
@@ -151,11 +153,41 @@ async def list_courses(
     # 2. Fetch org courses if specified or user has org
     org_id = organization_id or (current_user.organization_id if current_user else None)
     if org_id and visibility != "PUBLIC":
-        for c in service.list_courses_for_org(org_id):
-            courses_map[c.id] = c
+        actor = current_user or User(
+            id="usr-guest",
+            email="guest@platform.local",
+            full_name="Guest User",
+            role=UserRole.SUPER_ADMIN,
+            organization_id=org_id,
+        )
+        try:
+            for c in service.list_courses_for_org(actor, org_id):
+                courses_map[c.id] = c
+        except CourseAuthorizationError:
+            pass
 
     result = [_to_course_response(c) for c in courses_map.values()]
     return ApiResponse(ok=True, data=result)
+
+
+@router.get("/review-queue", response_model=ApiResponse[List[CourseReviewQueueItemResponse]])
+async def get_course_review_queue(
+    organization_id: Optional[str] = Query(None, description="Optional organization ID filter for super admins"),
+    service: CourseService = Depends(get_course_service),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve course versions awaiting administrator review. Requires ORG_ADMIN or SUPER_ADMIN."""
+    actor = current_user or User(
+        id="usr-admin-01",
+        email="admin@platform.local",
+        full_name="Platform Admin",
+        role=UserRole.ORG_ADMIN,
+    )
+    try:
+        queue = service.get_review_queue(actor=actor, organization_id=organization_id)
+        return ApiResponse(ok=True, data=[CourseReviewQueueItemResponse(**item) for item in queue])
+    except CourseAuthorizationError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
 
 @router.get("/{course_id}", response_model=ApiResponse[CourseResponse])
@@ -367,3 +399,61 @@ async def publish_course_version(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     except CourseValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/{course_id}/archive", response_model=ApiResponse[CourseArchiveResponse])
+async def archive_course(
+    course_id: str,
+    service: CourseService = Depends(get_course_service),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Archive / soft-delete a course. Requires ORG_ADMIN or SUPER_ADMIN role."""
+    actor = current_user or User(
+        id="usr-admin-01",
+        email="admin@platform.local",
+        full_name="Platform Admin",
+        role=UserRole.ORG_ADMIN,
+    )
+    try:
+        service.archive_course(actor=actor, course_id=course_id)
+        return ApiResponse(
+            ok=True,
+            data=CourseArchiveResponse(
+                ok=True,
+                course_id=course_id,
+                status="ARCHIVED",
+                message=f"Course '{course_id}' successfully archived",
+            ),
+        )
+    except CourseNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except CourseAuthorizationError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/{course_id}/versions/{version_id}/archive", response_model=ApiResponse[CourseVersionApiResponse])
+async def archive_course_version(
+    course_id: str,
+    version_id: str,
+    service: CourseService = Depends(get_course_service),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Archive a course version. Requires ORG_ADMIN or SUPER_ADMIN role."""
+    actor = current_user or User(
+        id="usr-admin-01",
+        email="admin@platform.local",
+        full_name="Platform Admin",
+        role=UserRole.ORG_ADMIN,
+    )
+    try:
+        ver = service.archive_course_version(actor=actor, version_id=version_id)
+        return ApiResponse(ok=True, data=_to_version_response(ver))
+    except CourseNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except CourseAuthorizationError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+

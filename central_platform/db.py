@@ -597,6 +597,57 @@ class PlatformDatabase:
             )
             return cursor.rowcount > 0
 
+    def archive_course(self, course_id: str) -> bool:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE courses
+                SET is_deleted = 1, deleted_at = ?, updated_at = ?
+                WHERE id = ? AND is_deleted = 0;
+                """,
+                (now_iso, now_iso, course_id),
+            )
+            return cursor.rowcount > 0
+
+    def archive_course_version(self, version_id: str, archived_by: Optional[str] = None) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE course_versions
+                SET status = 'ARCHIVED'
+                WHERE id = ? AND is_deleted = 0;
+                """,
+                (version_id,),
+            )
+            return cursor.rowcount > 0
+
+    def get_course_versions_by_status(
+        self,
+        status: CourseStatus,
+        organization_id: Optional[str] = None,
+        include_deleted: bool = False,
+    ) -> List[CourseVersion]:
+        status_val = status.value if isinstance(status, CourseStatus) else str(status)
+        with self._get_connection() as conn:
+            if organization_id:
+                sql = """
+                SELECT cv.* FROM course_versions cv
+                JOIN courses c ON cv.course_id = c.id
+                WHERE cv.status = ? AND c.organization_id = ?
+                """
+                if not include_deleted:
+                    sql += " AND cv.is_deleted = 0 AND c.is_deleted = 0"
+                sql += " ORDER BY cv.created_at DESC;"
+                rows = conn.execute(sql, (status_val, organization_id)).fetchall()
+            else:
+                sql = "SELECT * FROM course_versions WHERE status = ?"
+                if not include_deleted:
+                    sql += " AND is_deleted = 0"
+                sql += " ORDER BY created_at DESC;"
+                rows = conn.execute(sql, (status_val,)).fetchall()
+            return [self._row_to_course_version(r) for r in rows]
+
     def _row_to_course_version(self, r: sqlite3.Row) -> CourseVersion:
         try:
             status = CourseStatus(r["status"])

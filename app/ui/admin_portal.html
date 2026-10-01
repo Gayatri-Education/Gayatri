@@ -349,7 +349,8 @@
       <a href="#/enrollments" id="nav-enrollments">📋 Enrollments</a>
 
       <div class="nav-section">Academics</div>
-      <a href="#/courses" id="nav-courses">📚 Courses</a>
+      <a href="#/courses" id="nav-courses">📚 Course Catalog</a>
+      <a href="#/review-queue" id="nav-review-queue">⏳ Review Queue <span id="reviewQueueBadge" style="display:none; background:var(--accent-amber); color:black; padding:1px 6px; border-radius:10px; font-size:10px; margin-left:auto;">0</span></a>
       <a href="#/curricula" id="nav-curricula">🗺️ Curricula</a>
       <a href="#/classes" id="nav-classes">🏫 Class Groups</a>
       <a href="#/cohorts" id="nav-cohorts">🎯 Cohorts</a>
@@ -464,10 +465,97 @@
       <div id="view-courses" class="portal-view">
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Course Catalog</span>
-            <button class="btn btn-primary" onclick="AdminApp.openModal('modalCourse')">➕ Add Course</button>
+            <span class="card-title">Course Catalog & Offerings</span>
+            <div style="display:flex; gap:8px;">
+              <select id="courseVisibilityFilter" class="form-input" style="width:140px; padding:6px; background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-main); border-radius:6px;" onchange="AdminApp.renderCourses()">
+                <option value="ALL">All Visibility</option>
+                <option value="PUBLIC">Public Only</option>
+                <option value="PRIVATE">Private Only</option>
+              </select>
+              <button class="btn btn-secondary" onclick="AdminApp.openModal('modalSelectCourse')">📋 Select for Institution</button>
+              <button class="btn btn-primary" onclick="AdminApp.openModal('modalCourse')">➕ Create Course</button>
+            </div>
           </div>
-          <table><thead><tr><th>Code</th><th>Title</th><th>Description</th><th>Org ID</th></tr></thead><tbody id="coursesTableBody"></tbody></table>
+          <div id="coursesEmptyState" style="display:none; padding:40px; text-align:center; color:var(--text-muted);">
+            <div style="font-size:32px; margin-bottom:12px;">📚</div>
+            <div style="font-size:16px; font-weight:600; color:var(--text-main);">No courses found</div>
+            <div style="font-size:13px; margin-top:4px;">No courses match the current filter. Create a private course or discover from the public catalog.</div>
+          </div>
+          <table id="coursesTable">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Title</th>
+                <th>Visibility</th>
+                <th>Owning Org</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="coursesTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Course Versions & Knowledge Ingestion Subcard -->
+        <div class="card" style="margin-top:20px;">
+          <div class="card-header">
+            <span class="card-title">Course Versions & Knowledge Ingestion</span>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-secondary" onclick="AdminApp.openModal('modalUploadContent')">📤 Ingest Knowledge Source</button>
+              <button class="btn btn-primary" onclick="AdminApp.openModal('modalNewVersion')">➕ Draft New Version</button>
+            </div>
+          </div>
+          <div style="padding:10px 0;">
+            <label style="font-size:12px; margin-right:8px; color:var(--text-muted);">Selected Course:</label>
+            <select id="selectedCourseVersionDropdown" class="form-input" style="width:280px; padding:6px; background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-main); border-radius:6px;" onchange="AdminApp.loadVersionsForSelectedCourse()">
+              <option value="">-- Choose Course to Inspect --</option>
+            </select>
+          </div>
+          <div id="versionsEmptyState" style="display:none; padding:30px; text-align:center; color:var(--text-muted);">
+            <div>No versions registered for this course yet.</div>
+          </div>
+          <table id="courseVersionsTable">
+            <thead>
+              <tr>
+                <th>Version ID</th>
+                <th>Version Tag</th>
+                <th>Status</th>
+                <th>Created By</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="courseVersionsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Review Queue: #/review-queue -->
+      <div id="view-review-queue" class="portal-view">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Administrative Review Queue</span>
+            <button class="btn btn-secondary" onclick="AdminApp.renderReviewQueue()">🔄 Refresh Queue</button>
+          </div>
+          <div id="reviewQueueEmptyState" style="display:none; padding:40px; text-align:center; color:var(--text-muted);">
+            <div style="font-size:32px; margin-bottom:12px;">✅</div>
+            <div style="font-size:16px; font-weight:600; color:var(--text-main);">Review queue is clear</div>
+            <div style="font-size:13px; margin-top:4px;">There are currently no course versions awaiting administrator review.</div>
+          </div>
+          <table id="reviewQueueTable">
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Submitted By</th>
+                <th>Submitted At</th>
+                <th>Owning Org</th>
+                <th>Review Actions</th>
+              </tr>
+            </thead>
+            <tbody id="reviewQueueTableBody"></tbody>
+          </table>
         </div>
       </div>
 
@@ -684,10 +772,98 @@
       <div class="modal-title">Create Course Entry</div>
       <div class="form-group"><label>Course Code</label><input type="text" id="courseCodeInput" placeholder="CRS-CHEM-101"></div>
       <div class="form-group"><label>Course Title</label><input type="text" id="courseTitleInput" placeholder="Class 11 Chemistry"></div>
-      <div class="form-group"><label>Description</label><input type="text" id="courseDescInput" placeholder="CBSE & NEET Curriculum Chemistry"></div>
+      <div class="form-group"><label>Description</label><input type="text" id="courseDescInput" placeholder="Adaptive Science Curriculum"></div>
+      <div class="form-group">
+        <label>Visibility</label>
+        <select id="courseVisibilityInput" style="width:100%; padding:8px; background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-main); border-radius:6px;">
+          <option value="PRIVATE">Private (Restricted to Institution)</option>
+          <option value="PUBLIC">Public (Available across All Organizations)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Organization ID (Optional / Defaults to Current Tenant)</label>
+        <input type="text" id="courseOrgIdInput" placeholder="org-default">
+      </div>
       <div style="display:flex; justify-content:flex-end; gap:8px;">
         <button class="btn btn-secondary" onclick="AdminApp.closeModal('modalCourse')">Cancel</button>
         <button class="btn btn-primary" onclick="AdminApp.submitCourse()">Save Course</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Select Public Course Offering -->
+  <div class="modal-overlay" id="modalSelectCourse">
+    <div class="modal-box">
+      <div class="modal-title">Select Public Course for Institution</div>
+      <div class="form-group">
+        <label>Course ID</label>
+        <input type="text" id="selectCourseIdInput" placeholder="crs_math_09">
+      </div>
+      <div class="form-group">
+        <label>Institution / Organization ID</label>
+        <input type="text" id="selectCourseOrgIdInput" placeholder="org-default">
+      </div>
+      <div class="form-group">
+        <label>Pinned Version ID (Optional)</label>
+        <input type="text" id="selectCourseVersionIdInput" placeholder="cv_crs_math_09_v1_0">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="AdminApp.closeModal('modalSelectCourse')">Cancel</button>
+        <button class="btn btn-primary" onclick="AdminApp.submitSelectCourse()">Confirm Offering</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Draft New Version -->
+  <div class="modal-overlay" id="modalNewVersion">
+    <div class="modal-box">
+      <div class="modal-title">Draft New Course Version</div>
+      <div class="form-group">
+        <label>Course ID</label>
+        <input type="text" id="newVersionCourseIdInput" placeholder="crs_chem_101">
+      </div>
+      <div class="form-group">
+        <label>Version Number / Tag</label>
+        <input type="text" id="newVersionNumberInput" placeholder="2.0">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="AdminApp.closeModal('modalNewVersion')">Cancel</button>
+        <button class="btn btn-primary" onclick="AdminApp.submitNewVersion()">Create Draft Version</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ingest Knowledge Content -->
+  <div class="modal-overlay" id="modalUploadContent">
+    <div class="modal-box">
+      <div class="modal-title">Ingest Knowledge Content to Course Version</div>
+      <div class="form-group">
+        <label>Course ID</label>
+        <input type="text" id="ingestCourseIdInput" placeholder="crs_chem_101">
+      </div>
+      <div class="form-group">
+        <label>Course Version ID (Optional)</label>
+        <input type="text" id="ingestVersionIdInput" placeholder="cv_crs_chem_101_v1_0">
+      </div>
+      <div class="form-group">
+        <label>Knowledge Source Name</label>
+        <input type="text" id="ingestSourceNameInput" placeholder="Textbook Chapter 1">
+      </div>
+      <div class="form-group">
+        <label>Content Type</label>
+        <select id="ingestContentTypeInput" style="width:100%; padding:8px; background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-main); border-radius:6px;">
+          <option value="text/markdown">Markdown (.md)</option>
+          <option value="text/plain">Plain Text (.txt)</option>
+          <option value="application/pdf">PDF Document (.pdf)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Raw Content Text</label>
+        <textarea id="ingestContentTextInput" rows="5" style="width:100%; padding:8px; background:var(--card-bg); border:1px solid var(--card-border); color:var(--text-main); border-radius:6px;" placeholder="Paste curriculum or study guide content here..."></textarea>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button class="btn btn-secondary" onclick="AdminApp.closeModal('modalUploadContent')">Cancel</button>
+        <button class="btn btn-primary" onclick="AdminApp.submitUploadContent()">Upload & Ingest</button>
       </div>
     </div>
   </div>
@@ -829,7 +1005,8 @@
         const token = localStorage.getItem('admin_token') || '';
         const headers = { 'Accept': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, { headers });
+        const url = path.startsWith('/api/v1/') ? `${this.baseUrl}${path}` : `${this.baseUrl}/api/v1/admin${path}`;
+        const res = await fetch(url, { headers });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         const json = await res.json();
         return json.data !== undefined ? json.data : json;
@@ -839,7 +1016,8 @@
         const token = localStorage.getItem('admin_token') || '';
         const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(`${this.baseUrl}/api/v1/admin${path}`, {
+        const url = path.startsWith('/api/v1/') ? `${this.baseUrl}${path}` : `${this.baseUrl}/api/v1/admin${path}`;
+        const res = await fetch(url, {
           method: 'POST',
           headers,
           body: JSON.stringify(body),
@@ -925,7 +1103,8 @@
         const titleMap = {
           dashboard: 'Platform Dashboard', organizations: 'Organizations & Tenants',
           users: 'User Provisioning & Roles', teachers: 'Teacher Roster',
-          students: 'Enrolled Students', courses: 'Course Catalog',
+          students: 'Enrolled Students', courses: 'Course Catalog & Offerings',
+          'review-queue': 'Course Review & Publication Queue',
           curricula: 'Curriculum Versions', classes: 'Class Groups',
           cohorts: 'Student Cohorts', enrollments: 'Active Enrollments',
           providers: 'AI Backend Providers', models: 'AI Inference Models',
@@ -961,6 +1140,7 @@
           else if (page === 'teachers') await this.renderTeachers();
           else if (page === 'students') await this.renderStudents();
           else if (page === 'courses') await this.renderCourses();
+          else if (page === 'review-queue') await this.renderReviewQueue();
           else if (page === 'curricula') await this.renderCurricula();
           else if (page === 'classes') await this.renderClasses();
           else if (page === 'cohorts') await this.renderCohorts();
@@ -1007,8 +1187,93 @@
       },
 
       async renderCourses() {
-        const courses = await this.apiGet('/courses');
-        document.getElementById('coursesTableBody').innerHTML = courses.map(c => `<tr><td><strong>${c.code}</strong></td><td>${c.title}</td><td>${c.description || '-'}</td><td>${c.organization_id || 'Global'}</td></tr>`).join('');
+        const visFilter = document.getElementById('courseVisibilityFilter')?.value || 'ALL';
+        let query = '';
+        if (visFilter === 'PUBLIC') query = '?visibility=PUBLIC';
+        else if (visFilter === 'PRIVATE') query = '?visibility=PRIVATE';
+
+        try {
+          const courses = await this.apiGet(`/api/v1/courses${query}`);
+          const tbody = document.getElementById('coursesTableBody');
+          const emptyEl = document.getElementById('coursesEmptyState');
+          const tableEl = document.getElementById('coursesTable');
+          const dropdown = document.getElementById('selectedCourseVersionDropdown');
+
+          if (!courses || courses.length === 0) {
+            if (tbody) tbody.innerHTML = '';
+            if (emptyEl) emptyEl.style.display = 'block';
+            if (tableEl) tableEl.style.display = 'none';
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            if (tableEl) tableEl.style.display = 'table';
+            tbody.innerHTML = courses.map(c => {
+              const isPub = (c.visibility || '').toUpperCase() === 'PUBLIC';
+              const visBadge = isPub 
+                ? '<span class="badge badge-green">PUBLIC</span>' 
+                : '<span class="badge badge-purple">PRIVATE</span>';
+              const cid = c.course_id || c.id;
+              return `<tr>
+                <td><strong>${c.code}</strong></td>
+                <td>${c.title}</td>
+                <td>${visBadge}</td>
+                <td>${c.organization_id || 'Global'}</td>
+                <td>${c.created_at ? c.created_at.slice(0, 10) : '-'}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="AdminApp.inspectCourseVersions('${cid}')">Versions</button>
+                  <button class="btn btn-secondary btn-sm" onclick="AdminApp.promptSelectCourse('${cid}')">Select</button>
+                  <button class="btn btn-danger btn-sm" onclick="AdminApp.archiveCourse('${cid}')">Archive</button>
+                </td>
+              </tr>`;
+            }).join('');
+          }
+
+          if (dropdown && courses) {
+            dropdown.innerHTML = '<option value="">-- Choose Course to Inspect --</option>' + 
+              courses.map(c => `<option value="${c.course_id || c.id}">${c.code} - ${c.title}</option>`).join('');
+          }
+        } catch (err) {
+          console.error("Failed to render courses:", err);
+        }
+      },
+
+      async renderReviewQueue() {
+        try {
+          const queue = await this.apiGet('/api/v1/courses/review-queue');
+          const tbody = document.getElementById('reviewQueueTableBody');
+          const emptyEl = document.getElementById('reviewQueueEmptyState');
+          const tableEl = document.getElementById('reviewQueueTable');
+          const badgeEl = document.getElementById('reviewQueueBadge');
+
+          if (badgeEl) {
+            badgeEl.textContent = (queue && queue.length) || 0;
+            badgeEl.style.display = (queue && queue.length > 0) ? 'inline-block' : 'none';
+          }
+
+          if (!queue || queue.length === 0) {
+            if (tbody) tbody.innerHTML = '';
+            if (emptyEl) emptyEl.style.display = 'block';
+            if (tableEl) tableEl.style.display = 'none';
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            if (tableEl) tableEl.style.display = 'table';
+            tbody.innerHTML = queue.map(item => `
+              <tr>
+                <td><strong>${item.course_code}</strong> <small style="color:var(--text-muted);">(${item.course_title})</small></td>
+                <td><span class="badge badge-blue">v${item.version_number}</span></td>
+                <td><span class="badge badge-amber">${item.status}</span></td>
+                <td>${item.created_by || 'Teacher'}</td>
+                <td>${item.created_at ? item.created_at.slice(0, 10) : '-'}</td>
+                <td>${item.organization_id || 'Global'}</td>
+                <td>
+                  <button class="btn btn-primary btn-sm" onclick="AdminApp.publishVersion('${item.course_id}', '${item.version_id}')">Approve & Publish</button>
+                  <button class="btn btn-danger btn-sm" onclick="AdminApp.archiveVersion('${item.course_id}', '${item.version_id}')">Archive</button>
+                </td>
+              </tr>
+            `).join('');
+          }
+        } catch (err) {
+          console.error("Failed to render review queue:", err);
+        }
       },
 
       async renderCurricula() {
@@ -1220,14 +1485,170 @@
         const code = document.getElementById('courseCodeInput').value.trim();
         const title = document.getElementById('courseTitleInput').value.trim();
         const description = document.getElementById('courseDescInput').value.trim();
+        const visibility = document.getElementById('courseVisibilityInput')?.value || 'PRIVATE';
+        const organization_id = document.getElementById('courseOrgIdInput')?.value.trim() || undefined;
         if (!code || !title) return alert('Course Code and Title are required');
         try {
-          await this.apiPost('/courses', { code, title, description });
+          await this.apiPost('/api/v1/courses', { code, title, description, visibility, organization_id });
           this.closeModal('modalCourse');
-          this.toast('Course catalog entry created ✅');
+          this.toast('Course created successfully ✅');
           this.renderCourses();
         } catch (e) {
           alert('Failed to create course: ' + e.message);
+        }
+      },
+
+      promptSelectCourse(courseId) {
+        document.getElementById('selectCourseIdInput').value = courseId;
+        this.openModal('modalSelectCourse');
+      },
+
+      async submitSelectCourse() {
+        const course_id = document.getElementById('selectCourseIdInput').value.trim();
+        const organization_id = document.getElementById('selectCourseOrgIdInput').value.trim() || 'org-default';
+        const course_version_id = document.getElementById('selectCourseVersionIdInput').value.trim() || undefined;
+        if (!course_id) return alert('Course ID is required');
+        try {
+          await this.apiPost(`/api/v1/courses/${course_id}/select`, { organization_id, course_version_id });
+          this.closeModal('modalSelectCourse');
+          this.toast('Course offering confirmed for institution ✅');
+          this.renderCourses();
+        } catch (e) {
+          alert('Failed to select course offering: ' + e.message);
+        }
+      },
+
+      async archiveCourse(courseId) {
+        if (!confirm(`Are you sure you want to archive course ${courseId}?`)) return;
+        try {
+          await this.apiPost(`/api/v1/courses/${courseId}/archive`, {});
+          this.toast('Course archived successfully ✅');
+          this.renderCourses();
+        } catch (e) {
+          alert('Failed to archive course: ' + e.message);
+        }
+      },
+
+      async inspectCourseVersions(courseId) {
+        const dropdown = document.getElementById('selectedCourseVersionDropdown');
+        if (dropdown) dropdown.value = courseId;
+        await this.loadVersionsForSelectedCourse();
+      },
+
+      async loadVersionsForSelectedCourse() {
+        const courseId = document.getElementById('selectedCourseVersionDropdown').value;
+        const tbody = document.getElementById('courseVersionsTableBody');
+        const emptyEl = document.getElementById('versionsEmptyState');
+        const tableEl = document.getElementById('courseVersionsTable');
+        if (!courseId) {
+          if (tbody) tbody.innerHTML = '';
+          if (emptyEl) emptyEl.style.display = 'block';
+          if (tableEl) tableEl.style.display = 'none';
+          return;
+        }
+        try {
+          const versions = await this.apiGet(`/api/v1/courses/${courseId}/versions`);
+          if (!versions || versions.length === 0) {
+            if (tbody) tbody.innerHTML = '';
+            if (emptyEl) emptyEl.style.display = 'block';
+            if (tableEl) tableEl.style.display = 'none';
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            if (tableEl) tableEl.style.display = 'table';
+            tbody.innerHTML = versions.map(v => {
+              const statusBadge = v.status === 'PUBLISHED' ? 'badge-green' : v.status === 'READY_FOR_REVIEW' ? 'badge-amber' : v.status === 'ARCHIVED' ? 'badge-rose' : 'badge-purple';
+              return `<tr>
+                <td><code>${v.id}</code></td>
+                <td><strong>${v.version_tag || v.version_number}</strong></td>
+                <td><span class="badge ${statusBadge}">${v.status}</span></td>
+                <td>${v.created_by || 'Author'}</td>
+                <td>${v.created_at ? v.created_at.slice(0, 10) : '-'}</td>
+                <td>
+                  ${v.status === 'READY_FOR_REVIEW' ? `<button class="btn btn-primary btn-sm" onclick="AdminApp.publishVersion('${courseId}', '${v.id}')">Approve & Publish</button>` : ''}
+                  ${v.status === 'DRAFT' ? `<button class="btn btn-secondary btn-sm" onclick="AdminApp.submitForReview('${courseId}', '${v.id}')">Submit for Review</button>` : ''}
+                  ${v.status !== 'ARCHIVED' ? `<button class="btn btn-danger btn-sm" onclick="AdminApp.archiveVersion('${courseId}', '${v.id}')">Archive</button>` : ''}
+                </td>
+              </tr>`;
+            }).join('');
+          }
+        } catch (e) {
+          console.error("Failed to load versions:", e);
+        }
+      },
+
+      async submitNewVersion() {
+        const course_id = document.getElementById('newVersionCourseIdInput').value.trim();
+        const version_tag = document.getElementById('newVersionNumberInput').value.trim();
+        if (!course_id || !version_tag) return alert('Course ID and Version Tag are required');
+        try {
+          await this.apiPost(`/api/v1/courses/${course_id}/versions`, { version_tag });
+          this.closeModal('modalNewVersion');
+          this.toast('Draft version created ✅');
+          await this.inspectCourseVersions(course_id);
+        } catch (e) {
+          alert('Failed to create version: ' + e.message);
+        }
+      },
+
+      async submitForReview(courseId, versionId) {
+        try {
+          await this.apiPost(`/api/v1/courses/${courseId}/versions/${versionId}/submit`, {});
+          this.toast('Version submitted for review ✅');
+          await this.loadVersionsForSelectedCourse();
+          await this.renderReviewQueue();
+        } catch (e) {
+          alert('Failed to submit for review: ' + e.message);
+        }
+      },
+
+      async publishVersion(courseId, versionId) {
+        try {
+          await this.apiPost(`/api/v1/courses/${courseId}/versions/${versionId}/publish`, {});
+          this.toast('Course version approved & published ✅');
+          await this.loadVersionsForSelectedCourse();
+          await this.renderReviewQueue();
+        } catch (e) {
+          alert('Failed to publish version: ' + e.message);
+        }
+      },
+
+      async archiveVersion(courseId, versionId) {
+        if (!confirm(`Archive course version ${versionId}?`)) return;
+        try {
+          await this.apiPost(`/api/v1/courses/${courseId}/versions/${versionId}/archive`, {});
+          this.toast('Course version archived ✅');
+          await this.loadVersionsForSelectedCourse();
+          await this.renderReviewQueue();
+        } catch (e) {
+          alert('Failed to archive version: ' + e.message);
+        }
+      },
+
+      async submitUploadContent() {
+        const course_id = document.getElementById('ingestCourseIdInput').value.trim();
+        const course_version_id = document.getElementById('ingestVersionIdInput').value.trim() || undefined;
+        const name = document.getElementById('ingestSourceNameInput').value.trim();
+        const content_type = document.getElementById('ingestContentTypeInput').value;
+        const content = document.getElementById('ingestContentTextInput').value.trim();
+        if (!course_id || !name || !content) return alert('Course ID, Source Name, and Content are required');
+        try {
+          const source = await this.apiPost('/api/v1/rag/sources', {
+            course_id,
+            course_version_id,
+            title: name,
+            subject: 'General',
+            content_type,
+            visibility_scope: 'course',
+          });
+          const sourceId = source.source_id || source.id;
+          await this.apiPost(`/api/v1/rag/sources/${sourceId}/ingest`, {
+            content,
+            file_name: `${name}.txt`,
+          });
+          this.closeModal('modalUploadContent');
+          this.toast('Knowledge source content ingested successfully ✅');
+        } catch (e) {
+          alert('Failed to ingest content: ' + e.message);
         }
       },
 

@@ -542,7 +542,44 @@ This log records every development phase and architectural transition in chronol
   - Added missing `import uuid` to `central_platform/sync/service.py`.
   - Replaced integer-second `next_retry_ts` with microsecond-resolution float `REAL` column in `LocalSyncOutbox`.
 - **Tests Run:** 1,005 tests collected, 1,005 passed in 153.13s (100% green).
-- **Remaining Risks:** None for Phase 14. Phase 15 (Plug-and-Play Extensibility / Curriculum Data Isolation) next.
+- **Remaining Risks:** None for Phase 14. Phase 15 (Admin Course & Content Workflow UI) next.
+
+---
+
+### Entry: Phase 15 — Admin Course & Content Workflow UI (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Database Extensions (`central_platform/db.py`):
+    - Added `archive_course(course_id)`, `archive_course_version(version_id, archived_by)`, and `get_course_versions_by_status(status, organization_id)`.
+  - Course Service Extensions (`central_platform/courses/service.py`):
+    - Added `_record_audit()` helper writing to `AuditLog`.
+    - Integrated audit event recording on `create_course`, `create_course_version`, `submit_version_for_review`, `approve_and_publish_version`, `select_course_for_org`.
+    - Added `archive_course(actor, course_id)`, `archive_course_version(actor, version_id)`, and `get_review_queue(actor, organization_id)` with tenant scoping.
+  - Schemas & Routes (`central_platform/api/schemas.py`, `central_platform/api/routes/courses.py`):
+    - Added `CourseArchiveResponse` and `CourseReviewQueueItemResponse`.
+    - Added `GET /api/v1/courses/review-queue` (placed before `GET /{course_id}` to avoid path parameter shadowing).
+    - Added `POST /api/v1/courses/{course_id}/archive` and `POST /api/v1/courses/{course_id}/versions/{version_id}/archive`.
+    - Fixed `list_courses` to pass `(actor, org_id)` into `service.list_courses_for_org(actor, org_id)`.
+    - Ensured `get_curriculum_service` dynamically binds to active `get_db()`.
+  - Admin Controller (`app/portals/admin/controller.py`):
+    - Rewrote with real DB & `CourseService` integration for catalog listing, draft creation, offerings selection, review queue, publishing, archiving, and audit retrieval.
+  - Admin Web Portal UI (`app/ui/admin_portal.html`):
+    - Added `#/review-queue` sidebar navigation link with live pending counter badge.
+    - Upgraded `view-courses` with visibility filters (`ALL`, `PUBLIC`, `PRIVATE`), honest empty states, version inspection table, and modals (`modalCourse` with visibility & org, `modalSelectCourse`, `modalNewVersion`, `modalUploadContent`).
+    - Added `view-review-queue` with honest empty state, Approve & Publish action, and Archive action.
+    - Updated `AdminApp` JS with direct `/api/v1/` path routing, `renderCourses`, `renderReviewQueue`, and action handlers.
+  - Test Suite (`tests/test_phase15_admin_course_content_workflow.py`):
+    - 12 comprehensive unit and integration tests covering private/public course creation, org selection, tenant isolation, draft versioning, RAG content ingestion, review submission, review queue scoping, approve/publish, unauthorized role rejection, archiving, and controller audit trail.
+  - Regression Suite:
+    - 1,017 tests passing in 154.32s (100% green, zero regressions).
+- **Bugs Found & Fixed:**
+  - Corrected `list_courses_for_org` signature in courses route.
+  - Fixed schema compatibility for RAG source ingestion payload in test and UI.
+  - Resolved singleton caching in `get_curriculum_service` by binding to active `get_db()`.
+  - Corrected `version` baseline context string in `AdminPortalController` to `"v4.0"`.
+- **Tests Run:** 1,017 tests collected, 1,017 passed in 154.32s (100% green).
+- **Remaining Risks:** None for Phase 15. Advancing to Phase 16 (Teacher Workflow UI).
+
 
 
 

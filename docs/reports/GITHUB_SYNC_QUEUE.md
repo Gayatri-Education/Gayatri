@@ -346,8 +346,30 @@
   - tests/test_phase14_sync_conflict_resolution.py: 12 comprehensive unit and integration tests covering normal lifecycle, duplicate event idempotency, operation replay idempotency, partial acknowledgement, network timeout/retry, device quarantine, client crash recovery, server restart persistence, multi-device convergence, version mismatch resolution, out-of-order reconciliation, and sync audit API.
   - Regression results: 1,005/1,005 passed in 153.13s (100% green, 0 regressions).
   ```
+- **Push Status:** `COMPLETED (commit 33df924 pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 016: Phase 15 Completion Update
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 15 Admin Course & Content Workflow UI Complete`
+- **Intended Labels:** `ui`, `admin-portal`, `course-workflow`, `review-queue`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 15 Admin Course & Content Workflow UI completed.
+
+  Deliverables:
+  - central_platform/db.py: archive_course, archive_course_version, get_course_versions_by_status.
+  - central_platform/courses/service.py: Audit logging for course/version transitions, archive_course, archive_course_version, get_review_queue with tenant scoping.
+  - central_platform/api/schemas.py & central_platform/api/routes/courses.py: CourseArchiveResponse, CourseReviewQueueItemResponse, GET /api/v1/courses/review-queue, POST /api/v1/courses/{id}/archive, POST /api/v1/courses/{id}/versions/{version_id}/archive.
+  - central_platform/api/routes/curricula.py: Dynamic DB binding for CurriculumService eliminating test fixture stale singletons.
+  - app/portals/admin/controller.py: Real DB and CourseService integration with stats, courses, review queue, and audit trail.
+  - app/ui/admin_portal.html: Course catalog with visibility filters, modals (course, offering, new version, upload content), live review queue with approve & publish / archive actions.
+  - tests/test_phase15_admin_course_content_workflow.py: 12 comprehensive unit and integration tests covering private/public isolation, offering selection, versioning, RAG ingestion, review queue scoping, approve/publish, unauthorized role rejection, archiving, and controller audit trail.
+  - Regression results: 1,017/1,017 passed in 154.32s (100% green, 0 regressions).
+  ```
 - **Push Status:** `PENDING`
 - **Issue Operations Status:** `QUEUED`
+
 
 
 
