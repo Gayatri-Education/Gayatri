@@ -600,6 +600,10 @@ class RAGSourceCreateRequest(BaseModel):
     authority: str = Field(default="NCERT")
     version: str = Field(default="1.0.0")
     content_type: str = Field(default="textbook")
+    course_version_id: Optional[str] = None
+    visibility_scope: str = Field(default="course")
+    class_id: Optional[str] = None
+    target_student_ids: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -620,6 +624,10 @@ class RAGSourceResponse(BaseModel):
     published_by: Optional[str] = None
     published_at: Optional[str] = None
     error_message: Optional[str] = None
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
+    target_student_ids: List[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
 
@@ -670,6 +678,9 @@ class RAGChunkResponse(BaseModel):
     text: str
     clean_text: str
     provenance_type: str = "NCERT"
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
     created_at: str
 
 
@@ -678,6 +689,9 @@ class RAGQueryRequest(BaseModel):
     course_id: Optional[str] = None
     subject: Optional[str] = None
     concept_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    student_id: Optional[str] = None
     top_k: int = Field(default=3, ge=1, le=20)
     confidence_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
 
@@ -692,6 +706,11 @@ class RAGResultItem(BaseModel):
     citation: str
     concept: Optional[str] = None
     source_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    visibility_scope: Optional[str] = None
+    class_id: Optional[str] = None
+    provenance_type: Optional[str] = None
+    content_type: Optional[str] = None
 
 
 class RAGQueryResponse(BaseModel):
@@ -700,6 +719,7 @@ class RAGQueryResponse(BaseModel):
     results: List[RAGResultItem]
     count: int
     data_context: Optional[str] = None
+    reason: Optional[str] = None
 
 
 # ── AI Gateway & Governance ──────────────────────────────────────────────

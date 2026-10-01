@@ -50,6 +50,10 @@ def _build_source_response(s: RAGSource) -> RAGSourceResponse:
         published_by=s.published_by,
         published_at=s.published_at,
         error_message=s.error_message,
+        course_version_id=s.course_version_id,
+        visibility_scope=s.visibility_scope or "course",
+        class_id=s.class_id,
+        target_student_ids=s.target_student_ids or [],
         created_at=s.created_at,
         updated_at=s.updated_at,
     )
@@ -60,8 +64,13 @@ async def create_rag_source(req: RAGSourceCreateRequest):
     """Register a new plug-and-play knowledge source for a course."""
     svc = get_rag_service()
     try:
+        org_id = "org-default"
+        if req.course_id:
+            c = svc.db.get_course(req.course_id)
+            if c:
+                org_id = c.organization_id
         source = svc.register_source(
-            organization_id="org-default",
+            organization_id=org_id,
             course_id=req.course_id,
             subject=req.subject,
             title=req.title,
@@ -69,6 +78,10 @@ async def create_rag_source(req: RAGSourceCreateRequest):
             authority=req.authority,
             version=req.version,
             content_type=req.content_type,
+            course_version_id=req.course_version_id,
+            visibility_scope=req.visibility_scope,
+            class_id=req.class_id,
+            target_student_ids=req.target_student_ids,
             metadata=req.metadata,
         )
         return ApiResponse(
@@ -86,6 +99,9 @@ async def list_rag_sources(
     status: Optional[str] = Query(None),
     authority: Optional[str] = Query(None),
     content_type: Optional[str] = Query(None),
+    course_version_id: Optional[str] = Query(None),
+    visibility_scope: Optional[str] = Query(None),
+    class_id: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -97,6 +113,9 @@ async def list_rag_sources(
         status=status,
         authority=authority,
         content_type=content_type,
+        course_version_id=course_version_id,
+        visibility_scope=visibility_scope,
+        class_id=class_id,
         limit=limit,
         offset=offset,
     )
@@ -215,6 +234,9 @@ async def get_source_chunks(
                 text=c.text,
                 clean_text=c.clean_text,
                 provenance_type=c.provenance_type,
+                course_version_id=c.course_version_id,
+                visibility_scope=c.visibility_scope or "course",
+                class_id=c.class_id,
                 created_at=c.created_at,
             )
             for c in chunks
@@ -242,6 +264,9 @@ async def query_rag(req: RAGQueryRequest):
             course_id=req.course_id,
             subject=req.subject,
             concept=req.concept_id,
+            course_version_id=req.course_version_id,
+            class_id=req.class_id,
+            student_id=req.student_id,
             top_k=req.top_k,
             confidence_threshold=req.confidence_threshold,
         )
@@ -261,11 +286,17 @@ async def query_rag(req: RAGQueryRequest):
                         text=r["text"],
                         score=r["score"],
                         citation=r["citation"],
+                        course_version_id=r.get("course_version_id"),
+                        visibility_scope=r.get("visibility_scope"),
+                        class_id=r.get("class_id"),
+                        provenance_type=r.get("provenance_type"),
+                        content_type=r.get("content_type"),
                     )
                     for r in res["results"]
                 ],
                 count=res["count"],
                 data_context=res.get("data_context"),
+                reason=res.get("reason"),
             ),
         )
     except Exception as exc:

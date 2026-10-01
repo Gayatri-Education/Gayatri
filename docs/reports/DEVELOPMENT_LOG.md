@@ -210,4 +210,37 @@ This log records every development phase and architectural transition in chronol
   - Case sensitivity in SQL status matching: Fixed with `LOWER(rs.status) = 'published'` to tolerate both uppercase and lowercase enum values.
 - **Tests Run:** 898 tests collected, 898 passed in 106.60s (100% green).
 - **Remaining Risks:**
-  - Cross-course teacher instruction scoping (scheduled for Phase 06).
+  - Cross-course teacher instruction scoping (scheduled for Phase 06/07).
+
+### Entry: Phase 06 — Scoped RAG & Knowledge Authorization (2026-10-01)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Models & Schemas (`central_platform/models/schema.py`, `central_platform/models/__init__.py`):
+    - Added `KnowledgeVisibilityScope` enum (`COURSE`, `CLASS`, `STUDENT_TARGETED`).
+    - Extended `RAGSource` with `course_version_id`, `visibility_scope`, `class_id`, `target_student_ids`.
+    - Extended `RAGChunk` with `course_version_id`, `visibility_scope`, `class_id`.
+  - Database Migration 006:
+    - Added `migrations/006_scoped_rag_authorization.sql` with new scoping columns on `rag_sources` and `rag_chunks` and composite indices `idx_rag_sources_scoped` and `idx_rag_chunks_scoped`.
+    - Added reversible `migrations/006_scoped_rag_authorization_down.sql` with table-rebuild rollback. Verified up/down/re-up lifecycle on local SQLite DB.
+  - Database Layer (`central_platform/db.py`):
+    - Updated `_row_to_rag_source`, `create_rag_source`, `list_rag_sources`, `add_rag_chunks`, and `_row_to_rag_chunk`.
+    - Updated `get_rag_chunks_by_course` to enforce version pinning, class-level filtering, and student targeted remedial filtering.
+  - Service Layer (`central_platform/rag/service.py`):
+    - Updated `SmartChunker.chunk_section` and `_build_chunk` to propagate `course_version_id`, `visibility_scope`, `class_id`.
+    - Updated `register_source` and `upload_knowledge_asset` to accept and persist scoping parameters.
+    - Updated `RAGService.query()`:
+      - Resolved effective query scoping parameters from optional `CourseLearningContext`, `student_id`, `course_version_id`, `class_id`.
+      - Implemented multi-tenant org isolation check: returns `RAG_DENIED` with 0 chunks if user/student's org does not match private course org and no active `CourseOffering` is present.
+      - Enforced zero-leakage invariant: course queries with 0 matches return `RAG_EMPTY` with 0 chunks and never fall back to legacy/global files.
+  - API Routes & Schemas (`central_platform/api/schemas.py`, `central_platform/api/routes/rag.py`):
+    - Updated `RAGSourceCreateRequest`, `RAGSourceResponse`, `RAGChunkResponse`, `RAGQueryRequest`, `RAGResultItem`, and `RAGQueryResponse`.
+    - Dynamic course organization lookup in `create_rag_source`.
+  - Test Suite (`tests/test_phase06_scoped_rag_authorization.py`):
+    - 10 comprehensive tests covering course scope, multi-tenant isolation denial, partner offering access, class notes scoping, student targeted remedial, version isolation, learning context binding, no fallback under scoped search, diagnostic transparency, and REST API flow.
+- **Bugs Found & Fixed:**
+  - SQLite FOREIGN KEY constraint in `create_rag_source` when using `org-default`: Resolved by dynamically looking up the course's owning `organization_id` when registering sources.
+  - Missing `Enum` import in `central_platform/rag/service.py`: Resolved with explicit import and attribute check.
+- **Tests Run:** 908 tests collected, 908 passed in 97.71s (100% green).
+- **Remaining Risks:**
+  - Hierarchical teacher instruction inheritance cascade (scheduled for Phase 07).
+

@@ -125,3 +125,21 @@
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** VERIFIED.
 
+---
+
+### BUG-RAG-008
+- **Severity:** P2
+- **Date Found:** 2026-10-01
+- **Commit Found:** `Phase 06 Implementation`
+- **Subsystem:** RAG Source Creation Endpoint (`central_platform/api/routes/rag.py`)
+- **Reproduction:** Register RAG source with a course belonging to a custom tenant organization via `POST /api/v1/rag/sources`.
+- **Expected:** Source registers under the course's owning organization without FK violation.
+- **Actual:** Endpoint hardcoded `organization_id="org-default"`, triggering SQLite foreign key violation when `org-default` did not exist.
+- **Root Cause:** Hardcoded organization string instead of resolving from `course_id`.
+- **Fix:** Dynamically look up `svc.db.get_course(req.course_id)` to resolve `course.organization_id`.
+- **Test:** `tests/test_phase06_scoped_rag_authorization.py::test_scoped_rag_api_flow`.
+- **Verification:** **VERIFIED FIXED** (All 10 Phase 06 tests pass; all 908 suite tests pass).
+- **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
+- **Status:** VERIFIED.
+
+

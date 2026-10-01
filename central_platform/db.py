@@ -2247,6 +2247,12 @@ class PlatformDatabase:
             except Exception:
                 pass
         keys = r.keys()
+        target_students = []
+        if "target_student_ids" in keys and r["target_student_ids"]:
+            try:
+                target_students = json.loads(r["target_student_ids"]) if isinstance(r["target_student_ids"], str) else list(r["target_student_ids"])
+            except Exception:
+                pass
         return RAGSource(
             id=r["id"],
             organization_id=r["organization_id"],
@@ -2265,6 +2271,10 @@ class PlatformDatabase:
             published_by=r["published_by"] if "published_by" in keys else None,
             published_at=r["published_at"] if "published_at" in keys else None,
             error_message=r["error_message"] if "error_message" in keys else None,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+            visibility_scope=r["visibility_scope"] if "visibility_scope" in keys and r["visibility_scope"] else "course",
+            class_id=r["class_id"] if "class_id" in keys else None,
+            target_student_ids=target_students,
             created_at=r["created_at"],
             updated_at=r["updated_at"],
         )
@@ -2274,14 +2284,18 @@ class PlatformDatabase:
             metadata_str = json.dumps(source.metadata_json) if isinstance(source.metadata_json, dict) else str(source.metadata_json)
             status_val = source.status.value if isinstance(source.status, Enum) else str(source.status)
             content_type_val = source.content_type.value if isinstance(source.content_type, Enum) else str(source.content_type or "textbook")
+            vis_scope_val = source.visibility_scope.value if isinstance(source.visibility_scope, Enum) else str(source.visibility_scope or "course")
+            target_students_str = json.dumps(source.target_student_ids) if isinstance(source.target_student_ids, list) else str(source.target_student_ids or "[]")
             conn.execute(
                 """
                 INSERT INTO rag_sources (
                     id, organization_id, course_id, subject, title, source_type, authority,
                     version, status, checksum, metadata_json, chunk_count, content_type,
-                    uploaded_by, published_by, published_at, error_message, created_at, updated_at
+                    uploaded_by, published_by, published_at, error_message,
+                    course_version_id, visibility_scope, class_id, target_student_ids,
+                    created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     organization_id=excluded.organization_id,
                     course_id=excluded.course_id,
@@ -2299,6 +2313,10 @@ class PlatformDatabase:
                     published_by=excluded.published_by,
                     published_at=excluded.published_at,
                     error_message=excluded.error_message,
+                    course_version_id=excluded.course_version_id,
+                    visibility_scope=excluded.visibility_scope,
+                    class_id=excluded.class_id,
+                    target_student_ids=excluded.target_student_ids,
                     updated_at=excluded.updated_at;
                 """,
                 (
@@ -2319,6 +2337,10 @@ class PlatformDatabase:
                     source.published_by,
                     source.published_at,
                     source.error_message,
+                    source.course_version_id,
+                    vis_scope_val,
+                    source.class_id,
+                    target_students_str,
                     source.created_at,
                     source.updated_at,
                 ),
@@ -2339,6 +2361,9 @@ class PlatformDatabase:
         status: Optional[str] = None,
         authority: Optional[str] = None,
         content_type: Optional[str] = None,
+        course_version_id: Optional[str] = None,
+        visibility_scope: Optional[str] = None,
+        class_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[RAGSource]:
@@ -2360,6 +2385,15 @@ class PlatformDatabase:
             if content_type:
                 conditions.append("LOWER(content_type) = ?")
                 params.append(content_type.lower())
+            if course_version_id:
+                conditions.append("course_version_id = ?")
+                params.append(course_version_id)
+            if visibility_scope:
+                conditions.append("LOWER(visibility_scope) = ?")
+                params.append(visibility_scope.lower())
+            if class_id:
+                conditions.append("class_id = ?")
+                params.append(class_id)
 
             where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
             sql = f"SELECT * FROM rag_sources {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?;"
@@ -2367,6 +2401,7 @@ class PlatformDatabase:
 
             rows = conn.execute(sql, params).fetchall()
             return [self._row_to_rag_source(r) for r in rows]
+
 
 
     def update_rag_source(self, source: RAGSource) -> RAGSource:
@@ -2386,13 +2421,15 @@ class PlatformDatabase:
             for chunk in chunks:
                 emb_str = json.dumps(chunk.embedding_vector) if chunk.embedding_vector else "[]"
                 meta_str = json.dumps(chunk.metadata_json) if chunk.metadata_json else "{}"
+                vis_val = chunk.visibility_scope.value if isinstance(chunk.visibility_scope, Enum) else str(chunk.visibility_scope or "course")
                 conn.execute(
                     """
                     INSERT INTO rag_chunks (
                         id, source_id, course_id, subject, chapter, topic, concept,
                         difficulty, page, section, content_type, text, clean_text,
-                        embedding_vector, provenance_type, metadata_json, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        embedding_vector, provenance_type, metadata_json,
+                        course_version_id, visibility_scope, class_id, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         source_id=excluded.source_id,
                         course_id=excluded.course_id,
@@ -2408,7 +2445,10 @@ class PlatformDatabase:
                         clean_text=excluded.clean_text,
                         embedding_vector=excluded.embedding_vector,
                         provenance_type=excluded.provenance_type,
-                        metadata_json=excluded.metadata_json;
+                        metadata_json=excluded.metadata_json,
+                        course_version_id=excluded.course_version_id,
+                        visibility_scope=excluded.visibility_scope,
+                        class_id=excluded.class_id;
                     """,
                     (
                         chunk.id,
@@ -2427,6 +2467,9 @@ class PlatformDatabase:
                         emb_str,
                         chunk.provenance_type,
                         meta_str,
+                        chunk.course_version_id,
+                        vis_val,
+                        chunk.class_id,
                         chunk.created_at,
                     ),
                 )
@@ -2453,6 +2496,9 @@ class PlatformDatabase:
         subject: Optional[str] = None,
         concept: Optional[str] = None,
         only_published: bool = True,
+        course_version_id: Optional[str] = None,
+        class_id: Optional[str] = None,
+        student_id: Optional[str] = None,
         limit: int = 200,
     ) -> List[RAGChunk]:
         with self._get_connection() as conn:
@@ -2470,15 +2516,55 @@ class PlatformDatabase:
 
             where_str = " AND ".join(conditions)
             sql = f"""
-                SELECT rc.* FROM rag_chunks rc
+                SELECT rc.*,
+                       rs.course_version_id as src_version_id,
+                       rs.visibility_scope as src_visibility_scope,
+                       rs.class_id as src_class_id,
+                       rs.target_student_ids as src_target_student_ids
+                FROM rag_chunks rc
                 JOIN rag_sources rs ON rc.source_id = rs.id
                 WHERE {where_str}
                 ORDER BY rc.created_at ASC
                 LIMIT ?;
             """
-            params.append(limit)
+            params.append(limit * 3)
             rows = conn.execute(sql, params).fetchall()
-            return [self._row_to_rag_chunk(r) for r in rows]
+
+            authorized_chunks = []
+            for r in rows:
+                keys = r.keys()
+                # 1. Version check
+                src_v = r["src_version_id"] if "src_version_id" in keys else None
+                if course_version_id and src_v:
+                    if src_v != course_version_id:
+                        continue
+
+                # 2. Visibility scope check
+                raw_scope = r["src_visibility_scope"] if "src_visibility_scope" in keys and r["src_visibility_scope"] else "course"
+                scope = raw_scope.lower()
+                src_cls = r["src_class_id"] if "src_class_id" in keys else None
+
+                if scope == "class":
+                    if not class_id or class_id != src_cls:
+                        continue
+                elif scope == "student_targeted":
+                    if not student_id:
+                        continue
+                    targets_raw = r["src_target_student_ids"] if "src_target_student_ids" in keys else "[]"
+                    targets = []
+                    if targets_raw:
+                        try:
+                            targets = json.loads(targets_raw) if isinstance(targets_raw, str) else list(targets_raw)
+                        except Exception:
+                            targets = []
+                    if student_id not in targets:
+                        continue
+
+                authorized_chunks.append(self._row_to_rag_chunk(r))
+                if len(authorized_chunks) >= limit:
+                    break
+
+            return authorized_chunks
 
     def delete_rag_chunks_by_source(self, source_id: str) -> int:
         with self._get_connection() as conn:
@@ -2499,6 +2585,7 @@ class PlatformDatabase:
                 metadata = json.loads(r["metadata_json"])
             except Exception:
                 pass
+        keys = r.keys()
         return RAGChunk(
             id=r["id"],
             source_id=r["source_id"],
@@ -2516,8 +2603,12 @@ class PlatformDatabase:
             embedding_vector=emb,
             provenance_type=r["provenance_type"],
             metadata_json=metadata,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+            visibility_scope=r["visibility_scope"] if "visibility_scope" in keys and r["visibility_scope"] else "course",
+            class_id=r["class_id"] if "class_id" in keys else None,
             created_at=r["created_at"],
         )
+
 
     # ── Fee Management Subsystem (Phase 30) ────────────────────────────────────
 

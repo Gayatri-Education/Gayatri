@@ -13,11 +13,15 @@ import logging
 import math
 import re
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import (
+    CourseLearningContext,
+    CourseVisibility,
     KnowledgeContentType,
+    KnowledgeVisibilityScope,
     RAGChunk,
     RAGSource,
     RAGSourceStatus,
@@ -39,17 +43,26 @@ class SmartChunker:
         self.overlap_chars = overlap_chars
         self.min_chunk_chars = min_chunk_chars
 
-    def chunk_section(self, section: ParsedSection, source_id: str, course_id: str, subject: str) -> List[RAGChunk]:
+    def chunk_section(
+        self,
+        section: ParsedSection,
+        source_id: str,
+        course_id: str,
+        subject: str,
+        course_version_id: Optional[str] = None,
+        visibility_scope: str = "course",
+        class_id: Optional[str] = None,
+    ) -> List[RAGChunk]:
         text = section.text.strip()
         if not text or len(text) < self.min_chunk_chars:
             if not text:
                 return []
             # Keep small chunk if meaningful
-            return [self._build_chunk(text, section, source_id, course_id, subject, index=0)]
+            return [self._build_chunk(text, section, source_id, course_id, subject, index=0, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id)]
 
         # If text is already within reasonable bounds
         if len(text) <= self.target_chunk_chars + self.overlap_chars:
-            return [self._build_chunk(text, section, source_id, course_id, subject, index=0)]
+            return [self._build_chunk(text, section, source_id, course_id, subject, index=0, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id)]
 
         # Split text into sentences
         sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -62,7 +75,7 @@ class SmartChunker:
             s_len = len(sentence)
             if current_len + s_len > self.target_chunk_chars and current_sentences:
                 chunk_text = " ".join(current_sentences)
-                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx))
+                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id))
                 idx += 1
                 # Sliding window overlap
                 overlap_text: List[str] = []
@@ -82,7 +95,7 @@ class SmartChunker:
         if current_sentences:
             chunk_text = " ".join(current_sentences)
             if len(chunk_text) >= self.min_chunk_chars:
-                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx))
+                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id))
 
         return chunks
 
@@ -94,6 +107,9 @@ class SmartChunker:
         course_id: str,
         subject: str,
         index: int,
+        course_version_id: Optional[str] = None,
+        visibility_scope: str = "course",
+        class_id: Optional[str] = None,
     ) -> RAGChunk:
         clean = DocumentCleaner.clean(raw_text)
         sanitized, _ = RAGSecuritySanitizer.sanitize_document_text(clean)
@@ -107,6 +123,7 @@ class SmartChunker:
         for w in words:
             word_freq[w] = word_freq.get(w, 0.0) + 1.0
 
+        vis_val = visibility_scope.value if isinstance(visibility_scope, Enum) else str(visibility_scope or "course")
         return RAGChunk(
             id=chunk_id,
             source_id=source_id,
@@ -128,8 +145,12 @@ class SmartChunker:
                 "term_freq": word_freq,
                 "raw_metadata": section.raw_metadata,
             },
+            course_version_id=course_version_id,
+            visibility_scope=vis_val,
+            class_id=class_id,
             created_at=datetime.now(timezone.utc).isoformat(),
         )
+
 
 
 class RAGService:
@@ -150,6 +171,10 @@ class RAGService:
         version: str = "1.0.0",
         content_type: str | KnowledgeContentType = KnowledgeContentType.TEXTBOOK,
         uploaded_by: Optional[str] = None,
+        course_version_id: Optional[str] = None,
+        visibility_scope: str | KnowledgeVisibilityScope = KnowledgeVisibilityScope.COURSE,
+        class_id: Optional[str] = None,
+        target_student_ids: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         source_id: Optional[str] = None,
     ) -> RAGSource:
@@ -157,6 +182,7 @@ class RAGService:
         sid = source_id or f"src_{hashlib.sha256(f'{course_id}:{title}:{version}'.encode()).hexdigest()[:12]}"
         now = datetime.now(timezone.utc).isoformat()
         ct_val = content_type.value if isinstance(content_type, KnowledgeContentType) else str(content_type or "textbook")
+        vis_val = visibility_scope.value if isinstance(visibility_scope, KnowledgeVisibilityScope) else str(visibility_scope or "course").lower()
         source = RAGSource(
             id=sid,
             organization_id=organization_id,
@@ -172,6 +198,10 @@ class RAGService:
             chunk_count=0,
             content_type=ct_val,
             uploaded_by=uploaded_by,
+            course_version_id=course_version_id,
+            visibility_scope=vis_val,
+            class_id=class_id,
+            target_student_ids=target_student_ids or [],
             created_at=now,
             updated_at=now,
         )
@@ -215,7 +245,15 @@ class RAGService:
         # 2. Chunk & Clean
         all_chunks: List[RAGChunk] = []
         for sec in parsed_sections:
-            chunks = self.chunker.chunk_section(sec, source.id, source.course_id, source.subject)
+            chunks = self.chunker.chunk_section(
+                sec,
+                source.id,
+                source.course_id,
+                source.subject,
+                course_version_id=source.course_version_id,
+                visibility_scope=source.visibility_scope,
+                class_id=source.class_id,
+            )
             all_chunks.extend(chunks)
 
         if not all_chunks:
@@ -318,6 +356,10 @@ class RAGService:
         content_type: str | KnowledgeContentType = KnowledgeContentType.TEXTBOOK,
         authority: str = "NCERT",
         version: str = "1.0.0",
+        course_version_id: Optional[str] = None,
+        visibility_scope: str | KnowledgeVisibilityScope = KnowledgeVisibilityScope.COURSE,
+        class_id: Optional[str] = None,
+        target_student_ids: Optional[List[str]] = None,
         file_name: str = "",
         metadata: Optional[Dict[str, Any]] = None,
         raise_on_failure: bool = False,
@@ -355,6 +397,7 @@ class RAGService:
         sid = f"src_{hashlib.sha256(f'{course_id}:{title}:{version}'.encode()).hexdigest()[:12]}"
         now = datetime.now(timezone.utc).isoformat()
         ct_val = content_type.value if isinstance(content_type, KnowledgeContentType) else str(content_type or "textbook")
+        vis_val = visibility_scope.value if isinstance(visibility_scope, KnowledgeVisibilityScope) else str(visibility_scope or "course").lower()
 
         source = RAGSource(
             id=sid,
@@ -371,6 +414,10 @@ class RAGService:
             chunk_count=0,
             content_type=ct_val,
             uploaded_by=uid,
+            course_version_id=course_version_id,
+            visibility_scope=vis_val,
+            class_id=class_id,
+            target_student_ids=target_student_ids or [],
             created_at=now,
             updated_at=now,
         )
@@ -396,7 +443,15 @@ class RAGService:
 
             all_chunks: List[RAGChunk] = []
             for sec in parsed_sections:
-                chunks = self.chunker.chunk_section(sec, source.id, source.course_id, source.subject)
+                chunks = self.chunker.chunk_section(
+                    sec,
+                    source.id,
+                    source.course_id,
+                    source.subject,
+                    course_version_id=course_version_id,
+                    visibility_scope=vis_val,
+                    class_id=class_id,
+                )
                 all_chunks.extend(chunks)
 
             if not all_chunks:
@@ -549,9 +604,13 @@ class RAGService:
         user_role: Optional[UserRole | str] = None,
         top_k: int = 3,
         confidence_threshold: float = 0.2,
+        context: Optional[CourseLearningContext] = None,
+        student_id: Optional[str] = None,
+        course_version_id: Optional[str] = None,
+        class_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Execute grounded hybrid retrieval scoped to course, subject, and concepts.
-        Strictly enforces that student queries retrieve only PUBLISHED assets.
+        """Execute grounded hybrid retrieval scoped to course, version, class, and student.
+        Enforces multi-tenant organization isolation and published asset gating.
         """
         sanitized_query = RAGSecuritySanitizer.sanitize_query(query_text)
         if not sanitized_query:
@@ -563,19 +622,64 @@ class RAGService:
                 "data_context": "",
             }
 
-        # Retrieve available chunks from published sources
+        # Resolve effective query scoping parameters
+        effective_course_id = course_id
+        effective_student_id = student_id or (user.id if user else user_id)
+        effective_version_id = course_version_id
+        effective_class_id = class_id
+        student_org_id = user.organization_id if user else None
+
+        if context:
+            if not effective_course_id:
+                effective_course_id = context.course_id
+            if not effective_student_id:
+                effective_student_id = context.student_id
+            if not effective_version_id:
+                effective_version_id = context.course_version_id
+            if not effective_class_id:
+                effective_class_id = context.class_id
+            if not student_org_id and context.organization_id:
+                student_org_id = context.organization_id
+
+        if not student_org_id and effective_student_id:
+            usr = self.db.get_user(effective_student_id)
+            if usr:
+                student_org_id = usr.organization_id
+
+        # Multi-Tenant Org Isolation Check
+        if effective_course_id and student_org_id:
+            course = self.db.get_course(effective_course_id)
+            if course:
+                c_vis = course.visibility.value if hasattr(course.visibility, "value") else str(course.visibility).upper()
+                if c_vis != "PUBLIC" and course.organization_id != student_org_id:
+                    # Check if there is an active course offering for this student's org
+                    offering = self.db.get_course_offering_by_org_and_course(student_org_id, effective_course_id)
+                    if not offering:
+                        return {
+                            "status": "RAG_DENIED",
+                            "reason": f"Access denied: course '{effective_course_id}' is private to organization '{course.organization_id}' and not offered to organization '{student_org_id}'.",
+                            "query": query_text,
+                            "results": [],
+                            "count": 0,
+                            "data_context": "",
+                        }
+
+        # Retrieve available chunks from published sources matching course, version, class, student
         chunks: List[RAGChunk] = []
-        if course_id:
+        if effective_course_id:
             chunks = self.db.get_rag_chunks_by_course(
-                course_id=course_id,
+                course_id=effective_course_id,
                 subject=subject,
                 concept=concept,
                 only_published=True,
+                course_version_id=effective_version_id,
+                class_id=effective_class_id,
+                student_id=effective_student_id,
                 limit=500,
             )
 
         # Fallback to general/global published chunks if course has none or no course specified
-        if not chunks and not course_id:
+        if not chunks and not effective_course_id:
             sources = self.db.list_rag_sources(
                 course_id=None,
                 subject=subject,
@@ -587,7 +691,7 @@ class RAGService:
                     chunks.extend(self.db.get_rag_chunks(s.id, limit=100))
 
         if not chunks:
-            if not course_id:
+            if not effective_course_id:
                 return self._legacy_fallback_query(sanitized_query, top_k)
             return {
                 "status": "RAG_EMPTY",
@@ -596,7 +700,6 @@ class RAGService:
                 "count": 0,
                 "data_context": "",
             }
-
 
         # Score chunks using hybrid TF-IDF lexical overlap + concept match + authority weighting
         query_terms = set(re.findall(r"\w+", sanitized_query.lower()))
@@ -669,6 +772,9 @@ class RAGService:
                 "score": score,
                 "citation": cit,
                 "provenance_type": chunk.provenance_type,
+                "course_version_id": chunk.course_version_id,
+                "visibility_scope": chunk.visibility_scope,
+                "class_id": chunk.class_id,
             }
             result_items.append(item)
             evidence_cards.append(item)

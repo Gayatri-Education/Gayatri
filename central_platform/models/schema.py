@@ -862,6 +862,21 @@ class KnowledgeContentType(str, Enum):
         return super()._missing_(value)
 
 
+class KnowledgeVisibilityScope(str, Enum):
+    COURSE = "course"
+    CLASS = "class"
+    STUDENT_TARGETED = "student_targeted"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
 class RAGSourceStatus(str, Enum):
     DRAFT = "draft"
     PROCESSING = "processing"
@@ -905,6 +920,10 @@ class RAGSource:
     published_by: Optional[str] = None
     published_at: Optional[str] = None
     error_message: Optional[str] = None
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
+    target_student_ids: List[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -914,6 +933,8 @@ class RAGSource:
             d["status"] = self.status.value
         if isinstance(self.content_type, Enum):
             d["content_type"] = self.content_type.value
+        if isinstance(self.visibility_scope, Enum):
+            d["visibility_scope"] = self.visibility_scope.value
         return d
 
 
@@ -935,8 +956,15 @@ class RAGChunk:
     embedding_vector: List[float] = field(default_factory=list)
     provenance_type: str = "NCERT"
     metadata_json: Dict[str, Any] = field(default_factory=dict)
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        if isinstance(self.visibility_scope, Enum):
+            d["visibility_scope"] = self.visibility_scope.value
+        return d
+
 

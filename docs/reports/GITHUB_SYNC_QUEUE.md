@@ -151,6 +151,26 @@
   - tests/test_phase05_knowledge_assets.py: 12 tests verifying multi-format ingestion (Markdown, JSON, Text), full lifecycle state transitions, malformed failure isolation, role-based authorization gates, and the Phase Gate student visibility invariant.
   - Regression results: 898/898 passed in 106.60s.
   ```
+- **Push Status:** `COMPLETED (commit 4f7e9f6 pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 007: Phase 06 Completion Update
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 06 Scoped RAG & Knowledge Authorization Complete`
+- **Intended Labels:** `rag`, `authorization`, `multi-tenant`, `scoping`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 06 Scoped RAG & Knowledge Authorization completed.
+
+  Deliverables:
+  - central_platform/models/schema.py: KnowledgeVisibilityScope enum (COURSE, CLASS, STUDENT_TARGETED), extended RAGSource and RAGChunk with course_version_id, visibility_scope, class_id, target_student_ids.
+  - migrations/006_scoped_rag_authorization.sql & _down.sql: Reversible schema migration with composite performance indexes (idx_rag_sources_scoped, idx_rag_chunks_scoped). Tested up/down rollback on SQLite.
+  - central_platform/db.py: Updated RAG persistence and get_rag_chunks_by_course with version pinning, class-level filtering, and student targeted remedial filtering.
+  - central_platform/rag/service.py: SmartChunker scoping propagation; RAGService.query() with multi-tenant org isolation check (RAG_DENIED on unauthorized access) and zero-leakage invariant (RAG_EMPTY without global fallback).
+  - central_platform/api/schemas.py & routes/rag.py: REST endpoints supporting scoped source registration, filtering, chunk listing, and query execution.
+  - tests/test_phase06_scoped_rag_authorization.py: 10 comprehensive tests covering course scope, multi-tenant isolation, partner offerings, class notes, student targeted remedial, version isolation, CourseLearningContext binding, no fallback, diagnostic transparency, and REST API flow.
+  - Regression results: 908/908 passed in 97.71s (100% green).
+  ```
 - **Push Status:** `QUEUED (ready for commit and push)`
 - **Issue Operations Status:** `QUEUED`
 

@@ -41,6 +41,7 @@ from central_platform.models.schema import (
     User,
     UserRole,
     KnowledgeContentType,
+    KnowledgeVisibilityScope,
     KnowledgeAssetStatus,
     RAGSource,
     RAGSourceStatus,
@@ -88,9 +89,11 @@ __all__ = [
     "AIExecutionLog",
     "AuditLog",
     "KnowledgeContentType",
+    "KnowledgeVisibilityScope",
     "KnowledgeAssetStatus",
     "RAGSource",
     "RAGSourceStatus",
     "RAGChunk",
 ]
+
 
