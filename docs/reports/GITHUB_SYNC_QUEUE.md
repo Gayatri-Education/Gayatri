@@ -191,7 +191,7 @@
   - tests/test_phase07_teacher_instruction_hierarchy.py: 13 comprehensive tests covering hierarchy scopes, cross-org denial, student write blocking, temporal filtering, class/student scoping containment, precedence cascade, priority tie-breaking, prompt injection rejection, anti-answer leakage rejection, prompt framing, SQLite persistence, and REST API endpoints.
   - Regression results: 921/921 passed in 111.10s (100% green).
   ```
-- **Push Status:** `QUEUED (ready for commit & push)`
+- **Push Status:** `COMPLETED (commit 082ceab pushed to origin/master)`
 - **Issue Operations Status:** `QUEUED`
 
 
