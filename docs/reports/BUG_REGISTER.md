@@ -159,5 +159,23 @@
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** VERIFIED.
 
+---
+
+### BUG-TOOL-010
+- **Severity:** P2
+- **Date Found:** 2026-10-01
+- **Commit Found:** `Phase 08 Implementation`
+- **Subsystem:** Tool Execution Engine RBAC (`central_platform/tools/engine.py`)
+- **Reproduction:** Configure a tool capability restricted to teachers/admins and execute with student context.
+- **Expected:** Student execution is rejected with `ToolAuthorizationError`.
+- **Actual:** Compound boolean check `role not in allowed and super_admin not in allowed` evaluated to false when super_admin was listed in allowed roles, bypassing the restriction.
+- **Root Cause:** Incorrect boolean condition checking whether super_admin was in the capability's allowed list rather than checking if caller was super_admin.
+- **Fix:** Refactored condition to `if role_val_norm not in allowed_role_vals_norm and role_val_norm != UserRole.SUPER_ADMIN.value.lower():`.
+- **Test:** `tests/test_phase08_course_tool_registry.py::test_role_based_access_control_for_tools`.
+- **Verification:** **VERIFIED FIXED** (All 11 Phase 08 tests pass; all 932 suite tests pass).
+- **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
+- **Status:** VERIFIED.
+
+
 
 

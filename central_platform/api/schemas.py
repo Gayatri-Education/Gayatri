@@ -1265,4 +1265,33 @@ class AdminAuditEventResponse(BaseModel):
     timestamp: str
 
 
+# ── Course Tools (Phase 08) ──────────────────────────────────────────────
+
+class ToolCapabilityResponse(BaseModel):
+    tool_id: str
+    name: str
+    description: str
+    category: str
+    allowed_roles: List[str] = Field(default_factory=list)
+    resource_limits: Dict[str, Any] = Field(default_factory=dict)
+    input_schema: Dict[str, Any] = Field(default_factory=dict)
+    output_schema: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolExecuteRequest(BaseModel):
+    tool_id: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    course_id: str = "crs-chem-101"
+    session_id: Optional[str] = None
+
+
+class ToolExecuteResponse(BaseModel):
+    tool_id: str
+    success: bool
+    output: Any = None
+    error: Optional[str] = None
+    execution_time_ms: float = 0.0
+    resource_usage: Dict[str, Any] = Field(default_factory=dict)
+
+
 

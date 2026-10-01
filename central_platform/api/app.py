@@ -56,6 +56,7 @@ from central_platform.api.routes.sessions import router as sessions_router
 from central_platform.api.routes.students import router as students_router
 from central_platform.api.routes.sync import router as sync_router
 from central_platform.api.routes.teachers import router as teachers_router
+from central_platform.api.routes.tools import router as tools_router
 from central_platform.api.routes.users import router as users_router
 
 # Central Platform Domain Services
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, prefix="/api/v1")
     app.include_router(notifications_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")
+    app.include_router(tools_router, prefix="/api/v1")
 
     # 5. Standard Probes
     @app.get("/healthz", response_model=HealthStatusResponse, tags=["Probes"])

@@ -278,4 +278,42 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 921 tests collected, 921 passed in 111.10s (100% green).
 - **Remaining Risks:** None for Phase 07. Phase 08 (Course Tool Policy Engine) next.
 
+### Entry: Phase 08 — Course Tool Capability & Adapter Registry (2026-10-01)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Domain & Capability Models (`central_platform/tools/capabilities.py`, `central_platform/tools/__init__.py`):
+    - Added `ToolCategory` enum (`CALCULATION`, `SCIENCE`, `CODING`, `GRAPHING`, `REFERENCE`).
+    - Added `ResourceLimits` dataclass (`timeout_seconds`, `max_input_chars`, `max_output_chars`, `max_memory_mb`).
+    - Added `ToolCapability` dataclass (`tool_id`, `name`, `description`, `category`, `allowed_roles`, `resource_limits`, `input_schema`, `output_schema`).
+    - Added `ToolExecutionContext` dataclass (`course_id`, `student_id`, `session_id`, `user_role`, `course_policy`).
+    - Added `ToolExecutionResult` dataclass (`success`, `output`, `error`, `execution_time_ms`, `resource_usage`).
+  - Base Tool Adapter Contract (`central_platform/tools/base.py`):
+    - Defined `ToolAdapter` abstract base class requiring `get_capabilities()`, `validate_arguments()`, and `execute()`.
+  - Tool Registry & Execution Engine (`central_platform/tools/registry.py`, `central_platform/tools/engine.py`):
+    - Implemented `ToolRegistry` with dynamic adapter registration, tool ID indexing, capability lookup, and policy-filtered tool listing.
+    - Implemented `ToolExecutionEngine` enforcing the 6-point execution contract:
+      1. Course tool policy check (`CourseToolPolicy.is_tool_enabled`)
+      2. User role authorization check (`user_role in allowed_roles` with super admin bypass)
+      3. Scope containment
+      4. Input schema validation
+      5. Resource limits enforcement with concurrent thread timeout guards
+      6. Typed `ToolExecutionResult` response
+  - Decoupled Domain Tool Adapters (`central_platform/tools/adapters/`):
+    - `ChemistryToolAdapter`: Exposes `equation_balancer` (stoichiometric matrix nullspace solver) and `formula_parser` (parenthesis and multiplier parser).
+    - `MathToolAdapter`: Exposes `calculator` evaluating mathematical expressions safely using an AST NodeVisitor (zero `eval()` or `exec()`), blocking dangerous code injections.
+    - `ProgrammingSandboxAdapter`: Exposes `code_execution` supporting syntax validation, stdout capture, and blocking dangerous imports (`os`, `sys`, `subprocess`, etc.).
+  - Central REST API Endpoints & Schemas (`central_platform/api/schemas.py`, `central_platform/api/routes/tools.py`, `central_platform/api/app.py`):
+    - Added `ToolCapabilityResponse`, `ToolExecuteRequest`, `ToolExecuteResponse`.
+    - Implemented `GET /api/v1/tools`, `GET /api/v1/tools/{course_id}`, and `POST /api/v1/tools/execute`. Mounted on FastAPI platform app.
+  - Test Suite (`tests/test_phase08_course_tool_registry.py`):
+    - 11 comprehensive tests covering registry discovery, course policy enablement, zero-tools course policies, role-based access control, resource limit timeouts, input validation, chemistry equation balancing, safe math AST evaluation, programming sandbox execution, phase gate architectural decoupling, and REST API endpoints.
+  - Regression Suite:
+    - 932 tests passing in 121.92s (100% green).
+- **Bugs Found & Fixed:**
+  - Role authorization comparison logic in `ToolExecutionEngine`: Fixed super admin bypass logic so that regular student/teacher role restrictions are correctly evaluated.
+  - Deprecated FastAPI status code `HTTP_422_UNPROCESSABLE_ENTITY`: Replaced with status code 422 to maintain clean, warning-free API execution.
+- **Tests Run:** 932 tests collected, 932 passed in 121.92s (100% green).
+- **Remaining Risks:** None for Phase 08. Phase 09 (Domain Decoupling & Subject Runtime Adapters) next.
+
+
 
