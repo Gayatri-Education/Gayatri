@@ -186,11 +186,14 @@ class ContextBuilder:
         base_prompt: Optional[str] = None,
         teacher_directives: Optional[List[str]] = None,
         subject: Optional[str] = None,
+        grade_level: Optional[str] = None,
     ) -> str:
         """Build enriched system prompt combining base prompt, subject scope, and teacher directives."""
-        prompt = base_prompt or "You are Gayatri AI, an authoritative Socratic chemistry and STEM tutor."
+        prompt = base_prompt or "You are Gayatri AI, an authoritative Socratic academic and STEM tutor."
         if subject:
             prompt = f"{prompt}\n\nSUBJECT SCOPE: {subject}"
+        if grade_level:
+            prompt = f"{prompt}\n\nGRADE LEVEL: {grade_level}"
         if teacher_directives:
             directives_block = "\n".join(f"- {d}" for d in teacher_directives)
             prompt = f"{prompt}\n\nACTIVE TEACHER DIRECTIVES:\n{directives_block}"
@@ -200,22 +203,29 @@ class ContextBuilder:
     def build_user_prompt(
         user_query: str,
         rag_context: Optional[Any] = None,
+        misconception_alerts: Optional[List[str]] = None,
     ) -> str:
-        """Build enriched user prompt combining query and RAG context."""
-        if not rag_context:
-            return f"Student Query: {user_query}"
+        """Build enriched user prompt combining query, RAG context, and misconception alerts."""
+        blocks: List[str] = []
+        if misconception_alerts:
+            blocks.append(f"[ACTIVE MISCONCEPTIONS TO ADDRESS SOCRATICALLY: {', '.join(misconception_alerts)}]")
 
-        if isinstance(rag_context, str):
-            rag_text = rag_context
-        elif isinstance(rag_context, list):
-            rag_text = "\n".join(
-                f"- [{item.get('source_title', 'Material')}] {item.get('text', str(item))}"
-                if isinstance(item, dict) else f"- {str(item)}"
-                for item in rag_context
-            )
-        else:
-            rag_text = str(rag_context)
+        if rag_context:
+            if isinstance(rag_context, str):
+                rag_text = rag_context
+            elif isinstance(rag_context, list):
+                rag_text = "\n".join(
+                    f"- [{item.get('source_title', 'Material')}] {item.get('text', str(item))}"
+                    if isinstance(item, dict) else f"- {str(item)}"
+                    for item in rag_context
+                )
+            else:
+                rag_text = str(rag_context)
 
-        if rag_text.startswith("<"):
-            return f"{rag_text}\n\nStudent Query: {user_query}"
-        return f"[Reference Context]\n{rag_text}\n\nStudent Query: {user_query}"
+            if rag_text.startswith("<"):
+                blocks.append(rag_text)
+            else:
+                blocks.append(f"[Reference Context]\n{rag_text}")
+
+        blocks.append(f"Student Query: {user_query}")
+        return "\n\n".join(blocks)

@@ -350,6 +350,51 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 946 tests collected, 946 passed in 135.53s (100% green).
 - **Remaining Risks:** None for Phase 09. Phase 10 (Generic Tutor Orchestrator) next.
 
+---
+
+### Entry: Phase 10 — Generic Tutor Orchestrator with 16-Step Course Lifecycle (2026-10-01)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Implemented Central Generic Tutor Orchestrator (`central_platform/tutor/orchestrator.py`):
+    - Enforces the authoritative 16-step course lifecycle contract:
+      1. Identity validation (rejects empty/whitespace `student_id`, `session_id`, `course_id` per Rule 4).
+      2. Enrollment validation (enforces private course authorization, auto-enrolls public courses).
+      3. Course and version resolution (pins specific version or pulls latest published version; raises `CourseNotFoundError`).
+      4. Class / Cohort resolution (resolves class/cohort context from enrollment).
+      5. Learning state resolution (canonical state partitioned strictly by `(student_id, course_id)`).
+      6. Hierarchical instruction resolution (`SESSION > STUDENT > CLASS > COURSE > ORGANIZATION`).
+      7. Course policy enforcement (extracts policy from published course version).
+      8. Course tool policy check (inspects enabled tools and custom tools via `CourseToolPolicy`).
+      9. Scoped RAG retrieval (version & org pinned RAG search, with graceful fallback on empty chunks).
+      10. 7-layer context assembly (assembles pruned prompt context blocks via `ContextBuilder`).
+      11. Pedagogy response planning (constructs `NextActionDecision` and `PedagogicalResponsePlan` with anti-answer-leakage guard).
+      12. AI Gateway execution (routes request via provider-neutral `AIGatewayService`).
+      13. 7-invariant response validation (validates generated response against model failures, prompt injection, educational safety, and answer leakage).
+      14. Learning evidence staging (stages proposed mastery state and learning events in an isolated buffer).
+      15. Two-phase transactional state commit (commits atomically to database only when validation passes; rolls back state on validation failure).
+      16. Audit & telemetry (tracks latency, deduplicates identical turns via fingerprint cache, returns typed `TutorTurnResult`).
+  - Implemented REST Turn Endpoint (`central_platform/api/routes/tutor.py`, `central_platform/api/app.py`):
+    - Mounted `POST /api/v1/tutor/turn` providing typed HTTP client turn execution, structured error mapping (`404` for missing course, `403` for unauthorized enrollment, `400` for validation errors).
+  - Enhanced Subsystems & Invariants:
+    - Updated `core/orchestrator.py` `TurnOptions` with optional `course_id: str | None = None`.
+    - Enhanced `ContextBuilder.build_system_prompt` to accept `grade_level` and generalized default prompt to "academic and STEM tutor".
+    - Enhanced `ContextBuilder.build_user_prompt` with `misconception_alerts`.
+    - Enhanced `StateCommitPipeline.validate_and_commit` to accept `response_plan` and pass it to `ResponseValidatorEngine`.
+  - Test Suite (`tests/test_phase10_generic_tutor_orchestrator.py`):
+    - 11 comprehensive tests covering Physics execution, public CS auto-enrollment, History multi-disciplinary execution, identity validation failures (Rule 4), invalid course rejection, unauthorized private enrollment blocking, RAG empty resilience, response validation failure and atomic rollback, duplicate turn idempotency, zero Chemistry coupling invariant, and FastAPI REST endpoint integration.
+  - Regression Suite:
+    - 957 tests passing in 143.59s (100% green).
+- **Bugs Found & Fixed:**
+  - Resolved `CourseToolPolicy` attribute access error by dynamically checking declared tool fields and custom tools.
+  - Resolved `ContextBuilder.build_system_prompt` keyword argument mismatch and decoupled default base prompt.
+  - Resolved `NextActionDecision` constructor keyword argument alignment.
+  - Resolved `MasteryState` keyword argument alignment (`slr_id` instead of `student_id`).
+  - Resolved SQLite foreign key failure by guaranteeing user and session records exist before staging `LearningEvent`.
+  - Resolved Socratic answer-leakage validation bypass by enforcing `response_plan.anti_answer_leakage_guard = True` and forwarding `response_plan` to `commit_pipeline.validate_and_commit`.
+- **Tests Run:** 957 tests collected, 957 passed in 143.59s (100% green).
+- **Remaining Risks:** None for Phase 10. Phase 11 (General Evaluation Engine) next.
+
+
 
 
 

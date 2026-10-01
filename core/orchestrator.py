@@ -291,6 +291,7 @@ class TurnOptions:
     forced_tier: str | None = None
     forced_agent: str | None = None
     student_id: str | None = None
+    course_id: str | None = None
 
 
 @dataclass

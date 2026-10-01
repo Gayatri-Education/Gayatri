@@ -19,9 +19,9 @@
 - **Root Cause:** Historical design of Gayatri as a Chemistry tutor without course abstraction.
 - **Fix:** Extract all Chemistry-specific logic to `adapters/chemistry/` and make core curriculum and orchestrator data-driven.
 - **Test:** Course genericity static guard test + generic course creation test.
-- **Verification:** Pending (Scheduled for Phase 10 Generic Tutor Core & Phase 15).
+- **Verification:** PARTIAL (Phase 10 Generic Tutor Core verified 100% decoupled with zero chemistry coupling; full legacy runtime migration continues through Phase 15).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
-- **Status:** CONFIRMED.
+- **Status:** IN_PROGRESS.
 
 ---
 
