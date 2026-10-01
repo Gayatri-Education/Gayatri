@@ -1,12 +1,12 @@
 project: "Gayatri Platform — Course-Independent Architecture"
 current_branch: "master"
 current_commit: "bc8d773"
-phase: "PHASE 10 — GENERIC TUTOR ORCHESTRATOR"
+phase: "PHASE 11 — GENERIC ASSESSMENT & EVALUATION ENGINE"
 phase_status: "VERIFIED"
 overall_status: "IN_PROGRESS"
 
 requirements:
-  course_independent: "IN_PROGRESS (Generic curriculum, multi-course state, knowledge pipeline, scoped RAG, instruction hierarchy, tool registry, AI gateway, and 16-step generic orchestrator verified)"
+  course_independent: "IN_PROGRESS (Generic curriculum, multi-course state, knowledge pipeline, scoped RAG, instruction hierarchy, tool registry, AI gateway, 16-step generic orchestrator, and generic assessment engine verified)"
   public_private_courses: "VERIFIED (Public/Private visibility, auto-enrollment, and org isolation enforced in CourseService, RAGService & GenericTutorOrchestrator)"
   versioned_content: "VERIFIED (CourseVersion model, GenericCurriculum DAG, and version-pinned RAG retrieval verified)"
   content_approval: "VERIFIED (Teacher upload, ORG_ADMIN/SUPER_ADMIN approval/publication, student visibility invariant)"
@@ -15,17 +15,18 @@ requirements:
   course_tools: "VERIFIED (ToolRegistry, ToolExecutionEngine, Chemistry/Math/Coding adapters, CourseToolPolicy inspection, and 6-point execution contract enforced)"
   model_registry_ai_gateway: "VERIFIED (Authoritative manifest schema, core/config reconciliation, zero legacy inference imports, observable fallback, and privacy fail-closed)"
   generic_tutor_orchestrator: "VERIFIED (16-step course lifecycle, enrollment authorization, scoped context/RAG, anti-leakage guards, transactional 2-phase commit/rollback, REST endpoint /api/v1/tutor/turn)"
-  online: "VERIFIED (FastAPI server active, 957 tests pass)"
+  generic_assessment_evaluation: "VERIFIED (Capability-driven evaluator registry, deterministic/code/rubric evaluators, dynamic misconception resolution, anti-leakage sanitization, teacher review)"
+  online: "VERIFIED (FastAPI server active, 969 tests pass)"
   offline: "PARTIAL (SQLite functional; full offline package scheduled Phase 13)"
   sync: "PARTIAL (Basic sync tests pass; idempotent outbox scheduled Phase 14)"
 
 quality:
-  unit_tests: "957 tests passing (856 regression + 12 guards + 6 Phase 2 + 6 Phase 3 + 6 Phase 4 + 12 Phase 5 + 10 Phase 6 + 13 Phase 7 + 11 Phase 8 + 14 Phase 9 + 11 Phase 10)"
-  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, scoped RAG, instruction cascade, tool registry, AI gateway, and GenericTutorOrchestrator 16-step turn flow tested)"
+  unit_tests: "969 tests passing (856 regression + 12 guards + 6 Phase 2 + 6 Phase 3 + 6 Phase 4 + 12 Phase 5 + 10 Phase 6 + 13 Phase 7 + 11 Phase 8 + 14 Phase 9 + 11 Phase 10 + 12 Phase 11)"
+  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, scoped RAG, instruction cascade, tool registry, AI gateway, GenericTutorOrchestrator, and AssessmentService/EvaluatorRegistry tested)"
   e2e_tests: "PARTIAL (Direct service & REST API flows verified; true UI->API->DB->RAG->AI boundary required in Phase 24)"
-  failure_tests: "VERIFIED (Cross-org RAG_DENIED, scoped RAG_EMPTY, prompt injection rejection, tool policy violation, timeout abort, AST injection block, missing model fallback, corrupt checksum rejection, privacy egress block, answer leakage rejection, state rollback on validation failure)"
-  security_tests: "VERIFIED (Multi-tenant org isolation, student write blocking, cross-org teacher denial, prompt injection guards, safe AST math, programming sandbox block, privacy fail-closed, anti-answer-leakage invariant)"
-  static_checks: "VERIFIED (py_compile 0 errors, zero legacy imports in core/, central_platform/, app/, zero chemistry coupling in GenericTutorOrchestrator)"
+  failure_tests: "VERIFIED (Cross-org RAG_DENIED, scoped RAG_EMPTY, prompt injection rejection, tool policy violation, timeout abort, AST injection block, missing model fallback, corrupt checksum rejection, privacy egress block, answer leakage rejection, state rollback on validation failure, unit mismatch partial scoring, malformed input uncertainty)"
+  security_tests: "VERIFIED (Multi-tenant org isolation, student write blocking, cross-org teacher denial, prompt injection guards, safe AST math, programming sandbox block, privacy fail-closed, anti-answer-leakage invariant, assessment sanitization)"
+  static_checks: "VERIFIED (py_compile 0 errors, zero legacy imports in core/, central_platform/, app/, zero chemistry coupling in GenericTutorOrchestrator and EvaluatorRegistry)"
   migration_tests: "VERIFIED (Migration 007 up/down rollback, 21-column schema, and idempotent reapply tested)"
 
 bugs:
@@ -36,10 +37,10 @@ bugs:
 
 github:
   remote_sync: "ACTIVE (git push active to origin/master)"
-  last_issue: "Item 011 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
+  last_issue: "Item 012 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
   last_commit: "HEAD"
   last_push: "origin/master"
-  last_update: "2026-10-01T22:59:00+05:30"
+  last_update: "2026-10-01T23:15:00+05:30"
 
-last_verified: "2026-10-01T22:59:00+05:30"
-test_report: "docs/reports/PHASE_10_TEST_REPORT.md"
+last_verified: "2026-10-01T23:15:00+05:30"
+test_report: "docs/reports/PHASE_11_TEST_REPORT.md"

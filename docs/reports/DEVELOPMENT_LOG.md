@@ -394,6 +394,42 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 957 tests collected, 957 passed in 143.59s (100% green).
 - **Remaining Risks:** None for Phase 10. Phase 11 (General Evaluation Engine) next.
 
+---
+
+### Entry: Phase 11 — Generic Assessment & Evaluation Engine (2026-10-01)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Standardized Evaluation Contract (`central_platform/assessment/evaluators/base.py`):
+    - Added 4-valued `EvaluationStatus` (`CORRECT`, `PARTIALLY_CORRECT`, `INCORRECT`, `UNCERTAIN`).
+    - Added typed `EvaluationOutcome` containing score, confidence, error type, evidence list, misconception code, feedback, and remediation hint.
+    - Added abstract `BaseEvaluator` protocol.
+  - Deterministic & Multidisciplinary Evaluators (`central_platform/assessment/evaluators/`):
+    - `MCQEvaluator`: Handles letter options (A/B/C/D), string value matching, and 0/1-based indexing.
+    - `NumericalEvaluator`: Evaluates arithmetic equations with customizable relative tolerance (default 1%) and unit verification; yields `PARTIALLY_CORRECT` with `error_type="unit"` when the numeric value is correct but unit is missing/mismatched.
+    - `BooleanEvaluator`: Evaluates boolean True/False tokens and flags ambiguous/malformed inputs as `UNCERTAIN`.
+    - `CodeExecutionEvaluator`: Verifies Python AST syntax, executes code safely in `ProgrammingSandboxAdapter`, and validates stdout and return value against test expectations.
+    - `RubricEvaluator`: Multi-criterion rubric scoring decoupled from hardcoded chemistry patterns; matches student answers against criteria thresholds and dynamic misconception catalogs extracted from course curriculum metadata.
+    - `ChemistryEquationEvaluator`: Domain adapter hook delegating equation balancing to `ChemistryToolAdapter` without leaking chemistry dependencies into platform core.
+    - `EvaluatorRegistry`: Central capability-driven registry mapping question types and capabilities to evaluators with fallback handling.
+  - Anti-Answer-Leakage Sanitizer (`central_platform/assessment/sanitizer.py`):
+    - `AssessmentSanitizer.sanitize_assessment_for_student()` and `sanitize_question_for_student()`: Deep copies assessment/question payloads and scrubs `answer_key`, `correct_answer`, `rubric`, `evaluation_rubric`, `explanation`, and `teacher_notes` before question delivery.
+    - Added `verify_sanitized()` invariant validator.
+  - Decoupled Assessment Service (`central_platform/assessment/service.py`):
+    - Removed hardcoded `"crs-chem-101"` / `"CHEM101"` default in `_ensure_entities`.
+    - Integrated `AssessmentSanitizer` via `get_sanitized_assessment()`.
+    - Added `review_attempt()` wrapper enabling teacher score overrides, item-level feedback, and explicit approval.
+  - Test Suite (`tests/test_phase11_generic_assessment_evaluation.py`):
+    - 12 comprehensive unit, integration, and security tests covering MCQ, numerical tolerance, unit mismatch detection, boolean evaluation, code sandbox execution, dynamic rubric misconception resolution, uncertain/malformed input handling, anti-leakage sanitization, course/version isolation, teacher review overrides, remediation recommendation isolation, and the zero-chemistry generic registry invariant.
+  - Regression Suite:
+    - 969 tests passing in 142.14s (100% green, zero regressions).
+- **Bugs Found & Fixed:**
+  - `ProgrammingSandboxAdapter` and `ChemistryToolAdapter` require `ToolExecutionContext(course_id=..., user_role=...)`: supplied valid execution context.
+  - `AssessmentService.submit_attempt` returns an `AssessmentAttempt` model object rather than a raw dict: updated assertions to access object attributes.
+  - Rubric passing score alignment: mapped rubric normalized score `>= 0.70` to `EvaluationStatus.CORRECT` to align with the standard passing threshold.
+  - `QuestionBankItem` requires explicit `course_id`: ensured all test fixtures pass `course_id`.
+- **Tests Run:** 969 tests collected, 969 passed in 142.14s (100% green).
+- **Remaining Risks:** None for Phase 11. Phase 12 (Real Online API Boundary) next.
+
 
 
 
