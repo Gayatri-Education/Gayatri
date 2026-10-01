@@ -142,4 +142,22 @@
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** VERIFIED.
 
+---
+
+### BUG-INST-009
+- **Severity:** P2
+- **Date Found:** 2026-10-01
+- **Commit Found:** `Phase 07 Implementation`
+- **Subsystem:** Teacher Instruction Hierarchy Cascade (`central_platform/teacher/instruction.py`)
+- **Reproduction:** Query student instructions with specific `concept_id` when targeted student instructions specify a different `concept_scope`.
+- **Expected:** Concept-specific student instructions targeting a different concept are filtered out.
+- **Actual:** Concept filtering was applied only to `COURSE` scope; student-targeted instructions bypassed concept filter.
+- **Root Cause:** Concept condition was placed inside `scope == "COURSE"` block instead of globally across scopes.
+- **Fix:** Moved concept scope evaluation to apply across all hierarchy levels in `resolve_hierarchical_instructions`.
+- **Test:** `tests/test_phase11_teacher_instructions_platform.py::test_instruction_scoping_student_cohort_concept`.
+- **Verification:** **VERIFIED FIXED** (All 13 Phase 07 and Phase 11 tests pass; all 921 suite tests pass).
+- **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
+- **Status:** VERIFIED.
+
+
 

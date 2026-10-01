@@ -244,3 +244,38 @@ This log records every development phase and architectural transition in chronol
 - **Remaining Risks:**
   - Hierarchical teacher instruction inheritance cascade (scheduled for Phase 07).
 
+### Entry: Phase 07 — Teacher Instruction Hierarchy & Scoping (2026-10-01)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Models & Schemas (`central_platform/models/schema.py`, `central_platform/models/__init__.py`):
+    - Added `InstructionScope` enum (`ORGANIZATION`, `COURSE`, `CLASS`, `STUDENT`, `SESSION`).
+    - Extended `TeacherInstructionRecord` dataclass to 21 columns including `organization_id`, `course_version_id`, `class_id`, `session_id`, `scope_type`, `status`, `safety_status`, `start_at`, `expires_at`, `version`, `audit_trail`, `updated_at`.
+  - Database Migration 007 (`migrations/007_teacher_instruction_hierarchy.sql`, `migrations/007_teacher_instruction_hierarchy_down.sql`):
+    - Added new columns and performance indexes `idx_teacher_inst_scope`, `idx_teacher_inst_class`, `idx_teacher_inst_org`, `idx_teacher_inst_session`, `idx_teacher_inst_hierarchy`.
+    - Verified forward migration, rollback down, and idempotent reapplication. Guarded by architecture tests.
+  - Database Layer (`central_platform/db.py`):
+    - Updated `_row_to_teacher_instruction` and `create_teacher_instruction` to persist and retrieve all 21 columns.
+    - Added `get_teacher_instruction`, `delete_teacher_instruction`.
+    - Added `get_hierarchical_teacher_instructions` supporting hierarchical filtering and status filtering.
+  - Teacher Instruction Engine (`central_platform/teacher/instruction.py`):
+    - Updated `ScopeType` with `ORGANIZATION`, `COURSE`, `CLASS`, `STUDENT`, `SESSION` (and legacy aliases `COHORT`, `CONCEPT`).
+    - Added RBAC gatekeeping to `add_instruction`: student writes strictly blocked (`PermissionError`), cross-org teacher dispatches strictly blocked (`PermissionError`).
+    - Implemented `resolve_hierarchical_instructions` enforcing the deterministic precedence cascade: `SESSION (5) > STUDENT (4) > CLASS (3) > COURSE (2) > ORGANIZATION (1)`, with intra-scope tie-breaking by priority (5->1) then `created_at` (descending).
+    - Added concept scope filtering across all scopes.
+    - Updated `format_prompt_directive` with strict data framing `[TEACHER PEDAGOGICAL DIRECTIVES - STRICT DATA FRAMING]` and non-negotiable invariant note reminding the LLM that directives never override anti-answer leakage, scientific truths, or Socratic guidance.
+    - Enhanced `TeacherInstructionValidator` regexes for prompt injections and anti-answer leakage attempts.
+  - API Schemas & Routes (`central_platform/api/schemas.py`, `central_platform/api/routes/teachers.py`):
+    - Updated `TeacherInstructionCreateRequest` and `TeacherInstructionResponse` with hierarchical fields.
+    - Updated `create_instruction` with multi-tenant org validation, student rejection (HTTP 403), and auto-scope inference.
+    - Updated `get_instructions` to support `hierarchical=true` resolution parameter.
+  - Test Suite (`tests/test_phase07_teacher_instruction_hierarchy.py`):
+    - 13 comprehensive unit, security, precedence, database, and API integration tests: all passed.
+  - Regression Suite:
+    - 921 tests passing in 111.10s (100% green).
+- **Bugs Found & Fixed:**
+  - Concept scope filtering missing for STUDENT scope in `resolve_hierarchical_instructions`: Fixed by applying concept filter across all scopes.
+  - Prompt directive backward compatibility with Phase 11 assertion: Fixed by prepending `[PRIORITY TEACHER INSTRUCTIONS]:` header.
+- **Tests Run:** 921 tests collected, 921 passed in 111.10s (100% green).
+- **Remaining Risks:** None for Phase 07. Phase 08 (Course Tool Policy Engine) next.
+
+

@@ -129,6 +129,10 @@ class TeacherInstructionCreateRequest(BaseModel):
     start_at: Optional[str] = None
     expires_at: Optional[str] = None
     scope_type: Optional[str] = None
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    session_id: Optional[str] = None
 
 
 class TeacherInstructionResponse(BaseModel):
@@ -140,6 +144,11 @@ class TeacherInstructionResponse(BaseModel):
     priority: int
     concept_scope: str
     scope_type: str = "STUDENT"
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    session_id: Optional[str] = None
+    version: int = 1
     is_active: bool
     status: str = "ACTIVE"
     start_at: Optional[str] = None

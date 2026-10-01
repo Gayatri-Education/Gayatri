@@ -683,23 +683,39 @@ class Reassessment:
 
 # ── 7. Teacher Directives & Interventions ────────────────────────────────
 
+class InstructionScope(str, Enum):
+    """Authoritative scopes for teacher instruction cascading."""
+    ORGANIZATION = "ORGANIZATION"
+    COURSE = "COURSE"
+    CLASS = "CLASS"
+    STUDENT = "STUDENT"
+    SESSION = "SESSION"
+
+
 @dataclass
 class TeacherInstructionRecord:
     id: str
     teacher_id: str
-    student_id: str
-    course_id: str
-    instruction_text: str
+    student_id: str = "all"
+    course_id: str = "crs-default"
+    instruction_text: str = ""
     concept_scope: str = "ALL"
     priority: int = 2
     is_active: bool = True
-    start_at: Optional[str] = None
-    expires_at: Optional[str] = None
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    session_id: Optional[str] = None
+    scope_type: str = InstructionScope.COURSE.value
     status: str = "ACTIVE"
     safety_status: str = "VALIDATED"
     safety_reasons: List[str] = field(default_factory=list)
+    start_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    version: int = 1
     audit_trail: List[dict] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)

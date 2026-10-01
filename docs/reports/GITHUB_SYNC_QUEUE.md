@@ -174,6 +174,27 @@
 - **Push Status:** `COMPLETED (commit 888d936 pushed to origin/master)`
 - **Issue Operations Status:** `QUEUED`
 
+### Item 008: Phase 07 Completion Update
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 07 Teacher Instruction Hierarchy & Scoping Complete`
+- **Intended Labels:** `instructions`, `pedagogy`, `rbac`, `hierarchy`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 07 Teacher Instruction Hierarchy & Scoping completed.
+
+  Deliverables:
+  - central_platform/models/schema.py: InstructionScope enum (ORGANIZATION, COURSE, CLASS, STUDENT, SESSION), extended TeacherInstructionRecord with 21 columns including organization_id, course_version_id, class_id, session_id, scope_type, status, safety_status, start_at, expires_at, version, audit_trail, updated_at.
+  - migrations/007_teacher_instruction_hierarchy.sql & _down.sql: Reversible schema migration with composite indexes (idx_teacher_inst_scope, idx_teacher_inst_class, idx_teacher_inst_org, idx_teacher_inst_session, idx_teacher_inst_hierarchy).
+  - central_platform/db.py: Updated create_teacher_instruction, _row_to_teacher_instruction, get_hierarchical_teacher_instructions with status and scope filtering.
+  - central_platform/teacher/instruction.py: ScopeType, TeacherInstructionEngine with resolve_hierarchical_instructions enforcing SESSION > STUDENT > CLASS > COURSE > ORGANIZATION precedence, student write blocking, cross-org teacher denial, format_prompt_directive with strict data framing and system invariant guards.
+  - central_platform/api/schemas.py & routes/teachers.py: Hierarchical request/response schemas, create_instruction with org and RBAC checks, get_instructions with hierarchical resolution query parameter.
+  - tests/test_phase07_teacher_instruction_hierarchy.py: 13 comprehensive tests covering hierarchy scopes, cross-org denial, student write blocking, temporal filtering, class/student scoping containment, precedence cascade, priority tie-breaking, prompt injection rejection, anti-answer leakage rejection, prompt framing, SQLite persistence, and REST API endpoints.
+  - Regression results: 921/921 passed in 111.10s (100% green).
+  ```
+- **Push Status:** `QUEUED (ready for commit & push)`
+- **Issue Operations Status:** `QUEUED`
+
+
 
 
 

@@ -122,6 +122,11 @@ def _to_instruction_response(i: TeacherInstruction) -> TeacherInstructionRespons
         priority=i.priority,
         concept_scope=i.concept_scope or "ALL",
         scope_type=getattr(i, "scope_type", "STUDENT"),
+        organization_id=getattr(i, "organization_id", None),
+        course_version_id=getattr(i, "course_version_id", None),
+        class_id=getattr(i, "class_id", None),
+        session_id=getattr(i, "session_id", None),
+        version=getattr(i, "version", 1),
         is_active=i.is_active,
         status=getattr(i, "status", InstructionStatus.ACTIVE.value),
         start_at=getattr(i, "start_at", None),
@@ -158,20 +163,26 @@ async def create_instruction(
     req: TeacherInstructionCreateRequest,
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Dispatch a pedagogical directive from teacher to student(s) with policy validation and audit logging."""
+    """Dispatch a pedagogical directive with hierarchical scoping, policy validation, and audit logging."""
     if current_user:
         if current_user.role == UserRole.STUDENT:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: students cannot create teacher instructions",
             )
-        if current_user.role == UserRole.TEACHER and req.student_id not in ("all", "*"):
+        if current_user.role == UserRole.TEACHER and req.student_id not in ("all", "*", "", None):
             db = get_db()
             assigned = db.get_assigned_student_ids_for_teacher(current_user.id)
             if assigned and req.student_id not in assigned:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Forbidden: student '{req.student_id}' is not assigned to this teacher",
+                )
+        if current_user.role == UserRole.TEACHER and req.organization_id:
+            if current_user.organization_id and req.organization_id != current_user.organization_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: teacher '{current_user.id}' cannot create instructions for organization '{req.organization_id}'",
                 )
 
     # Validate against non-overridable invariants
@@ -184,20 +195,33 @@ async def create_instruction(
 
     inst_id = f"inst-{uuid.uuid4().hex[:6]}"
     teacher_id = current_user.id if current_user else "tchr-101"
+    org_id = req.organization_id or (current_user.organization_id if current_user else "org-default")
     
     # Auto-infer scope type if not specified
     if req.scope_type:
-        scope_type = req.scope_type
-    elif req.student_id in ("all", "*", ""):
-        scope_type = "CONCEPT" if req.concept_scope and req.concept_scope not in ("ALL", "*") else "COURSE"
+        scope_type = req.scope_type.upper()
+    elif req.session_id:
+        scope_type = "SESSION"
+    elif req.student_id not in ("all", "*", "", None):
+        scope_type = "STUDENT"
+    elif req.class_id:
+        scope_type = "CLASS"
+    elif req.course_version_id or req.course_id:
+        scope_type = "COURSE"
+    elif req.organization_id:
+        scope_type = "ORGANIZATION"
     else:
-        scope_type = "CONCEPT" if req.concept_scope and req.concept_scope not in ("ALL", "*") else "STUDENT"
+        scope_type = "COURSE"
 
     inst = TeacherInstruction(
         instruction_id=inst_id,
         teacher_id=teacher_id,
-        student_id=req.student_id,
+        organization_id=org_id,
         course_id=req.course_id,
+        course_version_id=req.course_version_id,
+        class_id=req.class_id,
+        student_id=req.student_id or "all",
+        session_id=req.session_id,
         instruction_text=val.sanitized_text,
         priority=req.priority,
         concept_scope=req.concept_scope,
@@ -208,8 +232,9 @@ async def create_instruction(
         is_active=True,
         safety_status=val.safety_status,
         safety_reasons=val.violations,
+        version=1,
     )
-    _instruction_engine.add_instruction(inst, actor_id=teacher_id)
+    _instruction_engine.add_instruction(inst, actor_id=teacher_id, actor=current_user)
 
     return ApiResponse(ok=True, data=_to_instruction_response(inst))
 
@@ -218,11 +243,17 @@ async def create_instruction(
 async def get_instructions(
     student_id: Optional[str] = Query(default=None),
     course_id: Optional[str] = Query(default="crs-chem-101"),
+    course_version_id: Optional[str] = Query(default=None),
+    organization_id: Optional[str] = Query(default=None),
+    class_id: Optional[str] = Query(default=None),
+    session_id: Optional[str] = Query(default=None),
+    concept_id: Optional[str] = Query(default=None),
     status_filter: Optional[str] = Query(default=None, alias="status"),
     active_only: bool = Query(default=False),
+    hierarchical: bool = Query(default=False),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Get active instructions scoped to a student or course with optional filtering."""
+    """Get active instructions scoped to a student, class, course, or org with optional hierarchical resolution."""
     if current_user:
         if current_user.role == UserRole.STUDENT:
             # Student can only see instructions addressed to them or 'all'
@@ -232,11 +263,27 @@ async def get_instructions(
                     detail="Forbidden: students may only view their own instructions",
                 )
             student_id = current_user.id
+            if not organization_id and current_user.organization_id:
+                organization_id = current_user.organization_id
 
-    if student_id:
+    if hierarchical:
+        insts = _instruction_engine.resolve_hierarchical_instructions(
+            organization_id=organization_id or (current_user.organization_id if current_user else None),
+            course_id=course_id,
+            course_version_id=course_version_id,
+            class_id=class_id,
+            student_id=student_id,
+            session_id=session_id,
+            concept_id=concept_id,
+        )
+    elif student_id:
         insts = _instruction_engine.get_instructions_for_student(
             student_id=student_id,
             course_id=course_id or "",
+            concept_id=concept_id,
+            class_id=class_id,
+            organization_id=organization_id,
+            session_id=session_id,
         )
     else:
         insts = _instruction_engine.get_all_instructions(

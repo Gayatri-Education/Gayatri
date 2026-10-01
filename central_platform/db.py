@@ -1815,37 +1815,163 @@ class PlatformDatabase:
 
     # ── 7. Teacher Directives & Interventions ────────────────────────────────
 
+    def _row_to_teacher_instruction(self, r: Any) -> TeacherInstructionRecord:
+        keys = r.keys()
+        audit_trail = []
+        if "audit_trail_json" in keys and r["audit_trail_json"]:
+            try:
+                audit_trail = json.loads(r["audit_trail_json"])
+            except Exception:
+                pass
+        return TeacherInstructionRecord(
+            id=r["id"],
+            teacher_id=r["teacher_id"],
+            student_id=r["student_id"],
+            course_id=r["course_id"],
+            instruction_text=r["instruction_text"],
+            concept_scope=r["concept_scope"] if "concept_scope" in keys else "ALL",
+            priority=int(r["priority"]),
+            is_active=bool(r["is_active"]),
+            organization_id=r["organization_id"] if "organization_id" in keys else None,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+            class_id=r["class_id"] if "class_id" in keys else None,
+            session_id=r["session_id"] if "session_id" in keys else None,
+            scope_type=r["scope_type"] if "scope_type" in keys and r["scope_type"] else "COURSE",
+            status=r["status"] if "status" in keys and r["status"] else "ACTIVE",
+            safety_status=r["safety_status"] if "safety_status" in keys and r["safety_status"] else "VALIDATED",
+            safety_reasons=[],
+            start_at=r["start_at"] if "start_at" in keys else None,
+            expires_at=r["expires_at"] if "expires_at" in keys else None,
+            version=int(r["version"]) if "version" in keys and r["version"] is not None else 1,
+            audit_trail=audit_trail,
+            created_at=r["created_at"],
+            updated_at=r["updated_at"] if "updated_at" in keys else None,
+        )
+
     def create_teacher_instruction(self, inst: TeacherInstructionRecord) -> TeacherInstructionRecord:
         with self._get_connection() as conn:
+            scope_val = inst.scope_type.value if hasattr(inst.scope_type, "value") else str(inst.scope_type or "COURSE")
+            status_val = inst.status.value if hasattr(inst.status, "value") else str(inst.status or "ACTIVE")
+            safety_val = inst.safety_status.value if hasattr(inst.safety_status, "value") else str(inst.safety_status or "VALIDATED")
+            audit_json = json.dumps(inst.audit_trail) if isinstance(inst.audit_trail, list) else str(inst.audit_trail or "[]")
             conn.execute(
-                "INSERT OR REPLACE INTO teacher_instructions (id, teacher_id, student_id, course_id, instruction_text, concept_scope, priority, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
-                (inst.id, inst.teacher_id, inst.student_id, inst.course_id, inst.instruction_text, inst.concept_scope, inst.priority, 1 if inst.is_active else 0, inst.created_at),
+                """
+                INSERT INTO teacher_instructions (
+                    id, teacher_id, student_id, course_id, instruction_text, concept_scope,
+                    priority, is_active, organization_id, course_version_id, class_id,
+                    session_id, scope_type, status, safety_status, start_at, expires_at,
+                    version, audit_trail_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    teacher_id=excluded.teacher_id,
+                    student_id=excluded.student_id,
+                    course_id=excluded.course_id,
+                    instruction_text=excluded.instruction_text,
+                    concept_scope=excluded.concept_scope,
+                    priority=excluded.priority,
+                    is_active=excluded.is_active,
+                    organization_id=excluded.organization_id,
+                    course_version_id=excluded.course_version_id,
+                    class_id=excluded.class_id,
+                    session_id=excluded.session_id,
+                    scope_type=excluded.scope_type,
+                    status=excluded.status,
+                    safety_status=excluded.safety_status,
+                    start_at=excluded.start_at,
+                    expires_at=excluded.expires_at,
+                    version=excluded.version,
+                    audit_trail_json=excluded.audit_trail_json,
+                    updated_at=excluded.updated_at;
+                """,
+                (
+                    inst.id, inst.teacher_id, inst.student_id, inst.course_id, inst.instruction_text,
+                    inst.concept_scope, inst.priority, 1 if inst.is_active else 0, inst.organization_id,
+                    inst.course_version_id, inst.class_id, inst.session_id, scope_val, status_val,
+                    safety_val, inst.start_at, inst.expires_at, inst.version, audit_json,
+                    inst.created_at, inst.updated_at,
+                ),
             )
         return inst
 
-    def get_teacher_instructions(self, course_id: str, student_id: Optional[str] = None) -> List[TeacherInstructionRecord]:
+    def get_teacher_instruction(self, instruction_id: str) -> Optional[TeacherInstructionRecord]:
         with self._get_connection() as conn:
-            sql = "SELECT * FROM teacher_instructions WHERE course_id = ? AND is_active = 1"
-            params: list[Any] = [course_id]
+            r = conn.execute("SELECT * FROM teacher_instructions WHERE id = ?;", (instruction_id,)).fetchone()
+            return self._row_to_teacher_instruction(r) if r else None
+
+    def delete_teacher_instruction(self, instruction_id: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute("DELETE FROM teacher_instructions WHERE id = ?;", (instruction_id,))
+            return cursor.rowcount > 0
+
+    def get_teacher_instructions(
+        self,
+        course_id: Optional[str] = None,
+        student_id: Optional[str] = None,
+        only_active: bool = True,
+    ) -> List[TeacherInstructionRecord]:
+        with self._get_connection() as conn:
+            conditions = []
+            params: list[Any] = []
+            if course_id:
+                conditions.append("course_id = ?")
+                params.append(course_id)
+            if only_active:
+                conditions.append("is_active = 1")
             if student_id:
-                sql += " AND (student_id = ? OR student_id = 'all')"
+                conditions.append("(student_id = ? OR student_id = 'all')")
                 params.append(student_id)
-            sql += " ORDER BY priority DESC, created_at DESC;"
+
+            where_str = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            sql = f"SELECT * FROM teacher_instructions {where_str} ORDER BY priority DESC, created_at DESC;"
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [
-                TeacherInstructionRecord(
-                    id=r["id"],
-                    teacher_id=r["teacher_id"],
-                    student_id=r["student_id"],
-                    course_id=r["course_id"],
-                    instruction_text=r["instruction_text"],
-                    concept_scope=r["concept_scope"],
-                    priority=int(r["priority"]),
-                    is_active=bool(r["is_active"]),
-                    created_at=r["created_at"],
-                )
-                for r in rows
-            ]
+            return [self._row_to_teacher_instruction(r) for r in rows]
+
+    def get_hierarchical_teacher_instructions(
+        self,
+        course_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        class_id: Optional[str] = None,
+        student_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        only_active: bool = True,
+    ) -> List[TeacherInstructionRecord]:
+        with self._get_connection() as conn:
+            conditions = []
+            params: list[Any] = []
+
+            if only_active:
+                conditions.append("is_active = 1")
+                conditions.append("LOWER(status) = 'active'")
+                conditions.append("LOWER(safety_status) = 'validated'")
+
+            # Build scope conditions across hierarchy
+            scope_clauses = []
+            if organization_id:
+                scope_clauses.append("(scope_type = 'ORGANIZATION' AND (organization_id = ? OR organization_id IS NULL))")
+                params.append(organization_id)
+            if course_id:
+                scope_clauses.append("(scope_type = 'COURSE' AND (course_id = ? OR course_id = 'all'))")
+                params.append(course_id)
+            if class_id:
+                scope_clauses.append("(scope_type = 'CLASS' AND class_id = ?)")
+                params.append(class_id)
+            if student_id:
+                scope_clauses.append("(scope_type = 'STUDENT' AND (student_id = ? OR student_id = 'all'))")
+                params.append(student_id)
+            if session_id:
+                scope_clauses.append("(scope_type = 'SESSION' AND session_id = ?)")
+                params.append(session_id)
+
+            if scope_clauses:
+                conditions.append(f"({' OR '.join(scope_clauses)})")
+            elif course_id:
+                conditions.append("(course_id = ? OR course_id = 'all')")
+                params.append(course_id)
+
+            where_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            sql = f"SELECT * FROM teacher_instructions {where_sql} ORDER BY priority DESC, created_at DESC;"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [self._row_to_teacher_instruction(r) for r in rows]
 
     def create_intervention(self, alert: InterventionRecord) -> InterventionRecord:
         with self._get_connection() as conn:

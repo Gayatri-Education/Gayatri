@@ -1,30 +1,30 @@
 project: "Gayatri Platform — Course-Independent Architecture"
 current_branch: "master"
 current_commit: "4f7e9f6"
-phase: "PHASE 06 — SCOPED RAG & KNOWLEDGE AUTHORIZATION"
+phase: "PHASE 07 — TEACHER INSTRUCTION HIERARCHY & SCOPING"
 phase_status: "VERIFIED"
 overall_status: "IN_PROGRESS"
 
 requirements:
-  course_independent: "IN_PROGRESS (Generic curriculum, multi-course state, knowledge pipeline, and scoped RAG verified)"
+  course_independent: "IN_PROGRESS (Generic curriculum, multi-course state, knowledge pipeline, scoped RAG, and instruction hierarchy verified)"
   public_private_courses: "VERIFIED (Public/Private visibility and org isolation enforced in CourseService & RAGService)"
   versioned_content: "VERIFIED (CourseVersion model, GenericCurriculum DAG, and version-pinned RAG retrieval verified)"
   content_approval: "VERIFIED (Teacher upload, ORG_ADMIN/SUPER_ADMIN approval/publication, student visibility invariant)"
   multi_course_students: "VERIFIED (Multi-course student learning record, mastery isolation, and class/remedial RAG scoping)"
-  scoped_teacher_instructions: "PARTIAL (Scoped RAG verified; hierarchical teacher instruction cascade scheduled Phase 7)"
+  scoped_teacher_instructions: "VERIFIED (5-tier hierarchy SESSION > STUDENT > CLASS > COURSE > ORGANIZATION with deterministic precedence and anti-leakage invariants)"
   course_tools: "VERIFIED (CourseToolPolicy implemented with server-side enforcement and custom tool policy)"
-  online: "VERIFIED (FastAPI server active, 908 tests pass)"
+  online: "VERIFIED (FastAPI server active, 921 tests pass)"
   offline: "PARTIAL (SQLite functional; full offline package scheduled Phase 13)"
   sync: "PARTIAL (Basic sync tests pass; idempotent outbox scheduled Phase 14)"
 
 quality:
-  unit_tests: "908 tests passing (856 regression + 12 guards + 6 Phase 2 + 6 Phase 3 + 6 Phase 4 + 12 Phase 5 + 10 Phase 6)"
-  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, scoped RAG, class/remedial isolation, and multi-tenant pipeline tested)"
+  unit_tests: "921 tests passing (856 regression + 12 guards + 6 Phase 2 + 6 Phase 3 + 6 Phase 4 + 12 Phase 5 + 10 Phase 6 + 13 Phase 7)"
+  integration_tests: "VERIFIED (CourseService, DB, offering enrollment, scoped RAG, instruction cascade, and multi-tenant pipeline tested)"
   e2e_tests: "PARTIAL (Direct service & REST API flows verified; true UI->API->DB->RAG->AI boundary required in Phase 24)"
-  failure_tests: "VERIFIED (Cross-org RAG_DENIED, scoped RAG_EMPTY, no global fallback leaks, unpublishable failed assets)"
-  security_tests: "VERIFIED (Multi-tenant org isolation, class boundary protection, student-targeted isolation, version pinning)"
+  failure_tests: "VERIFIED (Cross-org RAG_DENIED, scoped RAG_EMPTY, prompt injection rejection, anti-answer leakage violation)"
+  security_tests: "VERIFIED (Multi-tenant org isolation, student write blocking, cross-org teacher denial, prompt injection guards, safe framing)"
   static_checks: "VERIFIED (py_compile 0 errors)"
-  migration_tests: "VERIFIED (Migration 006 up/down rollback and idempotent reapply tested)"
+  migration_tests: "VERIFIED (Migration 007 up/down rollback, 21-column schema, and idempotent reapply tested)"
 
 bugs:
   open_p0: 2
@@ -34,11 +34,11 @@ bugs:
 
 github:
   remote_sync: "ACTIVE (git push active to origin/master)"
-  last_issue: "Item 007 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
+  last_issue: "Item 008 queued in docs/reports/GITHUB_SYNC_QUEUE.md"
   last_commit: "HEAD"
   last_push: "origin/master"
-  last_update: "2026-10-01T21:30:00+05:30"
+  last_update: "2026-10-01T21:45:00+05:30"
 
-last_verified: "2026-10-01T21:30:00+05:30"
-test_report: "docs/reports/PHASE_06_TEST_REPORT.md"
+last_verified: "2026-10-01T21:45:00+05:30"
+test_report: "docs/reports/PHASE_07_TEST_REPORT.md"
 
