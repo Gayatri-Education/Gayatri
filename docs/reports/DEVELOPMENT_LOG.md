@@ -313,7 +313,43 @@ This log records every development phase and architectural transition in chronol
   - Role authorization comparison logic in `ToolExecutionEngine`: Fixed super admin bypass logic so that regular student/teacher role restrictions are correctly evaluated.
   - Deprecated FastAPI status code `HTTP_422_UNPROCESSABLE_ENTITY`: Replaced with status code 422 to maintain clean, warning-free API execution.
 - **Tests Run:** 932 tests collected, 932 passed in 121.92s (100% green).
-- **Remaining Risks:** None for Phase 08. Phase 09 (Domain Decoupling & Subject Runtime Adapters) next.
+- **Remaining Risks:** None for Phase 08.
+
+---
+
+### Entry: Phase 09 — Model Registry & AI Gateway Unification (2026-10-01)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Standardized Model Manifest (`model_manifest.json`):
+    - Added canonical Phase 09 fields: `artifact_path`, `format` ("gguf"), `prompt_template` ("chatml"), `context_window` (8192), `streaming` (true), `capabilities`, `supports_tools`, `supports_json`, `resource_profile` ("1GB RAM, CPU").
+    - Retained all legacy fields for 100% backward compatibility.
+  - Hardened Manifest Validator (`core/model_fetch/manifest_validator.py`):
+    - Normalized canonical alias fields automatically upon loading.
+    - Added `get_active_manifest()` and `verify_model_checksum()` helper utilities.
+  - Reconciled Core Configuration (`core/config.py` — BUG-ARCH-006):
+    - Updated `_detect_initial_model_file()` default fallback to `"qwen2.5-0.5b-instruct-q4_k_m.gguf"`.
+    - Aligned `MODEL_HUGGINGFACE_REPO` ("Qwen/Qwen2.5-0.5B-Instruct-GGUF") and `MODEL_GGUF_FILENAME` ("qwen2.5-0.5b-instruct-q4_k_m.gguf").
+  - Decoupled Prompt & Context Building (`core/inference/context.py`):
+    - Created pure domain prompt assembly module with `build_chat_messages` (alias `_build_messages`) and `get_tutor_context` (alias `_get_tutor_context`).
+  - Decommissioned Legacy Agent Imports (`BUG-ARCH-002`):
+    - Refactored `core/inference/service.py` to route directly via `LocalProvider.chat_stream` and `ProviderRegistry` without importing `_local_chat_stream` from legacy.
+    - Updated `core/runtimes/chemistry.py` and `core/runtimes/general.py` to import from `core.inference.context`.
+    - Deprecated `legacy/agents/default_agents.py` with `DeprecationWarning` and re-exported context helpers.
+    - Updated `tests/architecture/test_anti_legacy_imports.py` whitelist to 0 callers. Verified zero legacy callers in `core/`, `central_platform/`, and `app/`.
+  - Privacy & Inference Hardening:
+    - Added `ExecutionMode.LOCAL_ONLY` enforcement in `InferenceService`: cloud provider calls fail-closed with `PermissionError`.
+    - Implemented cooperative streaming cancellation via `InferenceService.cancel()`.
+    - Enforced non-silent error propagation for provider timeouts and invalid responses (Rule 3).
+  - Test Suite (`tests/test_phase09_model_registry_ai_gateway.py`):
+    - 14 comprehensive tests covering manifest consistency, model config parsing, missing model offline guidance, wrong provider rejection, corrupt checksum rejection, timeout propagation, invalid response handling, privacy mode blocking, observable fallback chain, streaming and cancellation, ChatML template consistency, context builder, and zero legacy imports.
+  - Regression Suite:
+    - 946 tests passing in 135.53s (100% green).
+- **Bugs Resolved:**
+  - `BUG-ARCH-002`: Legacy inference imports decommissioned. Status: VERIFIED.
+  - `BUG-ARCH-006`: Model manifest and config contradiction resolved. Status: VERIFIED.
+- **Tests Run:** 946 tests collected, 946 passed in 135.53s (100% green).
+- **Remaining Risks:** None for Phase 09. Phase 10 (Generic Tutor Orchestrator) next.
+
 
 
 

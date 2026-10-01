@@ -19,7 +19,7 @@
 - **Root Cause:** Historical design of Gayatri as a Chemistry tutor without course abstraction.
 - **Fix:** Extract all Chemistry-specific logic to `adapters/chemistry/` and make core curriculum and orchestrator data-driven.
 - **Test:** Course genericity static guard test + generic course creation test.
-- **Verification:** Pending (Scheduled for Phase 3, Phase 9, Phase 15).
+- **Verification:** Pending (Scheduled for Phase 10 Generic Tutor Core & Phase 15).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** CONFIRMED.
 
@@ -31,14 +31,14 @@
 - **Commit Found:** `bf47a63`
 - **Subsystem:** AI Inference Pipeline (`core/inference/service.py`, `core/runtimes/chemistry.py`, `core/runtimes/general.py`)
 - **Reproduction:** `python -c "import core.inference.service; print(core.inference.service._local_chat_stream)"`
-- **Expected:** Tutor core calls AI Gateway (`central_platform.ai`), which dispatches to Provider Adapters.
-- **Actual:** Production modules import directly from `legacy.agents.default_agents`.
-- **Root Cause:** Incomplete migration to the new AI Gateway abstraction.
-- **Fix:** Redirect all inference calls to `central_platform.ai.model_router` and eliminate all callers of `legacy/`.
-- **Test:** Static architecture guard forbidding imports from `legacy.*`.
-- **Verification:** Pending (Scheduled for Phase 8, Phase 16).
+- **Expected:** Tutor core calls AI Gateway / Inference Service without legacy dependencies.
+- **Actual:** Production modules imported directly from `legacy.agents.default_agents`.
+- **Root Cause:** Incomplete migration to decoupled inference abstraction.
+- **Fix:** Decoupled prompt assembly to `core/inference/context.py`, refactored `InferenceService` to route directly through `LocalProvider` / provider registry, and updated `test_anti_legacy_imports.py` to enforce zero legacy imports across `core/`, `central_platform/`, and `app/`.
+- **Test:** `tests/test_phase09_model_registry_ai_gateway.py::test_anti_legacy_zero_callers` & `tests/architecture/test_anti_legacy_imports.py::test_zero_legacy_imports_in_active_codebase`.
+- **Verification:** **VERIFIED FIXED** (Zero legacy callers in active codebase; all 946 suite tests pass).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
-- **Status:** CONFIRMED.
+- **Status:** VERIFIED.
 
 ---
 
@@ -102,11 +102,11 @@
 - **Expected:** Single authoritative model registry/manifest declaring active models and capabilities.
 - **Actual:** Contradictory model filenames, quantization tags, and prompt template parameters across files.
 - **Root Cause:** Divergent configuration updates in documentation vs code.
-- **Fix:** Create a single authoritative model registry in `central_platform/ai/models.py`.
-- **Test:** Model registry schema validation test.
-- **Verification:** Pending (Scheduled for Phase 8).
+- **Fix:** Unified `model_manifest.json` schema with canonical Phase 09 fields, synchronized `core/config.py` default model and HuggingFace repo/file constants with Qwen2.5-0.5B, and enhanced `manifest_validator.py`.
+- **Test:** `tests/test_phase09_model_registry_ai_gateway.py::test_manifest_consistency_and_canonical_keys` & `tests/architecture/test_model_config_registry.py`.
+- **Verification:** **VERIFIED FIXED** (Manifest and config fully synchronized; all 946 suite tests pass).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
-- **Status:** CONFIRMED.
+- **Status:** VERIFIED.
 
 ---
 
@@ -175,7 +175,3 @@
 - **Verification:** **VERIFIED FIXED** (All 11 Phase 08 tests pass; all 932 suite tests pass).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** VERIFIED.
-
-
-
-

@@ -65,7 +65,7 @@ class GeneralAssistantRuntime:
     def stream(self, user_message: str, context):
         """Stream a response for a general assistant turn."""
         try:
-            from legacy.agents.default_agents import _build_messages
+            from core.inference.context import _build_messages
 
             is_chem_req = _detect_chemistry_tutoring_request(user_message)
             system = _build_general_system_prompt(is_chemistry_redirect=is_chem_req)

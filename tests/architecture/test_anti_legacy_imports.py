@@ -1,4 +1,9 @@
-"""Architecture Guard: Ensure active code does not import from legacy."""
+"""Architecture Guard: Ensure active code does not import from legacy (Phase 09).
+
+BUG-ARCH-002: Completely decommission legacy import dependencies.
+Enforces zero legacy imports across core/, central_platform/, and app/.
+"""
+from __future__ import annotations
 
 import re
 from pathlib import Path
@@ -25,14 +30,11 @@ def test_central_platform_zero_legacy_imports():
     assert not violations, f"Found legacy imports in central_platform: {violations}"
 
 
-def test_legacy_imports_strictly_bounded_to_known_decommission_list():
-    """Assert that legacy imports do not spread beyond known decommission list."""
-    known_legacy_callers = {
-        "core/inference/service.py",
-        "core/runtimes/chemistry.py",
-        "core/runtimes/general.py",
-    }
+def test_zero_legacy_imports_in_active_codebase():
+    """Assert that core, central_platform, and app have zero imports from legacy.
 
+    Decommissioning completed in Phase 09 (BUG-ARCH-002).
+    """
     all_legacy_callers = set()
     for directory in [ROOT / "core", ROOT / "central_platform", ROOT / "app"]:
         if not directory.exists():
@@ -46,8 +48,7 @@ def test_legacy_imports_strictly_bounded_to_known_decommission_list():
             except Exception:
                 pass
 
-    unexpected = all_legacy_callers - known_legacy_callers
-    assert not unexpected, f"New unexpected legacy imports introduced in: {unexpected}"
+    assert not all_legacy_callers, f"Forbidden legacy imports found in active codebase: {all_legacy_callers}"
 
 
 def test_legacy_guard_negative_synthetic_detection():

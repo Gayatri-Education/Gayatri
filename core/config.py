@@ -100,7 +100,7 @@ def _detect_initial_model_file() -> str:
             for p in d.glob("*.gguf"):
                 if p.is_file() and p.stat().st_size > 1024 * 1024:
                     return p.name
-    return "Gayatri-Tutor-v3-Q4_K_M.gguf"
+    return "qwen2.5-0.5b-instruct-q4_k_m.gguf"
 
 LOCAL_MODEL_FILE: str = _detect_initial_model_file()
 
@@ -153,8 +153,8 @@ LOCAL_MODEL_CONTEXT: int = 8192
 LOCAL_MODEL_GPU_LAYERS: int = -1  # -1 = all layers on GPU if available
 
 # Model download source (HuggingFace bartowski GGUF — used by download_model in bridge)
-MODEL_HUGGINGFACE_REPO: str = "bartowski/gemma-2-2b-it-GGUF"
-MODEL_GGUF_FILENAME: str = "gemma-2-2b-it-IQ3_M.gguf"
+MODEL_HUGGINGFACE_REPO: str = "Qwen/Qwen2.5-0.5B-Instruct-GGUF"
+MODEL_GGUF_FILENAME: str = "qwen2.5-0.5b-instruct-q4_k_m.gguf"
 
 # Inference defaults
 DEFAULT_TEMPERATURE: float = 0.7

@@ -112,7 +112,7 @@ class ChemistryTutorRuntime:
         try:
             from core.rag.retriever import get_ncert_retriever
             from core.security.prompt import PromptSecurityGuard
-            from legacy.agents.default_agents import _build_messages, _get_tutor_context
+            from core.inference.context import _build_messages, _get_tutor_context
 
             # 0. Inspect user message for prompt injection, extraction, or command manipulation
             sanitized_msg, is_attack, attack_type = PromptSecurityGuard.inspect_and_sanitize(user_message)

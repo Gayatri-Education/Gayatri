@@ -215,6 +215,30 @@
 - **Push Status:** `COMPLETED (commit 9abc261 pushed to origin/master)`
 - **Issue Operations Status:** `QUEUED`
 
+### Item 010: Phase 09 Completion Update
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 09 Model Registry & AI Gateway Unification Complete`
+- **Intended Labels:** `models`, `gateway`, `manifest`, `inference`, `legacy-cleanup`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 09 Model Registry & AI Gateway Unification completed.
+
+  Deliverables:
+  - model_manifest.json: Extended schema with canonical Phase 09 fields (artifact_path, format="gguf", prompt_template="chatml", context_window=8192, streaming=true, capabilities, resource_profile, checksum).
+  - core/model_fetch/manifest_validator.py: Hardened validator with canonical alias field normalization, get_active_manifest(), and verify_model_checksum().
+  - core/config.py: Synchronized default fallback model, HuggingFace repository, and filename with Qwen2.5-0.5B (eliminating BUG-ARCH-006).
+  - core/inference/context.py: Decoupled prompt message construction (build_chat_messages) and tutor context formatting (get_tutor_context) from legacy.
+  - core/inference/service.py: Replaced legacy _local_chat_stream import with direct routing via LocalProvider.chat_stream and ProviderRegistry. Added privacy mode enforcement (local_only fail-closed with PermissionError), cooperative streaming cancellation, and non-silent error propagation (Rule 3).
+  - core/runtimes/chemistry.py & core/runtimes/general.py: Decoupled from legacy to core.inference.context.
+  - legacy/agents/default_agents.py: Marked deprecated with DeprecationWarning; re-exports from core.inference.context.
+  - tests/architecture/test_anti_legacy_imports.py: Whitelist reduced to 0 callers. Verified zero legacy callers across core/, central_platform/, and app/ (eliminating BUG-ARCH-002).
+  - tests/test_phase09_model_registry_ai_gateway.py: 14 comprehensive tests covering manifest consistency, model config parsing, missing model offline guidance, wrong provider rejection, corrupt checksum rejection, timeout propagation, invalid response handling, privacy mode blocking, observable fallback chain, streaming and cancellation, ChatML template consistency, context builder, and zero legacy imports.
+  - Regression results: 946/946 passed in 135.53s (100% green).
+  ```
+- **Push Status:** `QUEUED_FOR_PUSH`
+- **Issue Operations Status:** `QUEUED`
+
+
 
 
 
