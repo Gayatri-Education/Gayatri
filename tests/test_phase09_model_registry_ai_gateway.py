@@ -358,11 +358,8 @@ def test_anti_legacy_zero_callers():
         if not directory.exists():
             continue
         for py_file in directory.rglob("*.py"):
-            try:
-                content = py_file.read_text(encoding="utf-8", errors="ignore")
-                if regex.search(content):
-                    violating_files.append(str(py_file.relative_to(ROOT)))
-            except Exception:
-                pass
+            content = py_file.read_text(encoding="utf-8", errors="ignore")
+            if regex.search(content):
+                violating_files.append(str(py_file.relative_to(ROOT)))
 
     assert not violating_files, f"Forbidden legacy imports discovered: {violating_files}"

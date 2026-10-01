@@ -17,11 +17,14 @@ Implements Master Plan Section 21 (Phase 12):
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("gayatri.central_platform.teacher.intervention")
 
 
 class AlertSeverity(str, Enum):
@@ -221,8 +224,8 @@ class TeacherInterventionEngine:
                     audit_trail=intervention.audit_trail,
                 )
                 self.db.create_intervention(rec)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to persist teacher intervention %s to DB: %s", intervention.intervention_id, exc)
 
         return intervention
 
@@ -536,8 +539,8 @@ class TeacherInterventionEngine:
                             due_at=(now + timedelta(days=3)).isoformat(),
                         )
                         generated.append(itv)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed to calculate inactivity for student %s: %s", student_id, exc)
 
         # Register each generated intervention into queue
         for itv in generated:

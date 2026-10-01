@@ -18,12 +18,9 @@ def test_courses_and_models_zero_demo_roster():
         if not sub_dir.exists():
             continue
         for py_file in sub_dir.rglob("*.py"):
-            try:
-                content = py_file.read_text(encoding="utf-8", errors="ignore")
-                matches = DEMO_USER_REGEX.findall(content)
-                assert not matches, f"Found demo user identifiers in {py_file}: {matches}"
-            except Exception:
-                pass
+            content = py_file.read_text(encoding="utf-8", errors="ignore")
+            matches = DEMO_USER_REGEX.findall(content)
+            assert not matches, f"Found demo user identifiers in {py_file}: {matches}"
 
 
 def test_demo_roster_guard_negative_synthetic_detection():

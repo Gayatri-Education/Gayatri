@@ -13,9 +13,12 @@ Fulfills Master Plan Section 28:
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("gayatri.central_platform.assessment.service")
 
 from central_platform.assessment.adaptive import AdaptiveTestingEngine
 from central_platform.assessment.grading import AssessmentGradingEngine
@@ -73,8 +76,8 @@ class AssessmentService:
         try:
             if not self.db.get_organization(effective_org):
                 self.db.create_organization(Organization(id=effective_org, name="Default Organization", slug=f"slug-{effective_org}"))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision organization %s: %s", effective_org, exc)
 
         if student_id:
             try:
@@ -88,8 +91,8 @@ class AssessmentService:
                             organization_id=effective_org,
                         )
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to auto-provision student %s: %s", student_id, exc)
 
         effective_course = course_id or "crs-general-101"
         try:
@@ -104,8 +107,8 @@ class AssessmentService:
                         title=course_title,
                     )
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision course %s: %s", effective_course, exc)
 
     # ── 1. Question Bank Operations ──────────────────────────────────────────
 

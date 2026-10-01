@@ -643,12 +643,12 @@ class Orchestrator:
                         if tutor_txn:
                             try:
                                 tutor_txn.rollback()
-                            except Exception:
-                                pass
+                            except Exception as rbe:
+                                logger.warning("Tutor transaction rollback failed: %s", rbe)
                         try:
                             lifecycle.update_stage(turn_id, TurnStage.TURN_ABORTED, error_detail=str(e))
-                        except Exception:
-                            pass
+                        except Exception as lce:
+                            logger.warning("Lifecycle TURN_ABORTED update failed: %s", lce)
                         yield str(e), True
                         return
                 else:

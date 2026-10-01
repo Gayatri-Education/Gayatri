@@ -19,15 +19,12 @@ CHEM_REGEX = re.compile("|".join(CHEM_KEYWORDS), re.IGNORECASE)
 def scan_file_for_chemistry(file_path: Path) -> list[str]:
     """Scan a file and return matching lines containing Chemistry keywords."""
     matches = []
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            for idx, line in enumerate(f, 1):
-                if line.strip().startswith("#"):
-                    continue  # Ignore comments
-                if CHEM_REGEX.search(line):
-                    matches.append(f"Line {idx}: {line.strip()}")
-    except Exception:
-        pass
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        for idx, line in enumerate(f, 1):
+            if line.strip().startswith("#"):
+                continue  # Ignore comments
+            if CHEM_REGEX.search(line):
+                matches.append(f"Line {idx}: {line.strip()}")
     return matches
 
 

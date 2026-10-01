@@ -11,11 +11,14 @@ Provides authoritative data access across all 29 Section 12 entities, supporting
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
+
+logger = logging.getLogger("gayatri.central_platform.db")
 
 from central_platform.rbac.engine import hash_password, verify_password
 from central_platform.models.fees import (
@@ -1821,8 +1824,8 @@ class PlatformDatabase:
         if "audit_trail_json" in keys and r["audit_trail_json"]:
             try:
                 audit_trail = json.loads(r["audit_trail_json"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to decode instruction audit trail JSON: %s", exc)
         return TeacherInstructionRecord(
             id=r["id"],
             teacher_id=r["teacher_id"],
@@ -2370,15 +2373,15 @@ class PlatformDatabase:
         if r["metadata_json"]:
             try:
                 metadata = json.loads(r["metadata_json"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to decode RAG source metadata JSON: %s", exc)
         keys = r.keys()
         target_students = []
         if "target_student_ids" in keys and r["target_student_ids"]:
             try:
                 target_students = json.loads(r["target_student_ids"]) if isinstance(r["target_student_ids"], str) else list(r["target_student_ids"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to decode RAG source target student IDs JSON: %s", exc)
         return RAGSource(
             id=r["id"],
             organization_id=r["organization_id"],
@@ -2703,14 +2706,14 @@ class PlatformDatabase:
         if r["embedding_vector"]:
             try:
                 emb = json.loads(r["embedding_vector"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to decode RAG chunk embedding vector JSON: %s", exc)
         metadata = {}
         if r["metadata_json"]:
             try:
                 metadata = json.loads(r["metadata_json"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to decode RAG chunk metadata JSON: %s", exc)
         keys = r.keys()
         return RAGChunk(
             id=r["id"],

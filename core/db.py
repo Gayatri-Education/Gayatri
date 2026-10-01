@@ -217,3 +217,13 @@ def execute_with_retry(
     """Execute a callable with retry on transient SQLite busy/locked errors."""
     return with_db_retry(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)(func)(*args, **kwargs)
 
+
+def add_column_if_missing(conn: sqlite3.Connection, table: str, column_def: str) -> None:
+    """Safely adds a column to a table if it does not already exist, re-raising other errors."""
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def};")
+    except sqlite3.OperationalError as exc:
+        if "duplicate column" not in str(exc).lower():
+            raise
+
+

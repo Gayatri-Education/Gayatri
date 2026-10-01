@@ -7,9 +7,12 @@ Master Plan Section 19:
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("gayatri.central_platform.teacher.portal")
 
 from central_platform.db import PlatformDatabase
 from central_platform.events.store import LearningEventStore
@@ -203,8 +206,8 @@ class TeacherPortalService:
                         chapter_mastery=chapter_mastery,
                         recent_activity=rec_act,
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to sync students from DB in TeacherPortalService: %s", exc)
 
     def get_dashboard_overview(self, course_id: str = "crs-chem-101") -> TeacherDashboardOverview:
         """Calculate cohort dashboard metrics with all 6 Section 19 core dimensions."""

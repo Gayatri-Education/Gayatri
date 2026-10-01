@@ -16,11 +16,14 @@ Implements Master Plan Section 20 (Phase 11):
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("gayatri.central_platform.teacher.instruction")
 
 
 class InstructionStatus(str, Enum):
@@ -323,8 +326,8 @@ class TeacherInstructionEngine:
                     updated_at=instruction.updated_at,
                 )
                 self.db.create_teacher_instruction(rec)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to persist teacher instruction %s to DB: %s", instruction.instruction_id, exc)
 
         return instruction
 
@@ -361,8 +364,8 @@ class TeacherInstructionEngine:
                     )
                     self._instructions[instruction_id] = inst
                     return inst
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to fetch teacher instruction %s from DB: %s", instruction_id, exc)
         return None
 
     def _is_temporally_valid(self, inst: TeacherInstruction, current_time: datetime) -> bool:
@@ -446,8 +449,8 @@ class TeacherInstructionEngine:
                             updated_at=r.updated_at,
                         )
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to query teacher instructions from DB: %s", exc)
 
         # Also merge cached instructions (deduplicating by instruction_id)
         existing_ids = {c.instruction_id for c in candidates}
@@ -626,8 +629,8 @@ class TeacherInstructionEngine:
                     updated_at=inst.updated_at,
                 )
                 self.db.create_teacher_instruction(rec)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to persist updated teacher instruction %s to DB: %s", inst.instruction_id, exc)
 
         return inst
 
@@ -690,8 +693,8 @@ class TeacherInstructionEngine:
                     updated_at=inst.updated_at,
                 )
                 self.db.create_teacher_instruction(rec)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to persist revoked teacher instruction %s to DB: %s", inst.instruction_id, exc)
 
         return True
 
@@ -753,8 +756,8 @@ class TeacherInstructionEngine:
                     updated_at=inst.updated_at,
                 )
                 self.db.create_teacher_instruction(rec)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to persist toggled teacher instruction %s to DB: %s", inst.instruction_id, exc)
 
         return True
 
@@ -765,8 +768,8 @@ class TeacherInstructionEngine:
         if self.db and hasattr(self.db, "delete_teacher_instruction"):
             try:
                 self.db.delete_teacher_instruction(instruction_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to delete teacher instruction %s from DB: %s", instruction_id, exc)
         return True
 
     def get_all_instructions(

@@ -10,10 +10,13 @@ Authoritative administrative management covering:
 
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set
+
+logger = logging.getLogger("gayatri.central_platform.admin.service")
 
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import (
@@ -115,8 +118,8 @@ class AdminService:
                 details=event.details,
             )
             self.db.record_audit_log(db_log)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to record audit log to DB: %s", exc)
 
         return event
 
@@ -208,8 +211,8 @@ class AdminService:
                 is_default=is_default,
             )
             self.db.create_ai_model(m_entity)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to persist AIModel %s to DB: %s", model_id, exc)
 
         self._record_audit(super_admin, "REGISTER_AI_MODEL", "AIModel", model_id, details=entry)
         return entry
@@ -249,8 +252,8 @@ class AdminService:
                 is_active=True,
             )
             self.db.create_ai_provider(p_entity)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to persist AIProvider %s to DB: %s", p_id, exc)
 
         self._record_audit(super_admin, "REGISTER_AI_PROVIDER", "AIProvider", p_id, details=entry)
         return entry

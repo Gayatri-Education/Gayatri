@@ -68,8 +68,8 @@ class InferenceService:
         self._cancel_flag = True
         try:
             LocalProvider.cancel()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("LocalProvider cancel ignored or not active: %s", exc)
 
     def reset_cancellation(self) -> None:
         """Reset the cancellation flag."""

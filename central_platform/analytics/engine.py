@@ -211,7 +211,7 @@ class LearningAnalyticsEngine:
                 student_name=student_name,
                 mastery_score=75.0,
                 misconception_count=0,
-                recent_velocity=1.0,
+                recent_velocity=0.0,
                 attendance_pct=attendance_pct,
                 health_level=LearningHealthLevel.GOOD,
                 evidence_summary=["Initial baseline assessment active."],

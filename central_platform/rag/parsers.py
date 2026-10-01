@@ -5,12 +5,15 @@ Extracts structured document sections with hierarchical metadata.
 """
 from __future__ import annotations
 
-import json
-import re
 import html
+import json
+import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("gayatri.rag.parsers")
 
 
 @dataclass
@@ -311,8 +314,8 @@ class PDFParser(BaseParser):
                     )
             if sections:
                 return sections
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Primary pypdf extraction failed, falling back to regex: %s", exc)
 
         # Fallback text stream regex parser for standard PDF text operators
         try:
@@ -323,8 +326,8 @@ class PDFParser(BaseParser):
                 extracted = " ".join(matches)
                 text_parser = TextParser()
                 return text_parser.parse_text(extracted, meta)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("PDF regex stream extraction failed: %s", exc)
 
         # Final fallback to standard TextParser on decoded bytes
         text_parser = TextParser()
@@ -356,8 +359,8 @@ class DocxParser(BaseParser):
                     if paragraphs:
                         text = "\n\n".join(paragraphs)
                         return TextParser().parse_text(text, meta)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("DOCX XML extraction failed, falling back to text: %s", exc)
 
         # Fallback to text parsing
         return TextParser().parse_text(content_bytes.decode("utf-8", errors="replace"), meta)

@@ -20,12 +20,9 @@ def test_central_platform_zero_legacy_imports():
 
     violations = []
     for py_file in cp_dir.rglob("*.py"):
-        try:
-            content = py_file.read_text(encoding="utf-8", errors="ignore")
-            if LEGACY_IMPORT_REGEX.search(content):
-                violations.append(str(py_file.relative_to(ROOT)))
-        except Exception:
-            pass
+        content = py_file.read_text(encoding="utf-8", errors="ignore")
+        if LEGACY_IMPORT_REGEX.search(content):
+            violations.append(str(py_file.relative_to(ROOT)))
 
     assert not violations, f"Found legacy imports in central_platform: {violations}"
 
@@ -40,13 +37,10 @@ def test_zero_legacy_imports_in_active_codebase():
         if not directory.exists():
             continue
         for py_file in directory.rglob("*.py"):
-            try:
-                content = py_file.read_text(encoding="utf-8", errors="ignore")
-                if LEGACY_IMPORT_REGEX.search(content):
-                    rel = str(py_file.relative_to(ROOT)).replace("\\", "/")
-                    all_legacy_callers.add(rel)
-            except Exception:
-                pass
+            content = py_file.read_text(encoding="utf-8", errors="ignore")
+            if LEGACY_IMPORT_REGEX.search(content):
+                rel = str(py_file.relative_to(ROOT)).replace("\\", "/")
+                all_legacy_callers.add(rel)
 
     assert not all_legacy_callers, f"Forbidden legacy imports found in active codebase: {all_legacy_callers}"
 

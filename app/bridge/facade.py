@@ -479,18 +479,18 @@ class Bridge(QObject):
             curr_mastery = student.get_mastery(curr_concept)
 
             from pathlib import Path
-            p_path = Path("PRIVATE_WORK/learning_graph/prerequisites.json")
+            curr_path = Path(__file__).resolve().parent.parent.parent / "data" / "curriculum" / "chemistry" / "ncert_class11_12.json"
             prereqs = []
-            if p_path.exists():
+            if curr_path.exists():
                 try:
-                    with open(p_path, encoding="utf-8") as f:
-                        p_data = json.load(f)
-                    for dep in p_data.get("dependencies", []):
-                        if dep.get("concept_id") == curr_concept:
-                            prereqs = dep.get("prerequisites", [])
+                    with open(curr_path, encoding="utf-8") as f:
+                        c_data = json.load(f)
+                    for item in c_data.get("concepts", []):
+                        if item.get("id") == curr_concept or item.get("name") == curr_concept:
+                            prereqs = item.get("prerequisites", [])
                             break
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Could not load prerequisites from curriculum: %s", exc)
 
             # Pedagogical next action mapping (Section 40)
             next_action = "QUESTION"

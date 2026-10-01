@@ -51,7 +51,7 @@ class SecretsVault:
                 f.write(key)
             try:
                 os.chmod(HMAC_KEY_PATH, 0o600)
-            except Exception:
+            except OSError:
                 pass
         with open(HMAC_KEY_PATH, "rb") as f:
             key = f.read()
@@ -269,7 +269,7 @@ class SecretsVault:
         if not self._is_windows:
             try:
                 os.chmod(self.vault_path, 0o600)
-            except Exception:
+            except OSError:
                 pass
 
 

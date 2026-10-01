@@ -200,6 +200,16 @@ class NumericalEvaluator(BaseEvaluator):
                 evidence=[str(val_err)],
             )
 
+        if math.isnan(val_student) or math.isinf(val_student) or math.isnan(val_correct) or math.isinf(val_correct):
+            return EvaluationOutcome(
+                outcome=EvaluationStatus.UNCERTAIN,
+                score=0.0,
+                confidence=0.0,
+                error_type="malformed",
+                feedback="Numerical value is NaN or Infinite.",
+                evidence=[f"val_student={val_student}, val_correct={val_correct}"],
+            )
+
         # Calculate numerical closeness
         if val_correct == 0.0:
             is_close = abs(val_student) < 1e-4

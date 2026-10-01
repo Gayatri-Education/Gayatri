@@ -9,7 +9,10 @@ Master Plan Section 14:
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+logger = logging.getLogger("gayatri.central_platform.events.store")
 
 from central_platform.db import PlatformDatabase
 from central_platform.events.models import (
@@ -48,8 +51,8 @@ class LearningEventStore:
         try:
             if not self.db.get_organization(org_id):
                 self.db.create_organization(Organization(id=org_id, name="Default Organization", slug=f"slug-{org_id}"))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision organization %s: %s", org_id, exc)
 
         try:
             if not self.db.get_user(student_id):
@@ -62,22 +65,22 @@ class LearningEventStore:
                         organization_id=org_id,
                     )
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision student %s: %s", student_id, exc)
 
-        c_id = course_id or "crs-chem-101"
+        c_id = course_id or "crs-default"
         try:
             if not self.db.get_course(c_id):
                 self.db.create_course(
                     Course(
                         id=c_id,
                         organization_id=org_id,
-                        code="CHEM101",
-                        title="Chemistry",
+                        code="GEN101" if c_id == "crs-default" else c_id.replace("crs-", "").upper(),
+                        title="General Studies" if c_id == "crs-default" else c_id,
                     )
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision course %s: %s", c_id, exc)
 
         try:
             if not self.db.get_session(session_id):
@@ -90,8 +93,8 @@ class LearningEventStore:
                         status=SessionStatus.ACTIVE,
                     )
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision session %s: %s", session_id, exc)
 
     def ingest_event(self, req: LearningEventIngest) -> Tuple[LearningEvent, bool]:
         """Ingest a single learning event with idempotent deduplication by event_id.

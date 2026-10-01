@@ -522,28 +522,20 @@ def test_db_persistence_hierarchical_instructions():
 
     # Seed required foreign key records if they do not already exist
     org = Organization(id="org-apex", name="Apex Academy", slug="apex")
-    try:
+    if not db.get_organization("org-apex"):
         db.create_organization(org)
-    except Exception:
-        pass
 
     crs = Course(id="crs-chem-101", organization_id="org-apex", code="CHEM101", title="Chemistry 101")
-    try:
+    if not db.get_course("crs-chem-101"):
         db.create_course(crs)
-    except Exception:
-        pass
 
     teacher = User(id="tchr-chem-01", email="tchr@apex.edu", full_name="Dr. Chem", role=UserRole.TEACHER, organization_id="org-apex")
-    try:
+    if not db.get_user("tchr-chem-01"):
         db.create_user(teacher)
-    except Exception:
-        pass
 
     student = User(id="std-carol", email="carol@apex.edu", full_name="Carol Smith", role=UserRole.STUDENT, organization_id="org-apex")
-    try:
+    if not db.get_user("std-carol"):
         db.create_user(student)
-    except Exception:
-        pass
 
     rec = TeacherInstructionRecord(
         id=inst_id,
