@@ -126,4 +126,5 @@ def test_learning_state_manager_queries_recent_events(db):
     
     canonical = mgr.get_canonical_state("std_400", "crs_test")
     assert len(canonical.recent_events) == 2
-    assert canonical.recent_events[0].event_type == "question_attempted" or canonical.recent_events[1].event_type == "answer_submitted"
+    event_types = {e.event_type for e in canonical.recent_events}
+    assert event_types == {"question_attempted", "answer_submitted"}

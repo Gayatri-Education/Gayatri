@@ -556,6 +556,7 @@ class AssessmentService:
             "teacher_id": teacher_id,
             "reviewed_at": datetime.now(timezone.utc).isoformat(),
             "comments": teacher_comments,
+            "teacher_comments": teacher_comments,
             "adjusted_items": list(item_score_adjustments.keys()),
             "status": status,
         }

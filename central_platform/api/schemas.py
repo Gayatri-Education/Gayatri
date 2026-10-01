@@ -271,11 +271,163 @@ class TeacherDashboardResponse(BaseModel):
 class CourseResponse(BaseModel):
     course_id: str
     title: str
-    description: str
-    subject: str
-    grade_level: str
+    description: str = ""
+    subject: str = "General"
+    grade_level: str = "All"
     total_concepts: int = 12
     version: str = "v1.0"
+    visibility: str = "PUBLIC"
+    code: Optional[str] = None
+    organization_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class CourseCreateRequest(BaseModel):
+    code: str = Field(..., min_length=2, max_length=50)
+    title: str = Field(..., min_length=2, max_length=255)
+    description: str = Field(default="")
+    visibility: str = Field(default="PUBLIC")  # PUBLIC or PRIVATE
+    organization_id: Optional[str] = Field(default=None)
+    subject: str = Field(default="General")
+    grade_level: str = Field(default="All")
+
+
+class CourseSelectRequest(BaseModel):
+    organization_id: str
+    course_version_id: Optional[str] = None
+
+
+class CourseOfferingResponse(BaseModel):
+    id: str
+    course_id: str
+    organization_id: str
+    course_version_id: Optional[str] = None
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class CourseVersionCreateApiRequest(BaseModel):
+    version_tag: str = Field(..., min_length=1)
+    changelog: str = Field(default="")
+    curriculum_payload: Optional[Dict[str, Any]] = None
+
+
+class CourseVersionApiResponse(BaseModel):
+    id: str
+    course_id: str
+    version_tag: str
+    status: str
+    changelog: str = ""
+    created_by: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class EnrollmentCreateRequest(BaseModel):
+    student_id: str = Field(..., min_length=1)
+    course_id: str = Field(..., min_length=1)
+    course_offering_id: Optional[str] = None
+    class_id: Optional[str] = None
+
+
+class EnrollmentResponse(BaseModel):
+    id: str
+    student_id: str
+    course_id: str
+    course_offering_id: Optional[str] = None
+    class_id: Optional[str] = None
+    status: str = "ACTIVE"
+    enrolled_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class ClassGroupCreateRequest(BaseModel):
+    id: Optional[str] = None
+    name: str = Field(..., min_length=1)
+    course_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
+    teacher_id: Optional[str] = None
+
+
+class ClassGroupResponse(BaseModel):
+    id: str
+    name: str
+    course_id: str
+    organization_id: str
+    teacher_id: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class CohortCreateRequest(BaseModel):
+    id: Optional[str] = None
+    name: str = Field(..., min_length=1)
+    class_id: str = Field(..., min_length=1)
+    course_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
+
+
+class CohortResponse(BaseModel):
+    id: str
+    name: str
+    class_id: str
+    course_id: str
+    organization_id: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class OrganizationCreateRequest(BaseModel):
+    name: str = Field(..., min_length=2)
+    slug: str = Field(..., min_length=2)
+    id: Optional[str] = None
+
+
+class OrganizationResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class SanitizedQuestionItemResponse(BaseModel):
+    id: str
+    course_id: str
+    question_text: str
+    item_type: str
+    options: Optional[List[str]] = None
+    difficulty: float = 0.5
+    bloom_level: str = "UNDERSTAND"
+    hints: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
+
+
+class SanitizedAssessmentResponse(BaseModel):
+    id: str
+    course_id: str
+    title: str
+    assessment_type: str
+    duration_minutes: int = 30
+    passing_score: float = 70.0
+    items: List[SanitizedQuestionItemResponse] = Field(default_factory=list)
+    status: str = "PUBLISHED"
+
+
+class SubsystemHealthDetail(BaseModel):
+    name: str
+    status: str
+    latency_ms: float = 0.0
+    error: Optional[str] = None
+    warning: Optional[str] = None
+    driver: Optional[str] = None
+    total_models: Optional[int] = None
+    db_path: Optional[str] = None
+
+
+class PlatformHealthResponse(BaseModel):
+    status: str
+    service: str
+    version: str
+    timestamp: str
+    subsystems: Dict[str, Any]
+
 
 
 class CurriculumResponse(BaseModel):

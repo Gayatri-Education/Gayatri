@@ -19,7 +19,7 @@
 - **Root Cause:** Historical design of Gayatri as a Chemistry tutor without course abstraction.
 - **Fix:** Extract all Chemistry-specific logic to `adapters/chemistry/` and make core curriculum and orchestrator data-driven.
 - **Test:** Course genericity static guard test + generic course creation test.
-- **Verification:** PARTIAL (Phase 10 Generic Tutor Core and Phase 11 Generic Assessment & Evaluation Engine verified 100% decoupled with capability routing and zero chemistry coupling; full legacy runtime migration continues through Phase 15).
+- **Verification:** PARTIAL (Phase 10 Generic Tutor Core, Phase 11 Generic Assessment & Evaluation Engine, and Phase 12 Real Online API Boundary verified 100% decoupled with capability routing, zero chemistry coupling across generic routers, and live HTTP probes; full legacy runtime migration continues through Phase 15).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** IN_PROGRESS.
 
@@ -53,9 +53,9 @@
 - **Root Cause:** Placeholder bridge methods developed for quick demoing without real service backing.
 - **Fix:** Connect bridge methods directly to `central_platform.db` repositories with honest empty states.
 - **Test:** Clean database startup test verifying 0 fake students rendered.
-- **Verification:** Pending (Scheduled for Phase 11, Phase 14).
+- **Verification:** PARTIAL (Phase 12 eliminated mock in-memory `_COURSES` and `_ENROLLMENTS` in API layer; UI bridge decoupling scheduled Phase 22).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
-- **Status:** CONFIRMED.
+- **Status:** IN_PROGRESS.
 
 ---
 

@@ -281,6 +281,33 @@
 - **Push Status:** `COMPLETED (commit 70fb229 pushed to origin/master)`
 - **Issue Operations Status:** `QUEUED`
 
+### Item 013: Phase 12 Completion Update
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 12 Real Online API Boundary Complete with Live Probes and 16 Subsystems`
+- **Intended Labels:** `api`, `health`, `routes`, `real-runtime`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 12 Real Online API Boundary completed.
+
+  Deliverables:
+  - central_platform/health/service.py: PlatformHealthService probing live SQLite connectivity (SELECT 1), AI model manifest, and storage readiness, with failure simulation hooks.
+  - central_platform/api/app.py: Wired /healthz, /livez, /readyz, and /api/v1/health directly to live PlatformHealthService; mounted all 16 subsystem routers.
+  - central_platform/api/routes/courses.py: Replaced hardcoded _COURSES with dynamic CourseService queries; enforced public/private scoping; added course version drafting, submission, and publication endpoints.
+  - central_platform/api/routes/classes.py: Added class groups and academic cohorts REST endpoints.
+  - central_platform/api/routes/enrollments.py: Replaced in-memory _ENROLLMENTS with persistent PlatformDatabase operations and auto-provisioning.
+  - central_platform/api/routes/instructions.py: Added 5-tier hierarchical instruction resolution REST endpoints.
+  - central_platform/api/routes/assessments.py: Added sanitized assessment delivery with anti-answer-leakage guarantee and teacher attempt review / score adjustment endpoints.
+  - central_platform/api/routes/tutor.py: Exposed generic 16-step tutoring lifecycle over POST /api/v1/tutor/turn.
+  - central_platform/api/schemas.py: Added typed Pydantic models for all new endpoints.
+  - docs/reports/OPENAPI_SNAPSHOT_V2.json: Exported canonical OpenAPI 3.1.0 snapshot containing 167 endpoints.
+  - docs/reports/API_CONTRACT_V2.md: Published canonical HTTP API contract.
+  - tests/test_phase12_real_online_api_boundary.py: 12 tests against live Uvicorn socket covering health probes, broken subsystem failure, auth, account suspension, RBAC, courses, cohorts, instructions, assessments, tutor turn, error envelopes, and zero-chemistry router decoupling.
+  - Regression results: 981/981 passed in 129.56s (100% green, 0 regressions).
+  ```
+- **Push Status:** `PENDING (awaiting git push)`
+- **Issue Operations Status:** `QUEUED`
+
+
 
 
 

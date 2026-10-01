@@ -430,6 +430,48 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 969 tests collected, 969 passed in 142.14s (100% green).
 - **Remaining Risks:** None for Phase 11. Phase 12 (Real Online API Boundary) next.
 
+---
+
+### Entry: Phase 12 — Real Online API Boundary (2026-10-01)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Live Subsystem Health Probes (`central_platform/health/service.py`, `central_platform/health/__init__.py`):
+    - Implemented `PlatformHealthService` probing live SQLite connection (`SELECT 1`), model manifest registry, and storage subsystems.
+    - Connected `/healthz`, `/livez`, `/readyz`, and `/api/v1/health` with simulated failure hook returning `503 Service Unavailable`.
+  - Multi-Tenant Course Catalog & Version Lifecycle (`central_platform/api/routes/courses.py`):
+    - Removed hardcoded static `_COURSES` list; routed directly to `CourseService` and persistent database.
+    - Enforced public catalog discovery and private organization course gatekeeping (`403 Forbidden` for cross-org access).
+    - Added course version creation, review submission, publication, and organization offering pinning endpoints.
+  - Multi-Tenant Classes, Cohorts & Enrollments (`central_platform/api/routes/classes.py`, `enrollments.py`):
+    - Added class groups and academic cohorts REST endpoints.
+    - Replaced in-memory `_ENROLLMENTS` list with persistent database operations and student auto-provisioning.
+  - Hierarchical Teacher Instructions REST Resolution (`central_platform/api/routes/instructions.py`):
+    - Added endpoints to issue and dynamically resolve 5-tier instruction cascade (Organization -> Course -> Class -> Cohort -> Student).
+  - Assessment Delivery & Teacher Review (`central_platform/api/routes/assessments.py`):
+    - Added sanitized assessment delivery (`GET /assessments/{id}/sanitized`) with anti-answer-leakage guarantee.
+    - Added teacher attempt review and score adjustment endpoint (`POST /assessments/attempts/{id}/review`).
+  - Tutor Turn Over HTTP (`central_platform/api/routes/tutor.py`):
+    - Exposed generic 16-step tutoring lifecycle over `POST /api/v1/tutor/turn`.
+  - API Schemas & App Mounting (`central_platform/api/schemas.py`, `central_platform/api/app.py`):
+    - Added typed request/response models for all new endpoints; mounted all routers.
+  - Artifacts Exported:
+    - Generated OpenAPI 3.1.0 schema snapshot: `docs/reports/OPENAPI_SNAPSHOT_V2.json` (167 paths).
+    - Generated API Contract: `docs/reports/API_CONTRACT_V2.md`.
+    - Generated Test Report: `docs/reports/PHASE_12_TEST_REPORT.md` and Results JSON `docs/reports/PHASE_12_TEST_RESULTS.json`.
+  - Test Suite (`tests/test_phase12_real_online_api_boundary.py`):
+    - 12 comprehensive tests running against a real Uvicorn server on a dynamic TCP loopback socket.
+  - Regression Suite:
+    - 981 tests passing in 129.56s (100% green, zero regressions).
+- **Bugs Found & Fixed:**
+  - Added missing `import os` in `central_platform/auth/dependencies.py`.
+  - Fixed `asmt` dictionary unpacking in `central_platform/api/routes/assessments.py:get_sanitized_assessment`.
+  - Fixed parameter keyword arguments for `CourseService.create_course_version` (`version_number`), `submit_version_for_review`, and `select_course_for_org` (`pinned_version_id`).
+  - Added compatibility fields `ok` and `assistant_text` to `TutorTurnApiResponse`.
+  - Resolved `CourseOffering` attribute mapping (`pinned_version_id` and `enrolled_at`).
+  - Resolved order-dependent assertion in `test_phase12_learning_event_system.py`.
+- **Tests Run:** 981 tests collected, 981 passed in 129.56s (100% green).
+- **Remaining Risks:** None for Phase 12. Phase 13 (Offline Local Runtime) next.
+
 
 
 

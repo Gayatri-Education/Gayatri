@@ -30,7 +30,8 @@ class TutorTurnApiRequest(BaseModel):
     student_id: str = Field(..., description="Student unique identifier")
     session_id: str = Field(..., description="Active session unique identifier")
     course_id: str = Field(..., description="Target course unique identifier")
-    message: str = Field(..., description="Student query or message")
+    message: Optional[str] = Field(None, description="Student query or message")
+    student_input: Optional[str] = Field(None, description="Alternative alias for student query")
     course_version_id: Optional[str] = Field(None, description="Optional pinned course version")
     class_id: Optional[str] = Field(None, description="Optional class/cohort identifier")
     concept_id: Optional[str] = Field(None, description="Optional target concept identifier")
@@ -60,6 +61,8 @@ class TutorTurnApiResponse(BaseModel):
     model_used: str = "default"
     status: str = "SUCCESS"
     validation_issues: List[Dict[str, Any]] = Field(default_factory=list)
+    ok: bool = True
+    assistant_text: Optional[str] = None
 
 
 @router.post("/turn", response_model=TutorTurnApiResponse)
@@ -68,14 +71,17 @@ async def submit_tutor_turn(
     db: PlatformDatabase = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ) -> TutorTurnApiResponse:
-    """Submit a turn to the Generic Course Tutor Orchestrator."""
+    query_text = req.message or req.student_input or ""
+    if not query_text.strip():
+        raise HTTPException(status_code=400, detail="Missing message or student_input text.")
+
     try:
         orchestrator = GenericTutorOrchestrator(db=db)
         turn_req = TutorTurnRequest(
             student_id=req.student_id,
             session_id=req.session_id,
             course_id=req.course_id,
-            message=req.message,
+            message=query_text,
             course_version_id=req.course_version_id,
             class_id=req.class_id,
             concept_id=req.concept_id,
@@ -86,7 +92,10 @@ async def submit_tutor_turn(
             conversation_history=req.conversation_history,
         )
         res: TutorTurnResult = orchestrator.execute_turn(turn_req)
-        return TutorTurnApiResponse(**res.to_dict())
+        turn_dict = res.to_dict()
+        turn_dict["ok"] = (res.status == "SUCCESS")
+        turn_dict["assistant_text"] = res.response_text
+        return TutorTurnApiResponse(**turn_dict)
 
     except CourseNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
