@@ -95,7 +95,7 @@ phases:
   phase_06_adaptive_learning:
     name: "Evidence-Based Adaptive Learning"
     status: "COMPLETE"
-    commit: "pending_merge"
+    commit: "b818afc"
     branch: "fix/phase-06-adaptive-learning"
     test_command: "pytest -v tests/test_phase06_adaptive_remediation.py && pytest -q"
     test_result: "PASSED (9 phase tests passed; 1196 full suite passed in 276.85s)"
