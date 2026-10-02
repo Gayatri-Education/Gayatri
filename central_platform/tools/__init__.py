@@ -1,4 +1,7 @@
 """Gayatri AI Platform — Tools Package (Phase 08)."""
+from __future__ import annotations
+
+from typing import Optional
 
 from central_platform.tools.capabilities import (
     ResourceLimits,
@@ -22,13 +25,22 @@ from central_platform.tools.adapters.math import MathToolAdapter
 from central_platform.tools.adapters.programming import ProgrammingSandboxAdapter
 
 
-def get_configured_tool_registry() -> ToolRegistry:
+def get_configured_tool_registry(include_chemistry: Optional[bool] = None) -> ToolRegistry:
     """Return a ToolRegistry initialized with all platform standard adapters."""
+    from central_platform.adapters.chemistry.adapter import is_chemistry_adapter_enabled
+    
+    should_include_chem = include_chemistry if include_chemistry is not None else is_chemistry_adapter_enabled()
     registry = get_default_registry()
     if not registry.list_capabilities():
-        registry.register_adapter(ChemistryToolAdapter())
+        if should_include_chem:
+            registry.register_adapter(ChemistryToolAdapter())
         registry.register_adapter(MathToolAdapter())
         registry.register_adapter(ProgrammingSandboxAdapter())
+    elif not should_include_chem:
+        # If registry was previously initialized with chemistry, unregister it
+        registry.unregister_adapter("ChemistryToolAdapter")
+    elif should_include_chem and not registry.is_adapter_registered("ChemistryToolAdapter"):
+        registry.register_adapter(ChemistryToolAdapter())
     return registry
 
 

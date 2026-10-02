@@ -698,7 +698,32 @@ This log records every development phase and architectural transition in chronol
   - Regression Suite:
     - 1,053 tests passing across all 18 phases (100% green).
 - **Tests Run:** 1,053 tests collected, 1,053 passed (100% green).
-- **Remaining Risks:** None for Phase 18. Advancing to Phase 19.
+### Entry: Phase 19 — Chemistry Adapter Extraction & Disablement Test (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Standalone Chemistry Domain Adapter (`central_platform/adapters/chemistry/adapter.py` & `__init__.py`):
+    - Encapsulated Chemistry-specific tools (`ChemistryToolAdapter`), evaluators (`ChemistryEquationEvaluator`), curriculum mapping (`ChemistryCurriculumAdapter`), misconceptions catalog (e.g. `MISC-BOND-BREAK`, `MISC-EQUIL-STATIC`), and entity normalizers.
+    - Implemented standard domain adapter interface with dynamic enable/disable controls.
+    - Provided factory functions `get_chemistry_domain_adapter()` and `is_chemistry_adapter_enabled()`.
+  - Tool Registry Dynamic Hot-Swapping (`central_platform/tools/registry.py`):
+    - Added `unregister_adapter(adapter)` removing capabilities from registry index and adapter list.
+    - Added `is_adapter_registered(adapter)` query method.
+  - Tool Configuration (`central_platform/tools/__init__.py`):
+    - Updated `get_configured_tool_registry(include_chemistry: bool = True)` to respect both argument flags and `is_chemistry_adapter_enabled()`.
+  - Evaluator Registry Dynamic Hot-Swapping (`central_platform/assessment/evaluators/registry.py`):
+    - Added `set_domain_evaluator_enabled(domain: str, enabled: bool)` allowing runtime addition/removal of domain evaluators.
+    - Fallback verification: chemical items fallback gracefully to `RubricEvaluator` when specialized evaluator is disabled.
+  - Platform Independence & Multi-Course Isolation:
+    - Confirmed generic platform core, course services, tutor orchestration, and AI layers have zero hardcoded imports of Chemistry domain adapters.
+    - Math tools (`calculator`) and programming sandboxes (`code_execution`) execute with 100% fidelity when chemistry is disabled.
+    - Non-chemistry courses return `False` for `can_handle_course`.
+  - Test Suite (`tests/test_phase19_chemistry_adapter_extraction_disablement.py`):
+    - 12 comprehensive unit and integration tests covering domain adapter contract, startup with chemistry disabled, tool registry omission, tool execution rejection, evaluator fallback, chemistry tool execution, equation evaluation, math/coding sandbox independence, cross-course isolation, concept keyword matcher isolation, dynamic runtime toggle, and env var configuration.
+  - Regression Suite:
+    - 1,065 tests passing across all 19 phases (100% green, 0 regressions).
+- **Tests Run:** 1,065 tests collected, 1,065 passed (100% green).
+- **Remaining Risks:** None for Phase 19. Advancing to Phase 20 (Legacy Removal & Dead-Code Cleanup).
+
 
 
 

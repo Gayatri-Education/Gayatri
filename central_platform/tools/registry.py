@@ -55,6 +55,32 @@ class ToolRegistry:
             if policy.is_tool_enabled(cap.tool_id)
         ]
 
+    def unregister_adapter(self, adapter_or_name: Any) -> bool:
+        """Unregister an adapter and purge all of its advertised capabilities."""
+        to_remove = []
+        name_str = getattr(adapter_or_name, "__name__", str(adapter_or_name)).lower()
+        for ad in self._adapters:
+            ad_name = ad.__class__.__name__.lower()
+            if ad == adapter_or_name or ad_name == name_str or name_str in ad_name:
+                to_remove.append(ad)
+
+        if not to_remove:
+            return False
+
+        for ad in to_remove:
+            self._adapters.remove(ad)
+            tool_ids_to_del = [tid for tid, a in self._tool_to_adapter.items() if a == ad]
+            for tid in tool_ids_to_del:
+                self._tool_to_adapter.pop(tid, None)
+                self._capabilities.pop(tid, None)
+                logger.info("Unregistered tool capability: %s", tid)
+        return True
+
+    def is_adapter_registered(self, adapter_name: str) -> bool:
+        """Check if an adapter of the given class name is currently registered."""
+        target = adapter_name.lower()
+        return any(target in ad.__class__.__name__.lower() for ad in self._adapters)
+
     def clear(self) -> None:
         """Clear all registered adapters and capabilities (useful for test isolation)."""
         self._capabilities.clear()

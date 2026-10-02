@@ -431,8 +431,29 @@
   - tests/test_phase18_teacher_instruction_rag_integration.py: 12 comprehensive unit and integration tests covering merged multi-tier context, provenance tracking, directives vs evidence separation, precedence cascade, priority tie-breaking, expiration, unauthorized note exclusion, graceful empty fallbacks, mixed scopes, version pinning, and REST API turn propagation.
   - Regression results: 1,053/1,053 passed (100% green, 0 regressions).
   ```
+- **Push Status:** `COMPLETED (commit a3885ec pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 020: Phase 19 Chemistry Adapter Extraction & Disablement Test
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 19 Chemistry Adapter Extraction & Disablement Test Complete`
+- **Intended Labels:** `adapters`, `chemistry`, `modularity`, `architecture`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 19 Chemistry Adapter Extraction & Disablement Test completed.
+
+  Deliverables:
+  - central_platform/adapters/chemistry/: Standalone package containing ChemistryDomainAdapter, integrating ChemistryToolAdapter (equation_balancer, formula_parser), ChemistryEquationEvaluator, ChemistryCurriculumAdapter, entity normalizer, and misconceptions catalog (MISC-BOND-BREAK, MISC-EQUIL-STATIC, etc.).
+  - central_platform/tools/registry.py: Added unregister_adapter() and is_adapter_registered() methods for dynamic hot-swapping and clean capability index invalidation.
+  - central_platform/tools/__init__.py: Updated get_configured_tool_registry() with include_chemistry toggle and dynamic adapter enablement checks.
+  - central_platform/assessment/evaluators/registry.py: Added set_domain_evaluator_enabled() for dynamic domain evaluator registration/unregistration with graceful fallback to RubricEvaluator.
+  - Platform Independence Proof: Verified generic tutor core, courses services, and AI layers have zero direct imports of the Chemistry adapter implementation. Math (calculator) and coding sandboxes execute with 100% fidelity when chemistry is disabled. Non-chemistry courses return False for can_handle_course.
+  - tests/test_phase19_chemistry_adapter_extraction_disablement.py: 12 comprehensive unit and integration tests covering domain adapter contract, startup with chemistry disabled, tool registry omission, tool execution rejection, evaluator fallback, chemistry tool execution, equation evaluation, math/coding sandbox independence, cross-course isolation, concept keyword matcher isolation, dynamic runtime toggle, and env var configuration.
+  - Regression results: 1,065/1,065 passed (100% green, 0 regressions).
+  ```
 - **Push Status:** `PENDING`
 - **Issue Operations Status:** `QUEUED`
+
 
 
 

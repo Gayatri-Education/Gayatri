@@ -37,12 +37,39 @@ class EvaluatorRegistry:
         self.register(NumericalEvaluator())
         self.register(BooleanEvaluator())
         self.register(CodeExecutionEvaluator())
-        self.register(ChemistryEquationEvaluator())
+        try:
+            from central_platform.adapters.chemistry.adapter import is_chemistry_adapter_enabled
+            if is_chemistry_adapter_enabled():
+                self.register(ChemistryEquationEvaluator())
+        except Exception:
+            self.register(ChemistryEquationEvaluator())
         self.register(self._default_evaluator)
 
     def register(self, evaluator: BaseEvaluator) -> None:
         """Register a new evaluator."""
         self._evaluators.insert(0, evaluator)  # Higher precedence for newly registered
+
+    def unregister(self, evaluator_or_name: Any) -> bool:
+        """Unregister an evaluator by instance or class name."""
+        to_remove = []
+        name_str = getattr(evaluator_or_name, "__name__", str(evaluator_or_name)).lower()
+        for ev in self._evaluators:
+            ev_name = ev.__class__.__name__.lower()
+            if ev == evaluator_or_name or ev_name == name_str or name_str in ev_name:
+                to_remove.append(ev)
+        for ev in to_remove:
+            self._evaluators.remove(ev)
+        return len(to_remove) > 0
+
+    def set_domain_evaluator_enabled(self, domain: str, enabled: bool) -> None:
+        """Dynamically enable or disable specialized evaluators for a domain."""
+        if domain.lower() == "chemistry":
+            if not enabled:
+                self.unregister("ChemistryEquationEvaluator")
+            else:
+                has_chem = any("chemistry" in ev.__class__.__name__.lower() for ev in self._evaluators)
+                if not has_chem:
+                    self.register(ChemistryEquationEvaluator())
 
     def get_evaluator(self, item_type: str) -> BaseEvaluator:
         """Find the evaluator that supports the specified item type."""
