@@ -60,10 +60,12 @@ class AssessmentService:
         db: Optional[PlatformDatabase] = None,
         event_store: Optional[LearningEventStore] = None,
         slr_service: Optional[SLRService] = None,
+        allow_auto_provision: bool = False,
     ):
         self.db = db or PlatformDatabase()
         self.event_store = event_store or LearningEventStore(self.db)
         self.slr_service = slr_service or SLRService(self.db, self.event_store)
+        self.allow_auto_provision = allow_auto_provision
 
     def _ensure_entities(
         self,
@@ -71,44 +73,64 @@ class AssessmentService:
         org_id: Optional[str] = None,
         student_id: Optional[str] = None,
     ) -> None:
-        """Ensure parent foreign key entities exist before writing items."""
-        effective_org = org_id or "org-default"
-        try:
-            if not self.db.get_organization(effective_org):
-                self.db.create_organization(Organization(id=effective_org, name="Default Organization", slug=f"slug-{effective_org}"))
-        except Exception as exc:
-            logger.warning("Failed to auto-provision organization %s: %s", effective_org, exc)
+        """Ensure parent foreign key entities exist before writing items.
 
-        if student_id:
+        Under production policy (allow_auto_provision=False), fail closed if
+        referenced organization, student, or course does not exist.
+        """
+        if self.allow_auto_provision:
+            effective_org = org_id or "org-default"
             try:
-                if not self.db.get_user(student_id):
-                    self.db.create_user(
-                        User(
-                            id=student_id,
-                            email=f"{student_id}@student.gayatri.ai",
-                            full_name=student_id,
-                            role=UserRole.STUDENT,
+                if not self.db.get_organization(effective_org):
+                    self.db.create_organization(Organization(id=effective_org, name="Default Organization", slug=f"slug-{effective_org}"))
+            except Exception as exc:
+                logger.warning("Failed to auto-provision organization %s: %s", effective_org, exc)
+
+            if student_id:
+                try:
+                    if not self.db.get_user(student_id):
+                        self.db.create_user(
+                            User(
+                                id=student_id,
+                                email=f"{student_id}@student.gayatri.ai",
+                                full_name=student_id,
+                                role=UserRole.STUDENT,
+                                organization_id=effective_org,
+                            )
+                        )
+                except Exception as exc:
+                    logger.warning("Failed to auto-provision student %s: %s", student_id, exc)
+
+            effective_course = course_id or "crs-general-101"
+            try:
+                if not self.db.get_course(effective_course):
+                    course_code = "CHEM101" if "chem" in effective_course.lower() else effective_course.upper()[:10]
+                    course_title = "General Chemistry" if "chem" in effective_course.lower() else f"Course {effective_course}"
+                    self.db.create_course(
+                        Course(
+                            id=effective_course,
                             organization_id=effective_org,
+                            code=course_code,
+                            title=course_title,
                         )
                     )
             except Exception as exc:
-                logger.warning("Failed to auto-provision student %s: %s", student_id, exc)
+                logger.warning("Failed to auto-provision course %s: %s", effective_course, exc)
+            return
 
-        effective_course = course_id or "crs-general-101"
-        try:
-            if not self.db.get_course(effective_course):
-                course_code = "CHEM101" if "chem" in effective_course.lower() else effective_course.upper()[:10]
-                course_title = "General Chemistry" if "chem" in effective_course.lower() else f"Course {effective_course}"
-                self.db.create_course(
-                    Course(
-                        id=effective_course,
-                        organization_id=effective_org,
-                        code=course_code,
-                        title=course_title,
-                    )
-                )
-        except Exception as exc:
-            logger.warning("Failed to auto-provision course %s: %s", effective_course, exc)
+        # Fail closed on non-existent entities
+        if org_id and not self.db.get_organization(org_id):
+            raise ValueError(f"Organization '{org_id}' not found.")
+
+        if student_id:
+            user = self.db.get_user(student_id)
+            if not user:
+                raise ValueError(f"Student '{student_id}' not found.")
+            if org_id and user.organization_id and user.organization_id != org_id:
+                raise ValueError(f"Student '{student_id}' belongs to organization '{user.organization_id}', not '{org_id}'.")
+
+        if course_id and not self.db.get_course(course_id):
+            raise ValueError(f"Course '{course_id}' not found.")
 
     # ── 1. Question Bank Operations ──────────────────────────────────────────
 
@@ -363,6 +385,12 @@ class AssessmentService:
         if not attempt:
             raise ValueError(f"Attempt '{attempt_id}' not found.")
 
+        if attempt.status in (AttemptStatus.GRADED.value, AttemptStatus.SUBMITTED.value, "reviewed"):
+            raise ValueError(f"Attempt '{attempt_id}' is already finalized (status: {attempt.status}).")
+
+        if student_id and attempt.student_id != student_id:
+            raise ValueError(f"Student ID mismatch: attempt '{attempt_id}' belongs to '{attempt.student_id}', but was submitted by '{student_id}'.")
+
         asmt = self.get_assessment(attempt.assessment_id)
         if not asmt:
             raise ValueError(f"Assessment '{attempt.assessment_id}' not found.")
@@ -519,6 +547,33 @@ class AssessmentService:
             },
         )
         self.event_store.ingest_event(complete_event)
+
+        # 3. Synchronize verified assessment outcomes directly with authoritative SLR
+        for item in items:
+            if item.concept_id:
+                item_res = grade_results["item_results"].get(item.id, {})
+                score_val = item_res.get("score", 0.0) / max(item_res.get("max_marks", 1.0), 1e-4)
+                try:
+                    self.slr_service.update_concept_mastery(
+                        student_id=student_id,
+                        concept_id=item.concept_id,
+                        score=score_val,
+                        course_id=course_id,
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to update SLR concept mastery for %s: %s", item.concept_id, exc)
+
+                misc_code = item_res.get("misconception_code")
+                if misc_code:
+                    try:
+                        self.slr_service.record_student_misconception(
+                            student_id=student_id,
+                            concept_id=item.concept_id,
+                            misconception_code=misc_code,
+                            course_id=course_id,
+                        )
+                    except Exception as exc:
+                        logger.warning("Failed to record SLR misconception %s: %s", misc_code, exc)
 
     def teacher_review_attempt(
         self,

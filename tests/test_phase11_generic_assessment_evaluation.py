@@ -94,6 +94,23 @@ def test_db():
             role=UserRole.STUDENT,
         )
     )
+    # Seed courses used in tests
+    db.create_course(
+        Course(
+            id="course-phys-1",
+            organization_id="org-core",
+            code="PHYS101",
+            title="Physics I",
+        )
+    )
+    db.create_course(
+        Course(
+            id="course-cs-1",
+            organization_id="org-core",
+            code="CS101",
+            title="Computer Science I",
+        )
+    )
     return db
 
 

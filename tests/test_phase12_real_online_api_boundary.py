@@ -525,8 +525,18 @@ def test_assessment_sanitized_delivery_and_review(client):
     assert "explanation" not in student_item
     assert student_item["question_text"] == "What is the enthalpy change in an adiabatic process?"
 
-    # 4. Student starts attempt
+    # 4. Student starts attempt (real registered student entity)
     student_id = f"std-eval-{uuid.uuid4().hex[:6]}"
+    db = PlatformDatabase()
+    db.create_user(
+        User(
+            id=student_id,
+            email=f"{student_id}@student.org",
+            full_name="Student Eval",
+            role=UserRole.STUDENT,
+            organization_id="org-default",
+        )
+    )
     r_start = client.post(
         "/api/v1/assessments/attempts/start",
         json={"assessment_id": asmt_id, "student_id": student_id},
