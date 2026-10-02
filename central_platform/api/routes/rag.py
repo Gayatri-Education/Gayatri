@@ -21,7 +21,7 @@ from central_platform.api.schemas import (
     RAGSourceResponse,
     RAGValidateResponse,
 )
-from central_platform.auth.dependencies import get_current_user_optional, get_db
+from central_platform.auth.dependencies import get_current_user, get_db
 from central_platform.models.schema import RAGSource, User, UserRole
 from central_platform.rag.service import RAGService
 
@@ -48,7 +48,7 @@ def _get_role(user: User) -> UserRole:
     return UserRole.STUDENT  # safe fallback
 
 
-def _require_teacher_plus(current_user: Optional[User]) -> UserRole:
+def _require_teacher_plus(current_user: User) -> UserRole:
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
     role = _get_role(current_user)
@@ -57,7 +57,7 @@ def _require_teacher_plus(current_user: Optional[User]) -> UserRole:
     return role
 
 
-def _require_admin_plus(current_user: Optional[User]) -> UserRole:
+def _require_admin_plus(current_user: User) -> UserRole:
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
     role = _get_role(current_user)
@@ -101,7 +101,7 @@ def _build_source_response(s: RAGSource) -> RAGSourceResponse:
 @router.post("/sources", response_model=ApiResponse[RAGSourceResponse], status_code=status.HTTP_201_CREATED)
 async def create_rag_source(
     req: RAGSourceCreateRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Register a new plug-and-play knowledge source for a course. Requires TEACHER or above."""
     role = _require_teacher_plus(current_user)
@@ -110,11 +110,12 @@ async def create_rag_source(
         org_id = current_user.organization_id or "org-default"
         if req.course_id:
             c = svc.db.get_course(req.course_id)
-            if c:
-                # Cross-org protection: non-superadmin can only add to their org's courses
-                if role != UserRole.SUPER_ADMIN and c.organization_id != org_id:
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot add knowledge sources to a course from another organization.")
-                org_id = c.organization_id
+            if not c:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Course '{req.course_id}' not found.")
+            # Cross-org protection: non-superadmin can only add to their org's courses
+            if role != UserRole.SUPER_ADMIN and c.organization_id != org_id:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot add knowledge sources to a course from another organization.")
+            org_id = c.organization_id
         source = svc.register_source(
             organization_id=org_id,
             course_id=req.course_id,
@@ -152,9 +153,20 @@ async def list_rag_sources(
     class_id: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
 ):
     """List knowledge sources with optional course, subject, status, or authority filters."""
     svc = get_rag_service()
+    role = _get_role(current_user)
+    if course_id and role != UserRole.SUPER_ADMIN:
+        course = svc.db.get_course(course_id)
+        if course:
+            c_vis = course.visibility.value if hasattr(course.visibility, "value") else str(course.visibility).upper()
+            if c_vis != "PUBLIC" and course.organization_id != current_user.organization_id:
+                offering = svc.db.get_course_offering_by_org_and_course(current_user.organization_id, course_id)
+                if not offering or (hasattr(offering, "status") and offering.status != "active"):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to course knowledge sources.")
+
     sources = svc.db.list_rag_sources(
         course_id=course_id,
         subject=subject,
@@ -167,35 +179,61 @@ async def list_rag_sources(
         limit=limit,
         offset=offset,
     )
+    # Filter sources by organization boundary unless SUPER_ADMIN or course is public
+    filtered_sources = []
+    for s in sources:
+        if role == UserRole.SUPER_ADMIN or s.organization_id == current_user.organization_id:
+            filtered_sources.append(s)
+        elif s.course_id:
+            c = svc.db.get_course(s.course_id)
+            if c:
+                c_vis = c.visibility.value if hasattr(c.visibility, "value") else str(c.visibility).upper()
+                if c_vis == "PUBLIC":
+                    filtered_sources.append(s)
     return ApiResponse(
         ok=True,
-        data=[_build_source_response(s) for s in sources],
+        data=[_build_source_response(s) for s in filtered_sources],
     )
 
 
 @router.get("/sources/{source_id}", response_model=ApiResponse[RAGSourceResponse])
-async def get_rag_source(source_id: str):
+async def get_rag_source(
+    source_id: str,
+    current_user: User = Depends(get_current_user),
+):
     """Get details for a specific knowledge source."""
     svc = get_rag_service()
     source = svc.db.get_rag_source(source_id)
     if not source:
         raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
+    role = _get_role(current_user)
+    if role != UserRole.SUPER_ADMIN and source.organization_id != current_user.organization_id:
+        if source.course_id:
+            c = svc.db.get_course(source.course_id)
+            if not c or (c.visibility.value if hasattr(c.visibility, "value") else str(c.visibility).upper()) != "PUBLIC":
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to knowledge source.")
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to knowledge source.")
     return ApiResponse(
         ok=True,
         data=_build_source_response(source),
     )
 
 
-
 @router.post("/sources/{source_id}/ingest", response_model=ApiResponse[RAGIngestResponse])
 async def ingest_source_content(
     source_id: str,
     req: RAGIngestRequest,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Parse, clean, chunk, and index content into the specified knowledge source. Requires TEACHER or above."""
-    _require_teacher_plus(current_user)
+    role = _require_teacher_plus(current_user)
     svc = get_rag_service()
+    source = svc.db.get_rag_source(source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
+    if role != UserRole.SUPER_ADMIN and source.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot ingest into a knowledge source from another organization.")
     try:
         res = svc.ingest_document(
             source_id=source_id,
@@ -222,11 +260,16 @@ async def ingest_source_content(
 @router.post("/sources/{source_id}/validate", response_model=ApiResponse[RAGValidateResponse])
 async def validate_rag_source(
     source_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Validate ingested chunks, verify lengths, and check prompt injection safety. Requires TEACHER or above."""
-    _require_teacher_plus(current_user)
+    role = _require_teacher_plus(current_user)
     svc = get_rag_service()
+    source = svc.db.get_rag_source(source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
+    if role != UserRole.SUPER_ADMIN and source.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot validate a knowledge source from another organization.")
     try:
         res = svc.validate_source(source_id)
         return ApiResponse(
@@ -249,11 +292,16 @@ async def validate_rag_source(
 @router.post("/sources/{source_id}/publish", response_model=ApiResponse[RAGPublishResponse])
 async def publish_rag_source(
     source_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Publish a validated knowledge source, making its chunks available for live retrieval. Requires ORG_ADMIN or SUPER_ADMIN."""
-    _require_admin_plus(current_user)
+    role = _require_admin_plus(current_user)
     svc = get_rag_service()
+    source = svc.db.get_rag_source(source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
+    if role != UserRole.SUPER_ADMIN and source.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot publish a knowledge source from another organization.")
     try:
         source = svc.publish_source(source_id)
         return ApiResponse(
@@ -273,9 +321,22 @@ async def get_source_chunks(
     source_id: str,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
 ):
     """List chunks belonging to a knowledge source."""
     svc = get_rag_service()
+    source = svc.db.get_rag_source(source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
+    role = _get_role(current_user)
+    if role != UserRole.SUPER_ADMIN and source.organization_id != current_user.organization_id:
+        if source.course_id:
+            c = svc.db.get_course(source.course_id)
+            if not c or (c.visibility.value if hasattr(c.visibility, "value") else str(c.visibility).upper()) != "PUBLIC":
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to knowledge source chunks.")
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to knowledge source chunks.")
+
     chunks = svc.db.get_rag_chunks(source_id, limit=limit, offset=offset)
     return ApiResponse(
         ok=True,
@@ -308,13 +369,16 @@ async def get_source_chunks(
 @router.delete("/sources/{source_id}", response_model=ApiResponse[dict])
 async def delete_rag_source(
     source_id: str,
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
     """Delete a knowledge source and all its associated chunks. Requires ORG_ADMIN or SUPER_ADMIN."""
-    if not current_user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
-    _require_admin_plus(current_user)
+    role = _require_admin_plus(current_user)
     svc = get_rag_service()
+    source = svc.db.get_rag_source(source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
+    if role != UserRole.SUPER_ADMIN and source.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete a knowledge source from another organization.")
     deleted = svc.db.delete_rag_source(source_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
@@ -322,9 +386,52 @@ async def delete_rag_source(
 
 
 @router.post("/query", response_model=ApiResponse[RAGQueryResponse])
-async def query_rag(req: RAGQueryRequest):
+async def query_rag(
+    req: RAGQueryRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Retrieve grounded knowledge evidence cards scoped to course, subject, and concepts."""
     svc = get_rag_service()
+    role = _get_role(current_user)
+
+    # 1. Identity binding & anti-spoofing check
+    effective_student_id = req.student_id
+    if role == UserRole.STUDENT:
+        if req.student_id and req.student_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Student cannot query knowledge on behalf of another student.",
+            )
+        effective_student_id = current_user.id
+    elif not effective_student_id:
+        effective_student_id = current_user.id
+
+    # 2. Multi-tenant / course enrollment verification
+    if req.course_id:
+        course = svc.db.get_course(req.course_id)
+        if not course:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Course '{req.course_id}' not found.")
+
+        c_vis = course.visibility.value if hasattr(course.visibility, "value") else str(course.visibility).upper()
+        if role == UserRole.STUDENT:
+            if c_vis != "PUBLIC":
+                enrollments = svc.db.get_enrollments_for_student(effective_student_id)
+                has_enrollment = any(e.course_id == req.course_id and getattr(e, "is_active", True) for e in enrollments)
+                if not has_enrollment:
+                    offering = svc.db.get_course_offering_by_org_and_course(current_user.organization_id, req.course_id)
+                    has_offering = offering and getattr(offering, "is_active", True)
+                    if not has_offering:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Access denied: Student is not enrolled in private course '{req.course_id}'.",
+                        )
+        elif role != UserRole.SUPER_ADMIN:
+            if course.organization_id != current_user.organization_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot query course knowledge from another organization.",
+                )
+
     try:
         res = svc.query(
             query_text=req.query,
@@ -333,7 +440,7 @@ async def query_rag(req: RAGQueryRequest):
             concept=req.concept_id,
             course_version_id=req.course_version_id,
             class_id=req.class_id,
-            student_id=req.student_id,
+            student_id=effective_student_id,
             top_k=req.top_k,
             confidence_threshold=req.confidence_threshold,
         )
@@ -366,5 +473,7 @@ async def query_rag(req: RAGQueryRequest):
                 reason=res.get("reason"),
             ),
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"RAG query execution failed: {exc}")

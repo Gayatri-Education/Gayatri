@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from central_platform.api.app import app
+from central_platform.auth.tokens import create_access_token
 
 
 @pytest.fixture(scope="module")
@@ -306,7 +307,15 @@ def test_v1_assessments_endpoints(client):
 
 def test_v1_rag_query(client):
     """Test /api/v1/rag/query returns grounded NCERT evidence cards."""
-    r_rag = client.post("/api/v1/rag/query", json={"query": "Hess law enthalpy summation", "top_k": 2})
+    # Negative assertion: Unauthenticated call is rejected with 401
+    assert client.post("/api/v1/rag/query", json={"query": "Hess law enthalpy summation", "top_k": 2}).status_code == 401
+
+    token = create_access_token(user_id="std_api_01", role="STUDENT", organization_id="org-default")
+    r_rag = client.post(
+        "/api/v1/rag/query",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"query": "Hess law enthalpy summation", "top_k": 2},
+    )
     assert r_rag.status_code == 200
     data = r_rag.json()["data"]
     assert data["status"] == "RAG_OK"

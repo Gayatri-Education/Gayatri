@@ -573,9 +573,11 @@ def test_scoped_rag_api_flow():
     resp_pub = client.post(f"/api/v1/rag/sources/{source_id}/publish", headers=admin_headers)
     assert resp_pub.status_code == 200
 
-    # 4. List sources with filtering (no auth required — read-only)
+    # 4. List sources with filtering (unauthenticated rejected, teacher authorized)
+    assert client.get("/api/v1/rag/sources").status_code == 401
     resp_list = client.get(
         "/api/v1/rag/sources",
+        headers=teacher_headers,
         params={
             "course_id": "crs-api-scope",
             "course_version_id": "ver-api-1",
@@ -586,24 +588,24 @@ def test_scoped_rag_api_flow():
     assert resp_list.status_code == 200
     assert len(resp_list.json()["data"]) >= 1
 
-    # 5. List chunks (no auth required — read-only)
-    resp_chunks = client.get(f"/api/v1/rag/sources/{source_id}/chunks")
+    # 5. List chunks (unauthenticated rejected, teacher authorized)
+    assert client.get(f"/api/v1/rag/sources/{source_id}/chunks").status_code == 401
+    resp_chunks = client.get(f"/api/v1/rag/sources/{source_id}/chunks", headers=teacher_headers)
     assert resp_chunks.status_code == 200
     chunk = resp_chunks.json()["data"][0]
     assert chunk["course_version_id"] == "ver-api-1"
     assert chunk["visibility_scope"] == "class"
     assert chunk["class_id"] == "class-api-a"
 
-    # 6. Query with correct class_id (no auth required — read-only)
-    resp_q_ok = client.post(
-        "/api/v1/rag/query",
-        json={
-            "query": "QuickSort algorithm complexity",
-            "course_id": "crs-api-scope",
-            "course_version_id": "ver-api-1",
-            "class_id": "class-api-a",
-        },
-    )
+    # 6. Query with correct class_id (unauthenticated rejected, authorized)
+    q_payload_ok = {
+        "query": "QuickSort algorithm complexity",
+        "course_id": "crs-api-scope",
+        "course_version_id": "ver-api-1",
+        "class_id": "class-api-a",
+    }
+    assert client.post("/api/v1/rag/query", json=q_payload_ok).status_code == 401
+    resp_q_ok = client.post("/api/v1/rag/query", headers=teacher_headers, json=q_payload_ok)
     assert resp_q_ok.status_code == 200
     assert resp_q_ok.json()["data"]["status"] == "RAG_OK"
     assert resp_q_ok.json()["data"]["count"] >= 1
@@ -611,6 +613,7 @@ def test_scoped_rag_api_flow():
     # 7. Query with wrong class_id -> RAG_EMPTY
     resp_q_empty = client.post(
         "/api/v1/rag/query",
+        headers=teacher_headers,
         json={
             "query": "QuickSort algorithm complexity",
             "course_id": "crs-api-scope",
