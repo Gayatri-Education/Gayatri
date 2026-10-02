@@ -1185,9 +1185,9 @@ class TeacherClassAnalyticsResponse(BaseModel):
 
 
 class CohortAnalyticsResponse(BaseModel):
-    cohort_id: str = "cohort_chem_101"
-    student_count: int = 5
-    average_mastery: float = 0.76
+    cohort_id: str = ""
+    student_count: int = 0
+    average_mastery: float = 0.0
     mastery_tiers: Dict[str, int] = Field(default_factory=dict)
     weak_concepts: List[str] = Field(default_factory=list)
     frequent_misconceptions: List[Dict[str, Any]] = Field(default_factory=list)

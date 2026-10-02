@@ -207,3 +207,13 @@ def enforce_resource_boundaries(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Forbidden: student '{target_student_id}' is not assigned to this teacher",
                 )
+
+    # 5. Parent Scope Isolation:
+    if user_role == UserRole.PARENT:
+        if target_student_id:
+            from central_platform.privacy.policies import PrivacyRulesEngine
+            if not PrivacyRulesEngine.is_parent_linked(current_user.id, target_student_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: student '{target_student_id}' is not linked to this parent",
+                )

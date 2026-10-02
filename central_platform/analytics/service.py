@@ -160,7 +160,7 @@ class AnalyticsService:
             r = min(1.0, max(0.0, math.exp(-delta_days / stability)))
             retention_scores.append(r)
         
-        avg_retention = round(sum(retention_scores) / len(retention_scores), 4) if retention_scores else 1.0
+        avg_retention = round(sum(retention_scores) / len(retention_scores), 4) if retention_scores else 0.0
 
         # 4. Session Frequency & Daily Streak
         sessions = self.db.get_sessions_for_student(student_id)
