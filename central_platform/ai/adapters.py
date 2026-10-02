@@ -14,7 +14,9 @@ import json
 import logging
 import math
 import os
+import socket
 import time
+import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
 
@@ -22,11 +24,18 @@ from central_platform.ai.schema import (
     AIExecutionRequest,
     AIExecutionResult,
     AIModelDescriptor,
+    ModelExecutionStatus,
     ProviderConfig,
     ProviderType,
 )
 
 logger = logging.getLogger("gayatri.central_platform.ai.adapters")
+
+
+def is_production_mode() -> bool:
+    """Return True if running in production mode (F-001, F-011, F-012)."""
+    return os.environ.get("GAYATRI_ENV", "").lower() == "production" or os.environ.get("APP_ENV", "").lower() == "production"
+
 
 
 class BaseAIProviderAdapter:
@@ -312,9 +321,22 @@ class MockAIAdapter(BaseAIProviderAdapter):
     """Deterministic simulation adapter for offline test execution, CI, and fallback."""
 
     def execute(self, request: AIExecutionRequest, model_desc: AIModelDescriptor) -> AIExecutionResult:
-        t0 = time.perf_counter()
         req_id = request.request_id or f"req-mock-{int(time.time()*1000)}"
+        if is_production_mode():
+            logger.error("MockAIAdapter invoked while in production mode. Execution rejected.")
+            return AIExecutionResult(
+                request_id=req_id,
+                content="",
+                provider=self.config.provider_name,
+                model=model_desc.model_name,
+                success=False,
+                status=ModelExecutionStatus.MODEL_CONFIGURATION_ERROR,
+                error_class="MockInProductionProhibited",
+                error_message="Mock engine is strictly prohibited in production mode (F-011, F-012)",
+                mock=True,
+            )
 
+        t0 = time.perf_counter()
         prompt_words = request.prompt.split()
         prompt_tokens = max(1, int(len(prompt_words) * 1.33))
 
@@ -340,6 +362,8 @@ class MockAIAdapter(BaseAIProviderAdapter):
             latency_ms=latency_ms,
             estimated_cost_usd=round(cost, 6),
             success=True,
+            status=ModelExecutionStatus.MODEL_SUCCESS,
+            mock=True,
         )
 
 
@@ -382,9 +406,24 @@ class LocalGGUFAdapter(BaseAIProviderAdapter):
                         latency_ms=latency_ms,
                         estimated_cost_usd=0.0,
                         success=True,
+                        status=ModelExecutionStatus.MODEL_SUCCESS,
+                        mock=False,
                     )
         except Exception as exc:
-            logger.debug("LocalProvider inference failed or unavailable, falling back to dynamic generator: %s", exc)
+            logger.debug("LocalProvider inference failed or unavailable: %s", exc)
+
+        if is_production_mode():
+            return AIExecutionResult(
+                request_id=req_id,
+                content="",
+                provider=self.config.provider_name,
+                model=model_desc.model_name,
+                success=False,
+                status=ModelExecutionStatus.MODEL_UNAVAILABLE,
+                error_class="LocalModelUnavailable",
+                error_message="Local GGUF model is not available or failed inference in production mode",
+                mock=False,
+            )
 
         content = generate_dynamic_pedagogical_content(request, model_desc)
         prompt_tokens = max(1, int(len(request.prompt.split()) * 1.33))
@@ -402,7 +441,33 @@ class LocalGGUFAdapter(BaseAIProviderAdapter):
             latency_ms=latency_ms,
             estimated_cost_usd=0.0,
             success=True,
+            status=ModelExecutionStatus.MODEL_SUCCESS,
+            mock=True,
         )
+
+
+
+def map_exception_to_error_status(err: Exception) -> tuple[ModelExecutionStatus, str, str]:
+    """Classify runtime exceptions into normalized ModelExecutionStatus, error class, and message (F-011, F-012)."""
+    if isinstance(err, urllib.error.HTTPError):
+        if err.code == 429:
+            return ModelExecutionStatus.MODEL_RATE_LIMITED, f"HTTP_{err.code}", str(err)
+        elif err.code in (401, 403):
+            return ModelExecutionStatus.MODEL_CONFIGURATION_ERROR, f"HTTP_{err.code}", str(err)
+        elif err.code >= 500:
+            return ModelExecutionStatus.MODEL_UNAVAILABLE, f"HTTP_{err.code}", str(err)
+        else:
+            return ModelExecutionStatus.MODEL_INVALID_RESPONSE, f"HTTP_{err.code}", str(err)
+    if isinstance(err, (TimeoutError, socket.timeout)):
+        return ModelExecutionStatus.MODEL_TIMEOUT, "TimeoutError", str(err)
+    if isinstance(err, urllib.error.URLError):
+        reason_str = str(err.reason).lower()
+        if isinstance(err.reason, (socket.timeout, TimeoutError)) or "timed out" in reason_str:
+            return ModelExecutionStatus.MODEL_TIMEOUT, "TimeoutError", str(err)
+        return ModelExecutionStatus.MODEL_UNAVAILABLE, "NetworkError", str(err)
+    if isinstance(err, (json.JSONDecodeError, KeyError, IndexError)):
+        return ModelExecutionStatus.MODEL_INVALID_RESPONSE, type(err).__name__, str(err)
+    return ModelExecutionStatus.MODEL_INVALID_RESPONSE, type(err).__name__, str(err)
 
 
 class OpenAICompatibleAdapter(BaseAIProviderAdapter):
@@ -413,10 +478,18 @@ class OpenAICompatibleAdapter(BaseAIProviderAdapter):
         req_id = request.request_id or f"req-oai-compat-{int(time.time()*1000)}"
 
         if not api_key:
-            mock = MockAIAdapter(self.config)
-            res = mock.execute(request, model_desc)
-            res.provider = self.config.provider_name
-            return res
+            logger.warning("OpenAICompatibleAdapter: Missing API key for provider '%s' (ref: %s)", self.config.provider_name, self.config.api_key_ref)
+            return AIExecutionResult(
+                request_id=req_id,
+                content="",
+                provider=self.config.provider_name,
+                model=model_desc.model_name,
+                success=False,
+                status=ModelExecutionStatus.MODEL_CONFIGURATION_ERROR,
+                error_class="MissingAPIKeyError",
+                error_message=f"Missing API key for provider '{self.config.provider_name}'",
+                mock=False,
+            )
 
         t0 = time.perf_counter()
         try:
@@ -465,16 +538,22 @@ class OpenAICompatibleAdapter(BaseAIProviderAdapter):
                     latency_ms=latency_ms,
                     estimated_cost_usd=round(cost, 6),
                     success=True,
+                    status=ModelExecutionStatus.MODEL_SUCCESS,
+                    mock=False,
                 )
         except Exception as err:
+            st, err_cls, err_msg = map_exception_to_error_status(err)
+            logger.warning("OpenAICompatibleAdapter execution error for provider '%s': %s", self.config.provider_name, err)
             return AIExecutionResult(
                 request_id=req_id,
                 content="",
                 provider=self.config.provider_name,
                 model=model_desc.model_name,
                 success=False,
-                error_class=type(err).__name__,
-                error_message=str(err),
+                status=st,
+                error_class=err_cls,
+                error_message=err_msg,
+                mock=False,
             )
 
 
@@ -491,10 +570,18 @@ class AnthropicAdapter(BaseAIProviderAdapter):
         req_id = request.request_id or f"req-ant-{int(time.time()*1000)}"
 
         if not api_key:
-            mock = MockAIAdapter(self.config)
-            res = mock.execute(request, model_desc)
-            res.provider = self.config.provider_name
-            return res
+            logger.warning("AnthropicAdapter: Missing API key for provider '%s' (ref: %s)", self.config.provider_name, self.config.api_key_ref)
+            return AIExecutionResult(
+                request_id=req_id,
+                content="",
+                provider=self.config.provider_name,
+                model=model_desc.model_name,
+                success=False,
+                status=ModelExecutionStatus.MODEL_CONFIGURATION_ERROR,
+                error_class="MissingAPIKeyError",
+                error_message=f"Missing API key for provider '{self.config.provider_name}'",
+                mock=False,
+            )
 
         t0 = time.perf_counter()
         try:
@@ -538,17 +625,23 @@ class AnthropicAdapter(BaseAIProviderAdapter):
                     latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
                     estimated_cost_usd=round(cost, 6),
                     success=True,
+                    status=ModelExecutionStatus.MODEL_SUCCESS,
+                    mock=False,
                 )
         except Exception as e:
-            logger.error(f"OpenAICompatibleAdapter execution error for provider '{self.config.provider_name}': {e}", exc_info=True)
+            st, err_cls, err_msg = map_exception_to_error_status(e)
+            logger.error("AnthropicAdapter execution error for provider '%s': %s", self.config.provider_name, e)
             return AIExecutionResult(
                 request_id=req_id,
                 content="",
                 provider=self.config.provider_name,
                 model=model_desc.model_name,
                 success=False,
-                error=f"Execution failure: {str(e)}",
+                status=st,
+                error_class=err_cls,
+                error_message=err_msg,
                 latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+                mock=False,
             )
 
 
@@ -560,14 +653,17 @@ class GeminiAdapter(BaseAIProviderAdapter):
         req_id = request.request_id or f"req-gem-{int(time.time()*1000)}"
 
         if not api_key:
-            logger.warning(f"GeminiAdapter: missing API key for provider '{self.config.provider_name}'.")
+            logger.warning("GeminiAdapter: missing API key for provider '%s' (ref: %s)", self.config.provider_name, self.config.api_key_ref)
             return AIExecutionResult(
                 request_id=req_id,
                 content="",
                 provider=self.config.provider_name,
                 model=model_desc.model_name,
                 success=False,
-                error="API key missing",
+                status=ModelExecutionStatus.MODEL_CONFIGURATION_ERROR,
+                error_class="MissingAPIKeyError",
+                error_message=f"Missing API key for provider '{self.config.provider_name}'",
+                mock=False,
             )
 
         t0 = time.perf_counter()
@@ -606,20 +702,27 @@ class GeminiAdapter(BaseAIProviderAdapter):
                     latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
                     estimated_cost_usd=round(cost, 6),
                     success=True,
+                    status=ModelExecutionStatus.MODEL_SUCCESS,
+                    mock=False,
                 )
         except Exception as e:
-            logger.error(f"GeminiAdapter execution error for provider '{self.config.provider_name}': {e}", exc_info=True)
+            st, err_cls, err_msg = map_exception_to_error_status(e)
+            logger.error("GeminiAdapter execution error for provider '%s': %s", self.config.provider_name, e)
             return AIExecutionResult(
                 request_id=req_id,
                 content="",
                 provider=self.config.provider_name,
                 model=model_desc.model_name,
                 success=False,
-                error=f"Execution failure: {str(e)}",
+                status=st,
+                error_class=err_cls,
+                error_message=err_msg,
                 latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+                mock=False,
             )
 
 
 class OpenRouterAdapter(OpenAICompatibleAdapter):
     """Adapter for OpenRouter meta-provider via OpenAI-compatible REST API."""
     pass
+

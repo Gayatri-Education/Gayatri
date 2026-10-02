@@ -100,14 +100,17 @@ def test_mock_adapter_execution(sample_provider_config, sample_request, sample_m
     assert res.estimated_cost_usd >= 0.0
 
 
-def test_openai_compatible_adapter_fallback_when_no_api_key(sample_provider_config, sample_request, sample_model_descriptor, monkeypatch):
+def test_openai_compatible_adapter_error_when_no_api_key(sample_provider_config, sample_request, sample_model_descriptor, monkeypatch):
     monkeypatch.delenv("TEST_OPENAI_KEY", raising=False)
     adapter = OpenAICompatibleAdapter(sample_provider_config)
     res = adapter.execute(sample_request, sample_model_descriptor)
 
-    assert res.success is True
+    assert res.success is False
     assert res.provider == "test_openai"
-    assert res.content != ""
+    assert res.content == ""
+    assert res.mock is False
+    assert res.status == "MODEL_CONFIGURATION_ERROR" or res.error_class == "MissingAPIKeyError"
+
 
 
 def test_openai_compatible_adapter_mocked_http_success(sample_provider_config, sample_request, sample_model_descriptor, monkeypatch):

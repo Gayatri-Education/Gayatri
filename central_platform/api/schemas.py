@@ -1053,6 +1053,9 @@ class AIExecutionApiResponse(BaseModel):
     error_message: Optional[str] = None
     fallback_used: bool = False
     original_provider: Optional[str] = None
+    mock: bool = False
+    status: Optional[str] = None
+
 
 
 class AIProviderCreateRequest(BaseModel):

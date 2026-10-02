@@ -19,6 +19,7 @@ from central_platform.ai.adapters import (
     MockAIAdapter,
     OpenAIAdapter,
     OpenRouterAdapter,
+    is_production_mode,
 )
 from central_platform.ai.context_builder import ContextBuilder
 from central_platform.ai.model_router import ModelRouter
@@ -27,12 +28,14 @@ from central_platform.ai.schema import (
     AIExecutionRequest,
     AIExecutionResult,
     AIModelDescriptor,
+    ModelExecutionStatus,
     ModelTier,
     ProviderConfig,
     ProviderType,
     RoutingDecision,
     TaskType,
 )
+
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import AIExecutionLog
 
@@ -153,11 +156,20 @@ class AIGatewayService:
             ],
         )
 
-        for cfg in [local_cfg, openai_cfg, gemini_cfg, mock_cfg]:
+        configs = [local_cfg, openai_cfg, gemini_cfg]
+        if not is_production_mode():
+            # Mock engine is strictly restricted to development and offline tests (F-011, F-012)
+            configs.append(mock_cfg)
+
+        for cfg in configs:
             self.register_provider(cfg)
 
     def register_provider(self, config: ProviderConfig) -> None:
         """Register provider config and instantiate matching adapter."""
+        if is_production_mode() and config.provider_type == ProviderType.MOCK:
+            raise ValueError(
+                f"Registering mock provider '{config.provider_name}' is strictly prohibited in production mode (F-011, F-012)."
+            )
         self.router.register_provider(config)
         if config.provider_type == ProviderType.OPENAI:
             self.adapters[config.provider_name] = OpenAIAdapter(config)
@@ -210,11 +222,35 @@ class AIGatewayService:
         )
 
         # 3. Execution with Fallback Chain
-        providers_to_try = [routing.target_provider] + routing.fallback_chain
-        if "mock_engine" not in providers_to_try and "mock_engine" in self.adapters:
-            providers_to_try.append("mock_engine")
+        providers_to_try = [routing.target_provider] + [
+            p for p in routing.fallback_chain if p != routing.target_provider
+        ]
+
+        # In production mode, remove mock providers and fail closed if no real provider available (F-011, F-012)
+        if is_production_mode():
+            providers_to_try = [
+                p for p in providers_to_try
+                if self.router.providers.get(p) and self.router.providers.get(p).provider_type != ProviderType.MOCK
+            ]
+            if not providers_to_try:
+                fail_res = AIExecutionResult(
+                    request_id=req_id,
+                    content="",
+                    provider=routing.target_provider or "none",
+                    model=routing.target_model or "none",
+                    success=False,
+                    status=ModelExecutionStatus.MODEL_CONFIGURATION_ERROR,
+                    error_class="MockInProductionProhibited",
+                    error_message="Mock engine is strictly prohibited in production mode (F-011, F-012). No eligible production providers.",
+                    mock=False,
+                )
+                self._log_execution(fail_res, request)
+                return fail_res
 
         last_error = None
+        last_error_status = ModelExecutionStatus.MODEL_UNAVAILABLE
+        last_error_class = "AllProvidersFailed"
+
         for idx, p_name in enumerate(providers_to_try):
             p_config = self.router.providers.get(p_name)
             if not p_config or not p_config.enabled:
@@ -243,10 +279,14 @@ class AIGatewayService:
                         provider=p_name,
                         model=model_desc.model_name,
                         success=False,
+                        status=ModelExecutionStatus.MODEL_UNAVAILABLE,
                         error_class="PolicyViolation",
                         error_message=reason,
+                        mock=getattr(adapter, "mock", False) if hasattr(adapter, "mock") else (p_config.provider_type == ProviderType.MOCK),
                     )
                 last_error = reason
+                last_error_status = ModelExecutionStatus.MODEL_UNAVAILABLE
+                last_error_class = "PolicyViolation"
                 continue
 
             # 5. Dispatch to Adapter
@@ -265,23 +305,30 @@ class AIGatewayService:
                 else:
                     cb.record_failure()
                     last_error = result.error_message or "Execution failed"
+                    last_error_status = result.status
+                    last_error_class = result.error_class or "ProviderExecutionFailed"
             except Exception as err:
                 cb.record_failure()
                 last_error = str(err)
+                last_error_status = ModelExecutionStatus.MODEL_UNAVAILABLE
+                last_error_class = type(err).__name__
                 logger.warning(f"Provider {p_name} execution error: {err}")
 
         # All providers failed
         fail_res = AIExecutionResult(
             request_id=req_id,
             content="",
-            provider=routing.target_provider,
-            model=routing.target_model,
+            provider=routing.target_provider or "none",
+            model=routing.target_model or "none",
             success=False,
-            error_class="AllProvidersFailed",
+            status=last_error_status,
+            error_class=last_error_class,
             error_message=f"All configured providers failed. Last error: {last_error}",
+            mock=False,
         )
         self._log_execution(fail_res, request)
         return fail_res
+
 
     def _resolve_model_descriptor(self, p_config: ProviderConfig, target_model: str) -> AIModelDescriptor:
         for m in p_config.models:

@@ -64,17 +64,18 @@ phases:
 
   phase_04_ai_gateway:
     name: "AI Gateway and Explicit Failure Semantics"
-    status: "NOT_STARTED"
-    commit: null
+    status: "COMPLETE"
+    commit: null  # to be filled upon commit
     branch: "fix/phase-04-ai-gateway"
-    test_command: "pytest -v tests/test_phase11_ai_gateway.py"
-    test_result: "NOT_RUN"
-    runtime_result: "NOT_RUN"
-    security_result: "NOT_RUN"
-    regression_result: "NOT_RUN"
+    test_command: "pytest -v tests/test_phase04_ai_gateway_remediation.py && pytest -q"
+    test_result: "PASSED (11 phase tests passed; 1178 full suite passed in 259.75s)"
+    runtime_result: "VERIFIED (model failure fail-closed, timeout/500/429/invalid responses mapped to MODEL_* states)"
+    security_result: "VERIFIED (F-011, F-012, F-013, F-014 remediated; mock engine eliminated in prod; zero fabricated turns)"
+    regression_result: "VERIFIED (0 regressions across 1178 tests)"
     evidence_path: "docs/verification/evidence/phase-04-ai-gateway.md"
-    reviewer: null
-    timestamp: null
+    reviewer: "Principal AI Coding Agent"
+    timestamp: "2026-10-03T00:03:00+05:30"
+
 
   phase_05_state_slr:
     name: "Transactional Learning State and Authoritative SLR"

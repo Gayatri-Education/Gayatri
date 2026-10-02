@@ -115,9 +115,11 @@ class TutorTurnResult:
     contributed_source_ids: List[str] = field(default_factory=list)
     contributed_chunk_ids: List[str] = field(default_factory=list)
     provenance_records: List[Dict[str, Any]] = field(default_factory=list)
+    model_provenance: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
 
 
 class GenericTutorOrchestrator:
@@ -392,6 +394,55 @@ class GenericTutorOrchestrator:
             )
             ai_res = self.ai_gateway.execute(ai_req)
 
+            # ── 12b. Gateway Failure Handling (F-013, F-014) ──────────────────
+            if not ai_res.success:
+                latency_total = round((time.perf_counter() - t0) * 1000.0, 2)
+                ai_status_val = (
+                    ai_res.status.value if hasattr(ai_res.status, "value") else str(ai_res.status or "MODEL_UNAVAILABLE")
+                )
+                logger.error(
+                    "AI Gateway failed for student %s, course %s: provider=%s, status=%s, error=%s",
+                    req.student_id,
+                    req.course_id,
+                    ai_res.provider,
+                    ai_status_val,
+                    ai_res.error_message,
+                )
+                return TutorTurnResult(
+                    turn_id=turn_id,
+                    session_id=req.session_id,
+                    student_id=req.student_id,
+                    course_id=req.course_id,
+                    concept_id=target_concept,
+                    response_text="The AI tutoring service is temporarily unavailable. Please try again shortly.",
+                    pedagogical_action="SERVICE_UNAVAILABLE",
+                    validation_passed=False,
+                    state_committed=False,
+                    rag_sources_used=rag_sources_used,
+                    tools_invoked=allowed_tools,
+                    teacher_instructions_applied=len(instructions),
+                    latency_ms=latency_total,
+                    provider_used=ai_res.provider,
+                    model_used=ai_res.model,
+                    status=ai_status_val,
+                    validation_issues=[{
+                        "code": ai_res.error_class or "MODEL_EXECUTION_FAILED",
+                        "message": ai_res.error_message or "AI model execution failed",
+                    }],
+                    applied_instruction_ids=applied_instruction_ids,
+                    contributed_source_ids=contributed_source_ids,
+                    contributed_chunk_ids=contributed_chunk_ids,
+                    provenance_records=provenance_records,
+                    model_provenance={
+                        "provider": ai_res.provider,
+                        "model": ai_res.model,
+                        "mock": getattr(ai_res, "mock", False),
+                        "status": ai_status_val,
+                        "success": False,
+                    },
+                )
+
+
             generated_text = ai_res.content
 
             # ── 13. 7-Invariant Response Validation ───────────────────────────
@@ -466,6 +517,9 @@ class GenericTutorOrchestrator:
             latency_total = round((time.perf_counter() - t0) * 1000.0, 2)
             self._processed_turns.add(turn_fingerprint)
 
+            ai_status_val = (
+                ai_res.status.value if hasattr(ai_res.status, "value") else str(ai_res.status or "MODEL_SUCCESS")
+            )
             return TutorTurnResult(
                 turn_id=turn_id,
                 session_id=req.session_id,
@@ -488,7 +542,16 @@ class GenericTutorOrchestrator:
                 contributed_source_ids=contributed_source_ids,
                 contributed_chunk_ids=contributed_chunk_ids,
                 provenance_records=provenance_records,
+                model_provenance={
+                    "provider": ai_res.provider,
+                    "model": ai_res.model,
+                    "mock": getattr(ai_res, "mock", False),
+                    "status": ai_status_val,
+                    "success": True,
+                },
             )
+
+
         except (ValueError, CourseNotFoundError, EnrollmentError):
             raise
         except Exception as crash_exc:

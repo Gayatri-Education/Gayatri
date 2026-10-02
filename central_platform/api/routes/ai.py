@@ -111,6 +111,8 @@ async def execute_ai_prompt(req: AIExecutionApiRequest):
                 error_message=result.error_message,
                 fallback_used=result.fallback_used,
                 original_provider=result.original_provider,
+                mock=getattr(result, "mock", False),
+                status=result.status.value if hasattr(result.status, "value") else str(result.status or ""),
             ),
         )
 
@@ -130,8 +132,11 @@ async def execute_ai_prompt(req: AIExecutionApiRequest):
             success=True,
             fallback_used=result.fallback_used,
             original_provider=result.original_provider,
+            mock=getattr(result, "mock", False),
+            status=result.status.value if hasattr(result.status, "value") else str(result.status or "MODEL_SUCCESS"),
         ),
     )
+
 
 
 @router.get("/providers", response_model=ApiResponse[List[AIProviderResponse]])
