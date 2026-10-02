@@ -1325,6 +1325,16 @@ class PlatformDatabase:
             )
             return cursor.rowcount > 0
 
+    def update_session_status(self, session_id: str, status: SessionStatus | str) -> bool:
+        status_val = status.value if hasattr(status, "value") else str(status)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "UPDATE sessions SET status = ?, ended_at = CASE WHEN ? = 'completed' THEN ? ELSE ended_at END WHERE id = ?;",
+                (status_val, status_val, now_iso, session_id),
+            )
+            return cursor.rowcount > 0
+
     def get_sessions_for_student(self, student_id: str, course_id: Optional[str] = None, limit: int = 20) -> List[Session]:
         with self._get_connection() as conn:
             if course_id:
@@ -1541,6 +1551,9 @@ class PlatformDatabase:
                     updated_at=r["updated_at"],
                 )
             return None
+
+    def get_student_learning_record(self, student_id: str, course_id: Optional[str] = None) -> Optional[StudentLearningRecord]:
+        return self.get_slr(student_id, course_id)
 
     def upsert_mastery_state(self, state: MasteryState) -> MasteryState:
         # Clamp score/confidence to [0.0, 1.0] as a hard DB-level safety net

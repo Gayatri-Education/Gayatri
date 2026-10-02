@@ -65,7 +65,7 @@ if errorlevel 1 (
 
 REM Verify model
 echo.
-echo [4/4] Checking model file status...
+echo [4/5] Checking model file status...
 .venv\Scripts\python.exe -c "from core.providers.local import LocalProvider; print('[OK] Model detected at:', LocalProvider.MODEL_PATH); import sys; sys.exit(0 if LocalProvider.MODEL_PATH.exists() else 1)"
 if errorlevel 1 (
     echo.
@@ -74,6 +74,17 @@ if errorlevel 1 (
     echo.
     echo       The app will still launch, but local AI responses require a model.
 )
+
+REM Initialize database schema
+echo.
+echo [5/5] Initializing database schema...
+.venv\Scripts\python.exe scripts\migrate_db.py up --db-path gayatri_local.db
+if errorlevel 1 (
+    echo [ERROR] Failed to run database schema migrations.
+    pause
+    exit /b 1
+)
+echo [OK] Database schema initialized.
 
 echo.
 echo ============================================================

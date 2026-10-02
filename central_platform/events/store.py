@@ -157,6 +157,7 @@ class LearningEventStore:
         all_ids = [req.event_id for req in batch.events]
         existing_ids = self.db.get_existing_learning_event_ids(all_ids)
 
+        seen_batch_ids: Set[str] = set()
         seen_entities: Set[Tuple[str, str, str, str]] = set()
         to_insert: List[LearningEvent] = []
         results = []
@@ -164,10 +165,11 @@ class LearningEventStore:
         deduplicated = 0
 
         for req in batch.events:
-            if req.event_id in existing_ids:
+            if req.event_id in existing_ids or req.event_id in seen_batch_ids:
                 deduplicated += 1
                 results.append({"event_id": req.event_id, "status": "DEDUPLICATED"})
                 continue
+            seen_batch_ids.add(req.event_id)
 
             entity_key = (
                 req.student_id,
