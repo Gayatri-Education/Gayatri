@@ -394,8 +394,14 @@ class TeacherInstructionEngine:
                     )
                     logger.info("Expired instruction pruned: %s", rec.technical_diagnostic)
                     return False
-        except Exception:
-            return True
+        except Exception as _parse_exc:
+            logger.warning(
+                "Failed to parse temporal bounds for instruction (start_at=%r, expires_at=%r): %s — treating as invalid",
+                getattr(inst, "start_at", None),
+                getattr(inst, "expires_at", None),
+                _parse_exc,
+            )
+            return False
 
         return True
 

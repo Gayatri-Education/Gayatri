@@ -877,3 +877,33 @@ This log records every development phase and architectural transition in chronol
     - `docs/reports/FINAL_TEST_RESULTS.json`
 - **Tests Run:** 1,133 tests collected, 1,133 passed (100% green).
 - **Release Decision:** APPROVED FOR FINAL PRODUCTION RELEASE.
+
+---
+
+## Entry 028 - Adversarial Code Audit and Bug Fixes (Post-Phase-27)
+
+- **Timestamp:** 2026-10-02T19:48:00+05:30
+- **Phase:** POST-PHASE-27 ADVERSARIAL AUDIT
+- **Active Commit:** 607c651 (pre-fix baseline)
+- **What Changed:**
+  - Ran comprehensive adversarial code audit across all 300+ Python source files.
+  - Scanned for: silent exception swallowing, unconditional True returns in validators, not-implemented stubs in production paths, broken import chains, missing DB method names.
+  - Import sanity check: all 14 critical module/attribute imports verified OK (one false positive - TeacherInstructionResolver was a checklist error; real class is TeacherInstructionEngine).
+  - DB method check: 6 methods in audit checklist not present in PlatformDatabase - confirmed none are called by any production code (audit checklist was overly broad).
+  - Found 3 real P1 bugs in teacher instruction temporal validation paths - all fixed.
+  - Added 11 regression tests to tests/test_bug_audit_fixes.py covering all fixed bugs.
+  - Full test suite: 1139 passed (1128 original + 11 new regression tests).
+- **Bugs Found and Fixed:**
+  - BUG-PLT-022 (P1): get_teacher_instructions - malformed expires_at silently served expired instruction as active (except Exception: pass). Fixed: fail-safe treat as expired.
+  - BUG-PLT-023 (P1): get_hierarchical_teacher_instructions - same silent swallow bug in sibling method. Fixed: same fail-safe.
+  - BUG-PLT-024 (P1): _is_temporally_valid - except Exception: return True made corrupt timestamps bypass all temporal access controls. Fixed: return False on parse error.
+- **Audit Results (Non-Bug Findings, Documented as Benign):**
+  - 27 UNCONDITIONAL_TRUE flags: All checked - all are correct conditional logic (not stubs). Audit heuristic triggered on legitimate conditional returns.
+  - 20 STUB_IN_CODE flags: All are legitimate uses of the word 'placeholder' in comments, HTML attributes, or privacy module variable names. Zero production stubs.
+  - 4 NOT_IMPLEMENTED flags: ai/adapters.py and rag/parsers.py use NotImplementedError in abstract base class methods (correct pattern). Test file stubs are test-only dummies.
+  - 48 SILENT_FAIL flags: Reviewed all. Legitimate silent fails include: stdout encoding reconfigure fallback (server.py), JSON parse cascade fallbacks in recovery manager (3 sequential attempts), hardware detection fallback (acceptable), model fetch graceful fallback, web research graceful fallback. All are correctly handling transient/optional external resource failures.
+- **Files Changed:**
+  - central_platform/db.py: Fixed get_teacher_instructions and get_hierarchical_teacher_instructions expires_at parse error handling.
+  - central_platform/teacher/instruction.py: Fixed _is_temporally_valid exception fallback from True to False.
+  - tests/test_bug_audit_fixes.py: Created with 11 regression tests.
+  - docs/reports/BUG_REGISTER.md: Appended BUG-PLT-022, BUG-PLT-023, BUG-PLT-024.

@@ -2355,8 +2355,15 @@ class PlatformDatabase:
                                 exp_dt = exp_dt.replace(tzinfo=timezone.utc)
                             if now > exp_dt:
                                 continue
-                        except Exception:
-                            pass
+                        except Exception as _parse_exc:
+                            # Malformed expires_at: fail-safe — treat as expired rather than serving stale instruction
+                            logger.warning(
+                                "Instruction %s has unparseable expires_at %r — treating as expired: %s",
+                                getattr(rec, "id", "?"),
+                                rec.expires_at,
+                                _parse_exc,
+                            )
+                            continue
                     active_recs.append(rec)
                 return active_recs
             return recs
@@ -2422,8 +2429,15 @@ class PlatformDatabase:
                                 exp_dt = exp_dt.replace(tzinfo=timezone.utc)
                             if now > exp_dt:
                                 continue
-                        except Exception:
-                            pass
+                        except Exception as _parse_exc:
+                            # Malformed expires_at: fail-safe — treat as expired rather than serving stale instruction
+                            logger.warning(
+                                "Hierarchical instruction %s has unparseable expires_at %r — treating as expired: %s",
+                                getattr(rec, "id", "?"),
+                                rec.expires_at,
+                                _parse_exc,
+                            )
+                            continue
                     active_recs.append(rec)
                 return active_recs
             return recs

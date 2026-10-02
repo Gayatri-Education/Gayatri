@@ -357,3 +357,51 @@
 - **Status:** VERIFIED.
 
 
+
+---
+
+### BUG-PLT-022
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** Adversarial Code Audit (post-Phase-27)
+- **Subsystem:** Teacher Instruction DB Layer (central_platform/db.py - get_teacher_instructions)
+- **Reproduction:** Insert TeacherInstructionRecord with malformed expires_at (e.g. "NOT_A_DATE") and call get_teacher_instructions(only_active=True) - instruction returned as active.
+- **Expected:** Instruction with unparseable expires_at must be treated as expired (fail-safe) and NOT returned.
+- **Actual:** except Exception: pass silently swallowed parse error, fell through to active_recs.append(rec).
+- **Root Cause:** Silent exception swallow in timestamp filtering loop.
+- **Fix:** Changed to log warning and continue (skip) on parse error - fail-safe.
+- **Test:** tests/test_bug_audit_fixes.py::TestBugPLT022GetTeacherInstructionsMalformedExpiry (4 tests).
+- **Verification:** VERIFIED FIXED - all 4 regression tests pass.
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-023
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** Adversarial Code Audit (post-Phase-27)
+- **Subsystem:** Teacher Instruction DB Layer (central_platform/db.py - get_hierarchical_teacher_instructions)
+- **Reproduction:** Same as BUG-PLT-022 but via the hierarchical query path.
+- **Expected:** Fail-safe: malformed expires_at treated as expired.
+- **Actual:** Same except Exception: pass silent swallow in sibling method.
+- **Root Cause:** Duplicated bug pattern copied into get_hierarchical_teacher_instructions.
+- **Fix:** Same fail-safe fix applied - log warning and skip record.
+- **Test:** tests/test_bug_audit_fixes.py::TestBugPLT023HierarchicalMalformedExpiry (2 tests).
+- **Verification:** VERIFIED FIXED.
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-024
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** Adversarial Code Audit (post-Phase-27)
+- **Subsystem:** Teacher Instruction Engine (central_platform/teacher/instruction.py - _is_temporally_valid)
+- **Reproduction:** Create TeacherInstruction with start_at="GARBAGE" or expires_at="GARBAGE" and call _is_temporally_valid. Returns True.
+- **Expected:** Instruction with unparseable temporal bounds must return False (fail-safe).
+- **Actual:** except Exception: return True - any parse failure made instruction appear unconditionally valid, bypassing temporal access controls.
+- **Root Cause:** Overly permissive fallback - originally written to avoid blocking on non-critical metadata but exposes bypass path.
+- **Fix:** Changed to log warning and return False on parse error.
+- **Test:** tests/test_bug_audit_fixes.py::TestBugPLT024TemporalValidityParseError (5 tests).
+- **Verification:** VERIFIED FIXED - all 5 regression tests pass.
+- **Status:** VERIFIED.
