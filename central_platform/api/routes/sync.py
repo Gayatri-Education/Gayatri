@@ -57,14 +57,19 @@ async def sync_events(
 
     svc = get_sync_service()
     # Process through authoritative central sync service
-    result = svc.process_sync_batch(
-        student_id=batch.student_id,
-        events=batch.events,
-        course_id=batch.course_id,
-        device_id=batch.device_id,
-        operation_id=batch.operation_id,
-        course_version=batch.course_version,
-    )
+    try:
+        result = svc.process_sync_batch(
+            student_id=batch.student_id,
+            events=batch.events,
+            course_id=batch.course_id,
+            device_id=batch.device_id,
+            operation_id=batch.operation_id,
+            course_version=batch.course_version,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     # Keep backward compatibility with legacy in-memory manager
     count = 0

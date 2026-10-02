@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -95,6 +96,15 @@ class CourseService:
             raise CourseAuthorizationError("Actor lacks permission to create courses.")
         if actor.role != UserRole.SUPER_ADMIN and actor.organization_id != org_id:
             raise CourseAuthorizationError("Cannot create courses for another organization.")
+
+        # Security validation: path traversal in code, script injection in title/description
+        if ".." in code or "/" in code or "\\" in code or not re.match(r"^[a-zA-Z0-9_\-\.]+$", code):
+            raise CourseValidationError(f"Invalid course code '{code}': path traversal and special characters are forbidden.")
+
+        if re.search(r"<\s*script\b|javascript\s*:|onerror\s*=|onload\s*=", title, re.IGNORECASE):
+            raise CourseValidationError("Course title contains prohibited script or executable patterns.")
+        if re.search(r"<\s*script\b|javascript\s*:|onerror\s*=|onload\s*=", description, re.IGNORECASE):
+            raise CourseValidationError("Course description contains prohibited script or executable patterns.")
 
         course_id = f"crs_{code.lower().replace(' ', '_')}_{str(uuid.uuid4())[:8]}"
         course = Course(

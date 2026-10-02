@@ -74,6 +74,20 @@ async def create_class_group(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Create a new class group."""
+    if current_user:
+        user_role = current_user.role.value if isinstance(current_user.role, UserRole) else str(current_user.role).upper()
+        if user_role in (UserRole.STUDENT.value, "STUDENT"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students are not authorized to create class groups",
+            )
+        if user_role not in (UserRole.SUPER_ADMIN.value, "SUPER_ADMIN"):
+            if current_user.organization_id and current_user.organization_id != req.organization_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: cross-organization class creation is prohibited ('{req.organization_id}' != '{current_user.organization_id}')",
+                )
+
     # Ensure organization exists in database
     if not db.get_organization(req.organization_id):
         from central_platform.models.schema import Organization
@@ -140,8 +154,23 @@ async def create_cohort_for_class(
     class_id: str,
     req: CohortCreateRequest,
     db: PlatformDatabase = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Create a cohort in a class group."""
+    if current_user:
+        user_role = current_user.role.value if isinstance(current_user.role, UserRole) else str(current_user.role).upper()
+        if user_role in (UserRole.STUDENT.value, "STUDENT"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: students are not authorized to create cohorts",
+            )
+        if req.organization_id and user_role not in (UserRole.SUPER_ADMIN.value, "SUPER_ADMIN"):
+            if current_user.organization_id and current_user.organization_id != req.organization_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: cross-organization cohort creation is prohibited ('{req.organization_id}' != '{current_user.organization_id}')",
+                )
+
     cohort_id = req.id or f"coh-{uuid.uuid4().hex[:8]}"
     now = datetime.now(timezone.utc)
     cohort = Cohort(

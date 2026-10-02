@@ -39,6 +39,7 @@ from central_platform.models.schema import (
     UserRole,
 )
 from central_platform.rag.service import RAGService
+from central_platform.auth.tokens import create_access_token
 
 
 @pytest.fixture
@@ -503,9 +504,26 @@ def test_scoped_rag_api_flow():
     client = TestClient(app)
     db = get_db()
 
-    # Create org and courses
+    # Create org, users, and courses
     org = Organization(id="org-api-test", name="API Org", slug="api-org")
     db.create_organization(org)
+    teacher = User(
+        id="usr-api-teacher",
+        email="teacher@api-org.edu",
+        full_name="API Teacher",
+        role=UserRole.TEACHER,
+        organization_id="org-api-test",
+    )
+    admin = User(
+        id="usr-api-admin",
+        email="admin@api-org.edu",
+        full_name="API Admin",
+        role=UserRole.ORG_ADMIN,
+        organization_id="org-api-test",
+    )
+    db.create_user(teacher)
+    db.create_user(admin)
+
     course = Course(
         id="crs-api-scope",
         organization_id="org-api-test",
@@ -515,9 +533,15 @@ def test_scoped_rag_api_flow():
     )
     db.create_course(course)
 
-    # 1. Register Source with scoping fields
+    teacher_token = create_access_token(user_id=teacher.id, role="TEACHER", organization_id="org-api-test")
+    admin_token = create_access_token(user_id=admin.id, role="ORG_ADMIN", organization_id="org-api-test")
+    teacher_headers = {"Authorization": f"Bearer {teacher_token}"}
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # 1. Register Source with scoping fields (requires TEACHER auth)
     resp = client.post(
         "/api/v1/rag/sources",
+        headers=teacher_headers,
         json={
             "course_id": "crs-api-scope",
             "subject": "Computer Science",
@@ -535,20 +559,21 @@ def test_scoped_rag_api_flow():
     assert src_data["visibility_scope"] == "class"
     assert src_data["class_id"] == "class-api-a"
 
-    # 2. Ingest
+    # 2. Ingest (requires TEACHER auth)
     content = "Scoped chunk text: Algorithm complexity of QuickSort is O(N log N) on average."
     resp_ingest = client.post(
         f"/api/v1/rag/sources/{source_id}/ingest",
+        headers=teacher_headers,
         json={"content": content, "file_name": "quicksort.txt"},
     )
     assert resp_ingest.status_code == 200
 
-    # 3. Validate and Publish
-    client.post(f"/api/v1/rag/sources/{source_id}/validate")
-    resp_pub = client.post(f"/api/v1/rag/sources/{source_id}/publish")
+    # 3. Validate (requires TEACHER auth) and Publish (requires ADMIN auth)
+    client.post(f"/api/v1/rag/sources/{source_id}/validate", headers=teacher_headers)
+    resp_pub = client.post(f"/api/v1/rag/sources/{source_id}/publish", headers=admin_headers)
     assert resp_pub.status_code == 200
 
-    # 4. List sources with filtering
+    # 4. List sources with filtering (no auth required — read-only)
     resp_list = client.get(
         "/api/v1/rag/sources",
         params={
@@ -561,7 +586,7 @@ def test_scoped_rag_api_flow():
     assert resp_list.status_code == 200
     assert len(resp_list.json()["data"]) >= 1
 
-    # 5. List chunks
+    # 5. List chunks (no auth required — read-only)
     resp_chunks = client.get(f"/api/v1/rag/sources/{source_id}/chunks")
     assert resp_chunks.status_code == 200
     chunk = resp_chunks.json()["data"][0]
@@ -569,7 +594,7 @@ def test_scoped_rag_api_flow():
     assert chunk["visibility_scope"] == "class"
     assert chunk["class_id"] == "class-api-a"
 
-    # 6. Query with correct class_id
+    # 6. Query with correct class_id (no auth required — read-only)
     resp_q_ok = client.post(
         "/api/v1/rag/query",
         json={

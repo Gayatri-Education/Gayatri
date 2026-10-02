@@ -30,6 +30,7 @@ from central_platform.models.schema import (
     User,
     UserRole,
 )
+from central_platform.teacher.instruction import TeacherInstructionValidator
 
 logger = logging.getLogger("gayatri.api.instructions")
 
@@ -125,6 +126,29 @@ async def create_instruction(
             detail="Students cannot create teacher instructions.",
         )
 
+    # Cross-tenant and student isolation check
+    if user_role not in (UserRole.SUPER_ADMIN.value, "SUPER_ADMIN"):
+        if req.organization_id and actor.organization_id and req.organization_id != actor.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Forbidden: cross-organization instruction creation is prohibited ('{req.organization_id}' != '{actor.organization_id}')",
+            )
+        if req.student_id and req.student_id != "all":
+            st_rec = db.get_user(req.student_id)
+            if st_rec and st_rec.organization_id and actor.organization_id and st_rec.organization_id != actor.organization_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: student '{req.student_id}' belongs to another organization",
+                )
+
+    # Invariant and safety validation
+    val = TeacherInstructionValidator.validate(req.instruction)
+    if not val.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Instruction failed security/policy validation: {'; '.join(val.violations)}",
+        )
+
     # Determine scope type
     scope_str = (req.scope_type or "COURSE").upper()
     try:
@@ -164,8 +188,8 @@ async def create_instruction(
         session_id=req.session_id,
         scope_type=scope_type,
         status="ACTIVE",
-        safety_status="VALIDATED",
-        safety_reasons=[],
+        safety_status=val.safety_status,
+        safety_reasons=val.violations,
         start_at=None,
         expires_at=None,
         version=1,

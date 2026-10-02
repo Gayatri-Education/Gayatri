@@ -157,7 +157,7 @@ async def list_courses(
             id="usr-guest",
             email="guest@platform.local",
             full_name="Guest User",
-            role=UserRole.SUPER_ADMIN,
+            role=UserRole.STUDENT,  # FIX: guests must NOT get SUPER_ADMIN — only see public courses
             organization_id=org_id,
         )
         try:
@@ -177,12 +177,26 @@ async def get_course_review_queue(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Retrieve course versions awaiting administrator review. Requires ORG_ADMIN or SUPER_ADMIN."""
-    actor = current_user or User(
-        id="usr-admin-01",
-        email="admin@platform.local",
-        full_name="Platform Admin",
-        role=UserRole.ORG_ADMIN,
-    )
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to access the course review queue.",
+        )
+    _role = current_user.role if isinstance(current_user.role, UserRole) else None
+    if _role is None:
+        try:
+            _role = UserRole(str(current_user.role).lower())
+        except ValueError:
+            try:
+                _role = UserRole[str(current_user.role).upper()]
+            except KeyError:
+                _role = UserRole.STUDENT
+    if _role not in (UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only ORG_ADMIN or SUPER_ADMIN can access the course review queue.",
+        )
+    actor = current_user
     try:
         queue = service.get_review_queue(actor=actor, organization_id=organization_id)
         return ApiResponse(ok=True, data=[CourseReviewQueueItemResponse(**item) for item in queue])

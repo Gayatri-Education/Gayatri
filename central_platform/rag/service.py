@@ -223,6 +223,14 @@ class RAGService:
         raw_bytes = content.encode("utf-8") if isinstance(content, str) else content
         checksum = hashlib.sha256(raw_bytes).hexdigest()
 
+        if file_name:
+            if ".." in file_name or "/" in file_name or "\\" in file_name:
+                raise ValueError(f"Path traversal detected in upload filename '{file_name}'.")
+            ext = "." + file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+            dangerous_exts = {".exe", ".bat", ".cmd", ".sh", ".php", ".py", ".vbs", ".ps1", ".jar", ".dll", ".so"}
+            if ext in dangerous_exts:
+                raise ValueError(f"Dangerous/executable file extension '{ext}' is prohibited in upload.")
+
         source_type = override_source_type or source.source_type
         # 1. Parse
         default_meta = {
@@ -393,6 +401,14 @@ class RAGService:
         raw_bytes = content.encode("utf-8") if isinstance(content, str) else content
         if len(raw_bytes) > 10 * 1024 * 1024:
             raise ValueError("Content exceeds maximum allowed size of 10MB.")
+
+        if file_name:
+            if ".." in file_name or "/" in file_name or "\\" in file_name:
+                raise ValueError(f"Path traversal detected in upload filename '{file_name}'.")
+            ext = "." + file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+            dangerous_exts = {".exe", ".bat", ".cmd", ".sh", ".php", ".py", ".vbs", ".ps1", ".jar", ".dll", ".so"}
+            if ext in dangerous_exts:
+                raise ValueError(f"Dangerous/executable file extension '{ext}' is prohibited in upload.")
 
         sid = f"src_{hashlib.sha256(f'{course_id}:{title}:{version}'.encode()).hexdigest()[:12]}"
         now = datetime.now(timezone.utc).isoformat()

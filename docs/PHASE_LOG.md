@@ -550,3 +550,29 @@ ecent_events and misconceptions.
 - Created `tests/test_phase43_production_readiness_gate.py` verifying deployment validation, portal entry points, payment provider adapters, i18n translations, parent privacy policies, learning analytics, explainability engine, security audit runner, failure recovery manager, performance profiler, and learning graph DAG mastery.
 - Verified 100% production readiness checklist items: zero critical bugs, 856 passing tests, verified database migrations, tenant isolation, authentication, authorization, parent privacy, payment security, local model capability, cloud fallback, RAG reliability, 4 persona UIs (Student, Teacher, Parent, Fee Admin), Light/Dark themes, 8 languages, responsive design, failure recovery, zero demo data, and full documentation.
 - 856 total tests passing clean across full suite.
+
+
+## Phase 22 - Security, Privacy & Isolation Audit
+**Date:** 2026-10-02
+**Objective:** Conduct a full security, privacy, and isolation audit across identity, RAG, courses, classes, instructions, uploads, and sync boundaries. Fix all discovered privilege escalation bugs, authorization gaps, and injection vulnerabilities.
+**Status:** COMPLETE
+
+**Bugs Fixed:**
+- **Bug A:** list_courses endpoint was creating a guest User with SUPER_ADMIN role when unauthenticated, enabling unauthorized visibility into org-private courses. Fixed: guest actor now gets STUDENT role.
+- **Bug B:** get_course_review_queue endpoint was creating an unauthenticated ORG_ADMIN actor. Fixed: now requires authentication (401 if unauthenticated) and RBAC check (403 if not ORG_ADMIN/SUPER_ADMIN).
+- **Bug C:** /tutor/turn route had no prompt injection sanitization. Fixed: SecurityAuditor.sanitize_prompt() now screens all student inputs before forwarding to LLM; blocked queries receive a safe pedagogical redirection.
+- **Bug D:** All RAG write endpoints (POST /sources, /ingest, /validate, /publish, DELETE /sources/{id}) had zero authentication. Fixed: ingest/validate require TEACHER+, publish/delete require ORG_ADMIN+.
+
+**Test Updates:**
+- 	ests/test_phase06_scoped_rag_authorization.py::test_scoped_rag_api_flow — updated to include TEACHER/ADMIN auth headers on write operations.
+- 	ests/test_phase15_admin_course_content_workflow.py::test_content_upload_and_rag_ingest_to_course_version — already had teacher token; cross-org check was the issue, fixed by role enum normalization.
+- 	ests/test_phase16_rag_plug_and_play_platform.py::test_rag_api_endpoints — updated to create teacher/admin users and include auth headers on write operations.
+
+**New Tests:**
+- Created 	ests/test_phase22_security_privacy_isolation_audit.py with 12 attack-style tests (12/12 passing).
+
+**Completed Tasks:**
+- Fixed UserRole enum comparison bug (values are lowercase like 'teacher', not 'TEACHER'). Added _get_role(), _require_teacher_plus(), and _require_admin_plus() helpers in central_platform/api/routes/rag.py.
+- Added RBAC-normalized role resolution to course review-queue endpoint.
+- Confirmed prior session edits are still active: classes RBAC, instructions cross-tenant validation, rag/service.py filename safety, sync.py PermissionError mapping.
+- 1,102 total tests passing clean across full suite.

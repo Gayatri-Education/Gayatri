@@ -6,7 +6,7 @@ multi-format ingestion, validation, publishing, and grounded scoped retrieval.
 from __future__ import annotations
 
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from central_platform.api.schemas import (
     ApiResponse,
@@ -21,10 +21,49 @@ from central_platform.api.schemas import (
     RAGSourceResponse,
     RAGValidateResponse,
 )
-from central_platform.auth.dependencies import get_db
+from central_platform.auth.dependencies import get_current_user_optional, get_db
+from central_platform.models.schema import RAGSource, User, UserRole
 from central_platform.rag.service import RAGService
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
+
+_TEACHER_PLUS = {UserRole.TEACHER, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN}
+_ADMIN_PLUS = {UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN}
+
+
+def _get_role(user: User) -> UserRole:
+    """Normalize current_user.role to a UserRole enum instance."""
+    r = user.role
+    if isinstance(r, UserRole):
+        return r
+    # Might be a string — try both name and value
+    try:
+        return UserRole(str(r).lower())
+    except ValueError:
+        pass
+    try:
+        return UserRole[str(r).upper()]
+    except KeyError:
+        pass
+    return UserRole.STUDENT  # safe fallback
+
+
+def _require_teacher_plus(current_user: Optional[User]) -> UserRole:
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    role = _get_role(current_user)
+    if role not in _TEACHER_PLUS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only teachers and administrators can perform this action.")
+    return role
+
+
+def _require_admin_plus(current_user: Optional[User]) -> UserRole:
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    role = _get_role(current_user)
+    if role not in _ADMIN_PLUS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can perform this action.")
+    return role
 
 
 def get_rag_service() -> RAGService:
@@ -60,14 +99,21 @@ def _build_source_response(s: RAGSource) -> RAGSourceResponse:
 
 
 @router.post("/sources", response_model=ApiResponse[RAGSourceResponse], status_code=status.HTTP_201_CREATED)
-async def create_rag_source(req: RAGSourceCreateRequest):
-    """Register a new plug-and-play knowledge source for a course."""
+async def create_rag_source(
+    req: RAGSourceCreateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Register a new plug-and-play knowledge source for a course. Requires TEACHER or above."""
+    role = _require_teacher_plus(current_user)
     svc = get_rag_service()
     try:
-        org_id = "org-default"
+        org_id = current_user.organization_id or "org-default"
         if req.course_id:
             c = svc.db.get_course(req.course_id)
             if c:
+                # Cross-org protection: non-superadmin can only add to their org's courses
+                if role != UserRole.SUPER_ADMIN and c.organization_id != org_id:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot add knowledge sources to a course from another organization.")
                 org_id = c.organization_id
         source = svc.register_source(
             organization_id=org_id,
@@ -88,6 +134,8 @@ async def create_rag_source(req: RAGSourceCreateRequest):
             ok=True,
             data=_build_source_response(source),
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -140,8 +188,13 @@ async def get_rag_source(source_id: str):
 
 
 @router.post("/sources/{source_id}/ingest", response_model=ApiResponse[RAGIngestResponse])
-async def ingest_source_content(source_id: str, req: RAGIngestRequest):
-    """Parse, clean, chunk, and index content into the specified knowledge source."""
+async def ingest_source_content(
+    source_id: str,
+    req: RAGIngestRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Parse, clean, chunk, and index content into the specified knowledge source. Requires TEACHER or above."""
+    _require_teacher_plus(current_user)
     svc = get_rag_service()
     try:
         res = svc.ingest_document(
@@ -167,8 +220,12 @@ async def ingest_source_content(source_id: str, req: RAGIngestRequest):
 
 
 @router.post("/sources/{source_id}/validate", response_model=ApiResponse[RAGValidateResponse])
-async def validate_rag_source(source_id: str):
-    """Validate ingested chunks, verify lengths, and check prompt injection safety."""
+async def validate_rag_source(
+    source_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Validate ingested chunks, verify lengths, and check prompt injection safety. Requires TEACHER or above."""
+    _require_teacher_plus(current_user)
     svc = get_rag_service()
     try:
         res = svc.validate_source(source_id)
@@ -190,8 +247,12 @@ async def validate_rag_source(source_id: str):
 
 
 @router.post("/sources/{source_id}/publish", response_model=ApiResponse[RAGPublishResponse])
-async def publish_rag_source(source_id: str):
-    """Publish a validated knowledge source, making its chunks available for live retrieval."""
+async def publish_rag_source(
+    source_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Publish a validated knowledge source, making its chunks available for live retrieval. Requires ORG_ADMIN or SUPER_ADMIN."""
+    _require_admin_plus(current_user)
     svc = get_rag_service()
     try:
         source = svc.publish_source(source_id)
@@ -245,8 +306,14 @@ async def get_source_chunks(
 
 
 @router.delete("/sources/{source_id}", response_model=ApiResponse[dict])
-async def delete_rag_source(source_id: str):
-    """Delete a knowledge source and all its associated chunks."""
+async def delete_rag_source(
+    source_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Delete a knowledge source and all its associated chunks. Requires ORG_ADMIN or SUPER_ADMIN."""
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    _require_admin_plus(current_user)
     svc = get_rag_service()
     deleted = svc.db.delete_rag_source(source_id)
     if not deleted:
