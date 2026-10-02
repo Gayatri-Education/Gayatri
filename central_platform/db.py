@@ -2285,7 +2285,23 @@ class PlatformDatabase:
             where_str = f"WHERE {' AND '.join(conditions)}" if conditions else ""
             sql = f"SELECT * FROM teacher_instructions {where_str} ORDER BY priority DESC, created_at DESC;"
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_teacher_instruction(r) for r in rows]
+            recs = [self._row_to_teacher_instruction(r) for r in rows]
+            if only_active:
+                now = datetime.now(timezone.utc)
+                active_recs = []
+                for rec in recs:
+                    if rec.expires_at:
+                        try:
+                            exp_dt = datetime.fromisoformat(rec.expires_at.replace("Z", "+00:00"))
+                            if exp_dt.tzinfo is None:
+                                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                            if now > exp_dt:
+                                continue
+                        except Exception:
+                            pass
+                    active_recs.append(rec)
+                return active_recs
+            return recs
 
     def get_teacher_instructions_for_course(self, course_id: str) -> List[TeacherInstructionRecord]:
         """Retrieve all active teacher instructions scoped to a course."""
@@ -2336,7 +2352,23 @@ class PlatformDatabase:
             where_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
             sql = f"SELECT * FROM teacher_instructions {where_sql} ORDER BY priority DESC, created_at DESC;"
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_teacher_instruction(r) for r in rows]
+            recs = [self._row_to_teacher_instruction(r) for r in rows]
+            if only_active:
+                now = datetime.now(timezone.utc)
+                active_recs = []
+                for rec in recs:
+                    if rec.expires_at:
+                        try:
+                            exp_dt = datetime.fromisoformat(rec.expires_at.replace("Z", "+00:00"))
+                            if exp_dt.tzinfo is None:
+                                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                            if now > exp_dt:
+                                continue
+                        except Exception:
+                            pass
+                    active_recs.append(rec)
+                return active_recs
+            return recs
 
     def create_intervention(self, alert: InterventionRecord) -> InterventionRecord:
         with self._get_connection() as conn:
