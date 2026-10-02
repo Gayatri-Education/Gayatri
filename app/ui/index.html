@@ -1019,7 +1019,7 @@
         <img src="gai3.png" style="width: 100%; height: 100%; object-fit: cover; border-radius: 9px;" alt="Gayatri AI">
       </div>
       <button class="sidebar-btn active" id="btn-landing" title="Home" onclick="switchTab('landing', this)">🏠</button>
-      <button class="sidebar-btn" id="btn-chemistry" title="Chemistry Tutor" onclick="switchTab('chemistry', this)">🧪</button>
+      <button class="sidebar-btn" id="btn-chemistry" title="Adaptive Socratic Tutor" onclick="switchTab('chemistry', this)">🎓</button>
       <button class="sidebar-btn" id="btn-general" title="General Assistant" onclick="switchTab('general', this)">🤖</button>
       <button class="sidebar-btn" id="btn-courses" title="My Progress & Dashboard" onclick="switchTab('courses', this)">📚</button>
       <button class="sidebar-btn" id="btn-teacher" title="Teacher Portal & Copilot" onclick="switchTab('teacher', this)">👩‍🏫</button>
@@ -1047,12 +1047,12 @@
             <p class="landing-subtitle">Select your workspace mode to start learning or collaborating.</p>
           </div>
           <div class="mode-cards-grid">
-            <!-- Chemistry Tutor Mode Card -->
+            <!-- Adaptive Socratic Tutor Mode Card -->
             <div class="mode-card" onclick="selectMode('chemistry_tutor')">
-              <span class="mode-icon">🧪</span>
-              <div class="mode-card-badge">NCERT / CBSE Curriculum</div>
-              <div class="mode-card-title">Chemistry Tutor</div>
-              <div class="mode-card-desc">Guided, step-by-step adaptive teaching for Thermodynamics, Inorganic Chemistry, numerical problem solving, and equation balancing.</div>
+              <span class="mode-icon">🎓</span>
+              <div class="mode-card-badge">Course-Independent Adaptive Learning</div>
+              <div class="mode-card-title">Adaptive Socratic Tutor</div>
+              <div class="mode-card-desc">Guided, step-by-step adaptive learning for any enrolled syllabus with real-time mastery tracking, prerequisite DAG navigation, and intelligent question generation.</div>
             </div>
 
             <!-- General Assistant Mode Card -->
@@ -1066,13 +1066,13 @@
         </div>
       </div>
 
-      <!-- VIEW 2: CHEMISTRY WORKSPACE -->
+      <!-- VIEW 2: ADAPTIVE TUTOR WORKSPACE -->
       <div class="tab-view" id="tab-chemistry">
         <div class="mode-header">
-          <span class="mode-title-tag">🧪 Chemistry Tutor Mode — NCERT Adaptive Guidance</span>
+          <span class="mode-title-tag" id="modeTitleTag">🎓 Adaptive Socratic Tutor — Multi-Subject Learning</span>
           <div style="display: flex; gap: 8px; align-items: center;">
             <button class="settings-btn secondary" onclick="refreshDemoTelemetry()" style="padding: 4px 10px; font-size: 11px;" title="Refresh student mastery & telemetry">🔄 Telemetry</button>
-            <button class="settings-btn secondary" onclick="startNewChat('chemistry_tutor')" style="padding: 4px 10px; font-size: 11px;">+ New Chemistry Chat</button>
+            <button class="settings-btn secondary" onclick="startNewChat('chemistry_tutor')" style="padding: 4px 10px; font-size: 11px;">+ New Session</button>
             <span class="model-badge" title="Local AI Model">
               <span class="status-dot loading" id="statusDotChem"></span>
               <span id="statusTextChem">Gayatri-Tutor-v3</span>
@@ -1085,19 +1085,19 @@
           <div class="chem-conversation-col">
             <div class="chat" id="chat-chemistry">
               <div class="empty-state">
-                <span class="empty-icon">🧪</span>
-                <span class="empty-text" style="max-width: 450px;">Welcome to Gayatri Chemistry Tutor! What would you like to explore today?</span>
+                <span class="empty-icon">🎓</span>
+                <span class="empty-text" style="max-width: 450px;">Welcome to Gayatri AI Adaptive Tutor! What concept or topic would you like to explore today?</span>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 12px;">
-                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('Please explain the First Law of Thermodynamics.')">💡 First Law & Energy</button>
-                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('Give me a practice problem on expansion work and internal energy.')">📝 Practice Question</button>
-                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('Why does NH3 have a pyramidal shape instead of trigonal planar?')">🔬 VSEPR Shapes</button>
-                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('How does ionic radius change across isoelectronic ions?')">📈 Periodic Trends</button>
+                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('Explain the foundational principles of our active topic with an intuitive real-world example.')">💡 Core Principles</button>
+                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('Give me an adaptive practice question on this concept to test my understanding.')">📝 Practice Question</button>
+                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('What are common misconceptions or traps students face when learning this concept?')">🔍 Clarify Misconceptions</button>
+                  <button class="settings-btn secondary" style="padding: 5px 12px; font-size: 11px; border-radius: 20px;" onclick="quickPrompt('Summarize my current mastery progress, strengths, and recommended next steps.')">📈 Review Progress</button>
                 </div>
               </div>
             </div>
 
             <div class="input-area">
-              <input type="text" id="userInputChem" placeholder="Ask a chemistry question (e.g., 'What is the First Law of Thermodynamics?')..."
+              <input type="text" id="userInputChem" placeholder="Ask a question or explore a concept (e.g., 'Explain the core principles and solve a step-by-step example')..."
                      autocomplete="off" onkeydown="if(event.key==='Enter')sendMode('chemistry_tutor')">
               <button class="send-btn" id="sendBtnChem" onclick="sendMode('chemistry_tutor')">Send</button>
             </div>
@@ -1110,10 +1110,10 @@
                 <span>📊 Learning Progress</span>
                 <span style="font-size: 10px; color: #8bb5e8; cursor: pointer;" onclick="refreshDemoTelemetry()">Sync</span>
               </div>
-              <div class="chem-topic-progress">
+              <div class="chem-topic-progress" id="sidebarTopicsList">
                 <div>
                   <div class="chem-topic-row">
-                    <span class="chem-topic-label">Thermodynamics</span>
+                    <span class="chem-topic-label" id="sbTopic1Label">Foundations & Theory</span>
                     <span class="chem-topic-val" id="sbThermoPct">0%</span>
                   </div>
                   <div class="progress-bar"><div class="progress-fill" id="sbThermoBar" style="width: 0%;"></div></div>
@@ -1121,7 +1121,7 @@
 
                 <div>
                   <div class="chem-topic-row">
-                    <span class="chem-topic-label">Chemical Bonding</span>
+                    <span class="chem-topic-label" id="sbTopic2Label">Core Principles</span>
                     <span class="chem-topic-val" id="sbBondingPct">0%</span>
                   </div>
                   <div class="progress-bar"><div class="progress-fill" id="sbBondingBar" style="width: 0%; background: #53a8b6;"></div></div>
@@ -1129,7 +1129,7 @@
 
                 <div>
                   <div class="chem-topic-row">
-                    <span class="chem-topic-label">Periodic Trends</span>
+                    <span class="chem-topic-label" id="sbTopic3Label">Problem Solving</span>
                     <span class="chem-topic-val" id="sbPeriodicPct">0%</span>
                   </div>
                   <div class="progress-bar"><div class="progress-fill" id="sbPeriodicBar" style="width: 0%; background: #9b59b6;"></div></div>
@@ -1137,7 +1137,7 @@
 
                 <div>
                   <div class="chem-topic-row">
-                    <span class="chem-topic-label">Coordination Chem</span>
+                    <span class="chem-topic-label" id="sbTopic4Label">Synthesis & Applications</span>
                     <span class="chem-topic-val" id="sbCoordPct">0%</span>
                   </div>
                   <div class="progress-bar"><div class="progress-fill" id="sbCoordBar" style="width: 0%; background: #f39c12;"></div></div>
@@ -1147,8 +1147,8 @@
 
             <div class="chem-side-card">
               <div class="chem-card-header">🎯 Active Concept</div>
-              <div class="chem-active-badge" id="sbActiveConceptName">First Law</div>
-              <div class="chem-concept-id-tag" id="sbActiveConceptId">THERMO_FIRST_LAW</div>
+              <div class="chem-active-badge" id="sbActiveConceptName">Core Foundations</div>
+              <div class="chem-concept-id-tag" id="sbActiveConceptId">COURSE_FOUNDATIONS</div>
               <div style="margin-top: 8px;">
                 <div class="chem-topic-row">
                   <span class="chem-topic-label">Concept Mastery</span>
@@ -2384,36 +2384,31 @@
         var data = JSON.parse(raw);
         if (!data || !data.ok) return;
 
-        // Topic progress gauges
+        // Dynamic topic progress gauges
         var topics = data.topic_scores || {};
-        var tThermo = Math.round((topics['Thermodynamics'] || 0) * 100);
-        var tBond = Math.round((topics['Chemical Bonding'] || 0) * 100);
-        var tPeriod = Math.round((topics['Periodic Trends'] || 0) * 100);
-        var tCoord = Math.round((topics['Coordination Chemistry'] || 0) * 100);
-
-        var elThermoPct = document.getElementById('sbThermoPct');
-        var elThermoBar = document.getElementById('sbThermoBar');
-        if (elThermoPct) elThermoPct.textContent = tThermo + '%';
-        if (elThermoBar) elThermoBar.style.width = tThermo + '%';
-
-        var elBondPct = document.getElementById('sbBondingPct');
-        var elBondBar = document.getElementById('sbBondingBar');
-        if (elBondPct) elBondPct.textContent = tBond + '%';
-        if (elBondBar) elBondBar.style.width = tBond + '%';
-
-        var elPeriodPct = document.getElementById('sbPeriodicPct');
-        var elPeriodBar = document.getElementById('sbPeriodicBar');
-        if (elPeriodPct) elPeriodPct.textContent = tPeriod + '%';
-        if (elPeriodBar) elPeriodBar.style.width = tPeriod + '%';
-
-        var elCoordPct = document.getElementById('sbCoordPct');
-        var elCoordBar = document.getElementById('sbCoordBar');
-        if (elCoordPct) elCoordPct.textContent = tCoord + '%';
-        if (elCoordBar) elCoordBar.style.width = tCoord + '%';
+        var topicKeys = Object.keys(topics);
+        if (topicKeys.length > 0) {
+          var labelMapping = [
+            {lbl: 'sbTopic1Label', pct: 'sbThermoPct', bar: 'sbThermoBar'},
+            {lbl: 'sbTopic2Label', pct: 'sbBondingPct', bar: 'sbBondingBar'},
+            {lbl: 'sbTopic3Label', pct: 'sbPeriodicPct', bar: 'sbPeriodicBar'},
+            {lbl: 'sbTopic4Label', pct: 'sbCoordPct', bar: 'sbCoordBar'}
+          ];
+          for (var i = 0; i < labelMapping.length && i < topicKeys.length; i++) {
+            var tKey = topicKeys[i];
+            var scoreVal = Math.round((topics[tKey] || 0) * 100);
+            var lEl = document.getElementById(labelMapping[i].lbl);
+            var pEl = document.getElementById(labelMapping[i].pct);
+            var bEl = document.getElementById(labelMapping[i].bar);
+            if (lEl) lEl.textContent = tKey;
+            if (pEl) pEl.textContent = scoreVal + '%';
+            if (bEl) bEl.style.width = scoreVal + '%';
+          }
+        }
 
         // Active concept & mastery
-        var conceptName = data.concept_name || 'Thermodynamics Overview';
-        var conceptId = data.concept_id || 'THERMO_FIRST_LAW';
+        var conceptName = data.concept_name || 'Core Foundations';
+        var conceptId = data.concept_id || 'COURSE_FOUNDATIONS';
         var masteryPct = data.concept_mastery_pct || '0%';
         var masteryNum = Math.round((data.concept_mastery || 0) * 100);
 
@@ -2576,8 +2571,8 @@
       content.className = 'message-content';
 
       if (role === 'assistant' && (!text || text.trim() === '')) {
-        var labelText = (modeStr === 'chemistry_tutor') ? 'Formulating chemistry explanation' : 'Synthesizing response';
-        var flaskEmoji = (modeStr === 'chemistry_tutor') ? '⚗️' : '💡';
+        var labelText = (modeStr === 'chemistry_tutor') ? 'Formulating adaptive pedagogical response' : 'Synthesizing response';
+        var flaskEmoji = (modeStr === 'chemistry_tutor') ? '🎓' : '💡';
         content.innerHTML = '<div class="thinking-indicator">' +
           '<div class="thinking-flask">' +
             '<span>' + flaskEmoji + '</span>' +

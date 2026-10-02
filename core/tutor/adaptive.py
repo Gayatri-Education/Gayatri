@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -44,9 +44,10 @@ class StudentProfile:
     student_id: str = "student_001"
     name: str = "Student"
     level: str = "class_11"
-    target: str = "chemistry_foundation"
-    current_topic: str = "Thermodynamics"
-    current_concept: str = "THERMO_FIRST_LAW"
+    target: str = "general_foundation"
+    course_id: str = "crs_foundation"
+    current_topic: str = "Foundations"
+    current_concept: str = "COURSE_FOUNDATIONS"
     mastery: dict[str, float] = field(default_factory=dict)
     misconceptions: list[str] = field(default_factory=list)
     history: list[dict[str, Any]] = field(default_factory=list)
@@ -84,7 +85,9 @@ class StudentProfile:
             try:
                 with open(target, encoding="utf-8") as f:
                     data = json.load(f)
-                return cls(**data)
+                valid_fields = {f.name for f in fields(cls)}
+                filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+                return cls(**filtered_data)
             except Exception as exc:
                 logger.warning(f"Failed to load student from {target}: {exc}; creating default")
         # Clean-slate student profile for self-testing
