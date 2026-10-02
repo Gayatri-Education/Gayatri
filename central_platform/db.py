@@ -1382,6 +1382,51 @@ class PlatformDatabase:
             )
         return event
 
+    def record_learning_events_batch(self, events: List[LearningEvent]) -> List[LearningEvent]:
+        if not events:
+            return []
+        rows = [
+            (
+                e.id,
+                e.session_id,
+                e.student_id,
+                e.organization_id,
+                e.course_id,
+                e.concept_id or "",
+                e.event_type,
+                e.source or "student_desktop",
+                json.dumps(e.payload) if isinstance(e.payload, dict) else str(e.payload),
+                e.score,
+                e.schema_version or "1.0.0",
+                e.created_at,
+            )
+            for e in events
+        ]
+        with self._get_connection() as conn:
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO learning_events 
+                (id, session_id, student_id, organization_id, course_id, concept_id, event_type, source, payload, score, schema_version, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                rows,
+            )
+        return events
+
+    def get_existing_learning_event_ids(self, event_ids: List[str]) -> Set[str]:
+        if not event_ids:
+            return set()
+        existing: Set[str] = set()
+        chunk_size = 500
+        with self._get_connection() as conn:
+            for i in range(0, len(event_ids), chunk_size):
+                chunk = event_ids[i : i + chunk_size]
+                placeholders = ",".join("?" for _ in chunk)
+                rows = conn.execute(f"SELECT id FROM learning_events WHERE id IN ({placeholders});", chunk).fetchall()
+                for r in rows:
+                    existing.add(r[0])
+        return existing
+
     def get_learning_event(self, event_id: str) -> Optional[LearningEvent]:
         with self._get_connection() as conn:
             r = conn.execute("SELECT * FROM learning_events WHERE id = ?;", (event_id,)).fetchone()
