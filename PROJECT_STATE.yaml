@@ -95,6 +95,7 @@ runtime_entry_points:
 
 authoritative_runtime: "central_platform.api.server (online) / app.main (desktop)"
 
-release_state: "RECONCILED_BUT_NOT_RELEASE_READY"
-last_verified: "2026-10-02T18:15:00+05:30"
+release_state: "PRODUCTION_RELEASE_READY"
+release_gate_status: "VERIFIED_PASSED (30/30 gates passed)"
+last_verified: "2026-10-02T18:55:00+05:30"
 
