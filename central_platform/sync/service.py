@@ -91,7 +91,13 @@ class SyncService:
         if operation_id:
             existing_op = self.db.get_sync_operation(operation_id)
             if existing_op:
-                logger.info("Sync operation %s already processed; returning cached receipt.", operation_id)
+                from central_platform.recovery.manager import FailureRecoveryManager
+                rec = FailureRecoveryManager.handle_duplicate_sync(
+                    operation_id=operation_id,
+                    student_id=student_id,
+                    duplicate_count=existing_op.duplicate_count or 1,
+                )
+                logger.info("Sync operation %s already processed; %s", operation_id, rec.technical_diagnostic)
                 return {
                     "ok": existing_op.status in ("SYNCED", "PARTIAL"),
                     "operation_id": existing_op.operation_id,
@@ -104,6 +110,7 @@ class SyncService:
                     "latest_mastery": existing_op.latest_mastery,
                     "server_timestamp": existing_op.server_timestamp,
                     "is_replay": True,
+                    "recovery": rec.to_dict(),
                 }
 
         target_course = course_id or "crs-chem-101"

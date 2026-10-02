@@ -492,23 +492,44 @@
   - tests/test_phase21_database_migration_hardening.py: 12 comprehensive unit and integration tests covering all migration operations and database constraints.
   - Regression results: 1,090/1,090 passed (100% green, 0 regressions).
   ```
-- **Push Status:** `PENDING`
+- **Push Status:** `COMPLETED (commit 6b86258 pushed to origin/master)`
 - **Issue Operations Status:** `QUEUED`
 
+### Item 023: Phase 22 Security, Privacy & Isolation Audit
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Security] Phase 22 Security, Privacy & Isolation Audit Complete`
+- **Intended Labels:** `security`, `rbac`, `isolation`, `privacy`, `audit`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 22 Security, Privacy & Isolation Audit completed.
 
+  Deliverables:
+  - Privilege Escalation & Auth Fixes: Closed RBAC gaps across list_courses, course review-queue, and all RAG write endpoints.
+  - Prompt Injection Guard: Added SecurityAuditor prompt screening in /tutor/turn.
+  - Role Enum Resolution: Normalized UserRole enum comparisons between string and enum types.
+  - tests/test_phase22_security_privacy_isolation_audit.py: 12 attack-style tests covering cross-tenant access, IDOR, privilege escalation, prompt injection, XSS/script injection, cross-tenant instructions, path traversal uploads, executable uploads, credential protection, PII masking, RAG boundary isolation, and sync replay idempotency.
+  - Regression results: 1,102/1,102 passed (100% green, 0 regressions).
+  ```
+- **Push Status:** `COMPLETED (commit 585c6a3 pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
 
+### Item 024: Phase 23 Reliability, Failure Injection & Recovery
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Resilience] Phase 23 Reliability, Failure Injection & Recovery Complete`
+- **Intended Labels:** `reliability`, `recovery`, `failure-injection`, `resilience`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 23 Reliability, Failure Injection & Recovery completed.
 
-
-
-
-
-
-
-
-
-
-
-
-
+  Deliverables:
+  - Standardized Recovery Contracts (central_platform/recovery/manager.py): Classification, observable status, safe user message, technical diagnostic, retryability, and commit/rollback decisions across all failure categories.
+  - Dedicated Failure Handlers: Missing model, corrupt model, provider timeout, provider malformed response, RAG unavailable, DB unavailable, broken migration, broken upload, interrupted publish, expired instruction, duplicate sync, and app crash mid-turn.
+  - Resilient Orchestrator Turn Execution: Unhandled exceptions trigger clean state rollback (0 orphaned events) and safe pedagogical redirection without crashing sessions.
+  - Silent-Fail Bug Fix (BUG-23A): Fixed AttributeError on inst.id in _is_temporally_valid, ensuring expired instructions are cleanly pruned from prompt hierarchy.
+  - tests/test_phase23_reliability_failure_injection_recovery.py: 12 failure injection tests verifying all 6 resilience properties across 12 failure domains.
+  - Regression results: 1,114/1,114 passed (100% green, 0 regressions).
+  ```
+- **Push Status:** `PENDING`
+- **Issue Operations Status:** `QUEUED`
 
 

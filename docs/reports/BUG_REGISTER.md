@@ -226,3 +226,21 @@
 - **Verification:** **VERIFIED FIXED** (Negative tests verify synthetic detection; guard suite 100% green).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** VERIFIED.
+
+---
+
+### BUG-REL-014
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 23 Implementation`
+- **Subsystem:** Teacher Instruction Temporal Validity & Pruning (`central_platform/teacher/instruction.py`)
+- **Reproduction:** Call `resolve_hierarchical_instructions` on an instruction with `expires_at` in the past.
+- **Expected:** Expired instruction is pruned (`is_active=False`, `status="EXPIRED"`) and excluded from candidate directives.
+- **Actual:** `_is_temporally_valid` accessed `inst.id`, triggering an `AttributeError` on `TeacherInstruction` (which uses `instruction_id`), which was caught by `except Exception: return True`, silently retaining expired instructions indefinitely.
+- **Root Cause:** Attribute name mismatch (`inst.id` vs `inst.instruction_id`) inside try/except block returning fallback `True`.
+- **Fix:** Used `getattr(inst, "instruction_id", getattr(inst, "id", "unknown"))` to safely extract instruction identifier for logging and recovery.
+- **Test:** `tests/test_phase23_reliability_failure_injection_recovery.py::test_inject_expired_instruction`.
+- **Verification:** **VERIFIED FIXED** (Expired instructions cleanly pruned and omitted from context hierarchy).
+- **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
+- **Status:** VERIFIED.
+

@@ -20,6 +20,7 @@ from typing import List, Optional
 logger = logging.getLogger("gayatri.central_platform.courses.service")
 
 from central_platform.db import PlatformDatabase
+from central_platform.recovery.manager import FailureRecoveryManager
 from central_platform.models.schema import (
     AuditLog,
     Course,
@@ -283,15 +284,26 @@ class CourseService:
         if actor.role != UserRole.SUPER_ADMIN and actor.organization_id != course.organization_id:
             raise CourseAuthorizationError("Cannot approve courses belonging to another organization.")
 
-        self.db.publish_course_version(version_id, published_by=actor.id)
-        self._record_audit(
-            actor,
-            "APPROVE_AND_PUBLISH_VERSION",
-            f"CourseVersion:{version_id}",
-            course.organization_id,
-            {"course_id": version.course_id, "version_number": version.version_number},
-        )
-        return self.db.get_course_version(version_id)
+        pre_status = version.status.value if hasattr(version.status, "value") else str(version.status)
+        try:
+            self.db.publish_course_version(version_id, published_by=actor.id)
+            self._record_audit(
+                actor,
+                "APPROVE_AND_PUBLISH_VERSION",
+                f"CourseVersion:{version_id}",
+                course.organization_id,
+                {"course_id": version.course_id, "version_number": version.version_number},
+            )
+            return self.db.get_course_version(version_id)
+        except Exception as exc:
+            rec = FailureRecoveryManager.handle_interrupted_publish(
+                error=exc,
+                version_id=version_id,
+                course_id=course.id,
+                pre_status=pre_status,
+            )
+            logger.error("Interrupted publish for version %s: %s", version_id, rec.technical_diagnostic)
+            raise
 
     def select_course_for_org(
         self,

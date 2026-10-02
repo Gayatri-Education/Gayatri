@@ -769,15 +769,43 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 1,090 tests collected, 1,090 passed (100% green).
 - **Remaining Risks:** None for Phase 21. Advancing to Phase 22 (Security, Privacy & Isolation Audit).
 
+### Entry: Phase 22 — Security, Privacy & Isolation Audit (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Audited and secured identity, RAG, course authoring, teacher instructions, uploads, and sync.
+  - Fixed 5 privilege escalation and security bugs:
+    - BUG-A: `list_courses` guest role changed from `SUPER_ADMIN` to `STUDENT`.
+    - BUG-B: `review-queue` requires authentication (401/403) with `UserRole` enum normalization.
+    - BUG-C: Added prompt injection screening via `SecurityAuditor.sanitize_prompt()` in `/tutor/turn`.
+    - BUG-D: Added RBAC authentication to all 5 RAG write endpoints (`POST /sources`, `/ingest`, `/validate`, `/publish`, `DELETE /sources`).
+    - BUG-E: Normalized `UserRole` enum comparisons (lowercase values vs uppercase strings).
+  - Test Suite (`tests/test_phase22_security_privacy_isolation_audit.py`):
+    - 12 attack-style tests covering cross-tenant access, IDOR, privilege escalation, prompt injection, XSS/script injection, cross-tenant instructions, path traversal uploads, executable uploads, credential protection, PII masking, RAG boundary isolation, and sync replay idempotency.
+  - Regression Suite:
+    - 1,102 tests passing across all 22 phases (100% green, 0 failures, 0 regressions).
+- **Tests Run:** 1,102 tests collected, 1,102 passed (100% green).
+- **Remaining Risks:** None for Phase 22. Advancing to Phase 23 (Reliability, Failure Injection & Recovery).
 
-
-
-
-
-
-
-
-
-
-
-
+### Entry: Phase 23 — Reliability, Failure Injection & Recovery (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Failure Recovery Contracts & Refactoring (`central_platform/recovery/manager.py`):
+    - Expanded `FailureCategory` to represent all 12 failure domains.
+    - Added `CommitDecision` enum (`COMMIT`, `ROLLBACK`, `NOOP`, `RETRY`).
+    - Standardized `RecoveryResult` dataclass to enforce classification, observable status, safe user message, technical diagnostic, retryability, and commit/rollback decisions across all failure paths.
+    - Added dedicated recovery handlers: `handle_model_failure`, `handle_provider_timeout`, `repair_malformed_model_output`, `handle_rag_failure`, `handle_database_failure`, `handle_broken_migration`, `handle_broken_upload`, `handle_interrupted_publish`, `handle_expired_instruction`, `handle_duplicate_sync`, and `handle_crash_mid_turn`.
+  - Resilient Orchestrator Integration (`central_platform/tutor/orchestrator.py`):
+    - Wrapped turn execution in crash-recovery boundary; unhandled exceptions trigger `handle_crash_mid_turn`, state rollback (`state_committed=False`), safe user response, and technical diagnostic logging.
+    - Scoped RAG failures degrade gracefully to syllabus context without crashing tutoring sessions.
+  - Course Service Resilience (`central_platform/courses/service.py`):
+    - Guarded `approve_and_publish_version` against mid-transaction failures; aborts cleanly and reverts version status to pre-publish draft state via `handle_interrupted_publish`.
+  - Sync Service Resilience (`central_platform/sync/service.py`):
+    - Enhanced duplicate sync replay to return recovery metadata via `handle_duplicate_sync`.
+  - Teacher Instruction Resilience (`central_platform/teacher/instruction.py`):
+    - Fixed BUG-23A silent exception swallowing where `inst.id` raised `AttributeError`, causing expired instructions to be retained indefinitely. Corrected to `getattr(inst, "instruction_id", getattr(inst, "id", "unknown"))`.
+  - Test Suite (`tests/test_phase23_reliability_failure_injection_recovery.py`):
+    - 12 comprehensive failure injection tests covering missing model, corrupt model, provider timeout, malformed provider response, RAG unavailable, DB unavailable, broken migration, broken upload, interrupted publish, expired instruction, duplicate sync, and app crash mid-turn.
+  - Regression Suite:
+    - 1,114 tests passing across all 23 phases (100% green, 0 failures, 0 regressions).
+- **Tests Run:** 1,114 tests collected, 1,114 passed (100% green).
+- **Remaining Risks:** None for Phase 23. Advancing to Phase 24.

@@ -385,6 +385,14 @@ class TeacherInstructionEngine:
                 if current_time > exp_dt:
                     inst.status = InstructionStatus.EXPIRED.value
                     inst.is_active = False
+                    from central_platform.recovery.manager import FailureRecoveryManager
+                    inst_id = getattr(inst, "instruction_id", getattr(inst, "id", "unknown"))
+                    rec = FailureRecoveryManager.handle_expired_instruction(
+                        instruction_id=inst_id,
+                        course_id=inst.course_id,
+                        expires_at=inst.expires_at,
+                    )
+                    logger.info("Expired instruction pruned: %s", rec.technical_diagnostic)
                     return False
         except Exception:
             return True

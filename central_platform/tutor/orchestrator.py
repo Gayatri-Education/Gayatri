@@ -53,6 +53,7 @@ from central_platform.models.schema import (
     UserRole,
 )
 from central_platform.rag.service import RAGService
+from central_platform.recovery.manager import FailureRecoveryManager
 from central_platform.teacher.instruction import TeacherInstructionEngine
 from central_platform.tools.registry import ToolRegistry
 
@@ -338,156 +339,186 @@ class GenericTutorOrchestrator:
                     "score": r.get("score"),
                 })
         except Exception as exc:
-            logger.debug(f"Scoped RAG retrieval returned empty or encountered exception: {exc}")
+            rag_rec = FailureRecoveryManager.handle_rag_failure(
+                error=exc,
+                fallback_concept=target_concept,
+                course_id=req.course_id,
+            )
+            logger.warning(f"Scoped RAG retrieval degraded for turn {turn_id}: {rag_rec.technical_diagnostic}")
 
-        # ── 10. 7-Layer Context Assembly ──────────────────────────────────
-        assembled_context = self.context_builder.build_context(
-            query=clean_message,
-            student_id=req.student_id,
-            course_id=req.course_id,
-            concept_id=target_concept,
-            class_id=class_id,
-            session_id=req.session_id,
-            course_version_id=version_id,
-            organization_id=course.organization_id,
-            conversation_history=req.conversation_history,
-            instructions=instructions,
-            rag_results=raw_rag_results,
-        )
+        try:
+            # ── 10. 7-Layer Context Assembly ──────────────────────────────────
+            assembled_context = self.context_builder.build_context(
+                query=clean_message,
+                student_id=req.student_id,
+                course_id=req.course_id,
+                concept_id=target_concept,
+                class_id=class_id,
+                session_id=req.session_id,
+                course_version_id=version_id,
+                organization_id=course.organization_id,
+                conversation_history=req.conversation_history,
+                instructions=instructions,
+                rag_results=raw_rag_results,
+            )
 
-        sys_prompt = ContextBuilder.build_system_prompt(
-            subject=course.title,
-            grade_level=getattr(course, "grade_level", None) or "Standard",
-            formatted_directives=teacher_directives,
-        )
+            sys_prompt = ContextBuilder.build_system_prompt(
+                subject=course.title,
+                grade_level=getattr(course, "grade_level", None) or "Standard",
+                formatted_directives=teacher_directives,
+            )
 
-        user_prompt = ContextBuilder.build_user_prompt(
-            user_query=clean_message,
-            rag_context=rag_payload,
-            misconception_alerts=[m.code for m in canonical_state.misconceptions],
-        )
+            user_prompt = ContextBuilder.build_user_prompt(
+                user_query=clean_message,
+                rag_context=rag_payload,
+                misconception_alerts=[m.code for m in canonical_state.misconceptions],
+            )
 
-        # ── 11. Pedagogy Response Planning ────────────────────────────────
-        structured_interp = self.query_engine.fallback_interpret(clean_message)
-        action_decision = NextActionDecision(
-            action=NextActionType.EXPLAIN if current_mastery < 0.6 else NextActionType.PRACTICE,
-            target_concept_id=target_concept,
-            target_concept_name=target_concept,
-            recommended_mode="EXPLAIN" if current_mastery < 0.6 else "QUESTION",
-            reason=f"Mastery is {current_mastery:.2f}",
-        )
-        response_plan = self.planner_engine.create_deterministic_plan(
-            interpretation=structured_interp,
-            action_decision=action_decision,
-            assembled_context=assembled_context,
-        )
-        response_plan.anti_answer_leakage_guard = True
+            # ── 11. Pedagogy Response Planning ────────────────────────────────
+            structured_interp = self.query_engine.fallback_interpret(clean_message)
+            action_decision = NextActionDecision(
+                action=NextActionType.EXPLAIN if current_mastery < 0.6 else NextActionType.PRACTICE,
+                target_concept_id=target_concept,
+                target_concept_name=target_concept,
+                recommended_mode="EXPLAIN" if current_mastery < 0.6 else "QUESTION",
+                reason=f"Mastery is {current_mastery:.2f}",
+            )
+            response_plan = self.planner_engine.create_deterministic_plan(
+                interpretation=structured_interp,
+                action_decision=action_decision,
+                assembled_context=assembled_context,
+            )
+            response_plan.anti_answer_leakage_guard = True
 
-        # ── 12. AI Gateway Execution ──────────────────────────────────────
-        ai_req = AIExecutionRequest(
-            prompt=user_prompt,
-            system_prompt=sys_prompt,
-            task_type=TaskType.TUTORING,
-            max_tokens=req.max_tokens,
-            temperature=req.temperature,
-            preferred_provider=req.preferred_provider,
-            preferred_model=req.preferred_model,
-        )
-        ai_res = self.ai_gateway.execute(ai_req)
+            # ── 12. AI Gateway Execution ──────────────────────────────────────
+            ai_req = AIExecutionRequest(
+                prompt=user_prompt,
+                system_prompt=sys_prompt,
+                task_type=TaskType.TUTORING,
+                max_tokens=req.max_tokens,
+                temperature=req.temperature,
+                preferred_provider=req.preferred_provider,
+                preferred_model=req.preferred_model,
+            )
+            ai_res = self.ai_gateway.execute(ai_req)
 
-        generated_text = ai_res.content
+            generated_text = ai_res.content
 
-        # ── 13. 7-Invariant Response Validation ───────────────────────────
-        val_result: ValidationResult = self.validator_engine.validate_response(
-            generated_response=generated_text,
-            response_plan=response_plan,
-            target_concept=target_concept,
-            rag_sources_required=bool(rag_sources_used),
-        )
-
-        # ── 14. Learning Evidence Staging ─────────────────────────────────
-        new_mastery_val = min(1.0, current_mastery + 0.05) if val_result.is_valid else current_mastery
-        proposed_mastery = MasteryState(
-            id=f"mst-{uuid.uuid4().hex[:8]}",
-            slr_id=canonical_state.slr.id,
-            concept_id=target_concept,
-            score=new_mastery_val,
-            confidence=0.85,
-            state="practicing" if new_mastery_val < 0.85 else "mastered",
-        )
-        proposed_event = LearningEvent(
-            id=f"evt-{uuid.uuid4().hex[:8]}",
-            session_id=req.session_id,
-            student_id=req.student_id,
-            event_type="TUTOR_TURN_COMPLETED",
-            concept_id=target_concept,
-            payload={
-                "course_id": req.course_id,
-                "version_id": version_id,
-                "val_valid": val_result.is_valid,
-                "latency_ms": ai_res.latency_ms,
-            },
-            course_version_id=version_id,
-        )
-
-        staged_changes = self.commit_pipeline.stage_changes(
-            student_id=req.student_id,
-            course_id=req.course_id,
-            mastery_updates=[proposed_mastery],
-            learning_events=[proposed_event],
-        )
-
-        # ── 15. Transactional State Commit ────────────────────────────────
-        if val_result.is_valid:
-            commit_result = self.commit_pipeline.validate_and_commit(
-                staged=staged_changes,
+            # ── 13. 7-Invariant Response Validation ───────────────────────────
+            val_result: ValidationResult = self.validator_engine.validate_response(
                 generated_response=generated_text,
-                target_concept=target_concept,
                 response_plan=response_plan,
-            )
-        else:
-            commit_result = CommitResult(
-                committed=False,
-                reason="Validation failed. State changes rolled back.",
-                staged_summary={"mastery_updates": 0, "misconception_records": 0, "learning_events": 0},
-                validation_result=val_result,
+                target_concept=target_concept,
+                rag_sources_required=bool(rag_sources_used),
             )
 
-        # If validation failed, use safe sanitized or fallback response
-        final_text = generated_text
-        turn_status = "SUCCESS"
-        if not val_result.is_valid:
-            turn_status = "VALIDATION_FAILED"
-            final_text = (
-                val_result.fallback_response
-                or "Let's approach this step-by-step. What foundational concept or principle explains this behavior?"
+            # ── 14. Learning Evidence Staging ─────────────────────────────────
+            new_mastery_val = min(1.0, current_mastery + 0.05) if val_result.is_valid else current_mastery
+            proposed_mastery = MasteryState(
+                id=f"mst-{uuid.uuid4().hex[:8]}",
+                slr_id=canonical_state.slr.id,
+                concept_id=target_concept,
+                score=new_mastery_val,
+                confidence=0.85,
+                state="practicing" if new_mastery_val < 0.85 else "mastered",
             )
-            logger.warning(f"Turn response failed validation: {[i.to_dict() for i in val_result.issues]}. State rolled back.")
+            proposed_event = LearningEvent(
+                id=f"evt-{uuid.uuid4().hex[:8]}",
+                session_id=req.session_id,
+                student_id=req.student_id,
+                event_type="TUTOR_TURN_COMPLETED",
+                concept_id=target_concept,
+                payload={
+                    "course_id": req.course_id,
+                    "version_id": version_id,
+                    "val_valid": val_result.is_valid,
+                    "latency_ms": ai_res.latency_ms,
+                },
+                course_version_id=version_id,
+            )
 
-        # ── 16. Audit & Telemetry ─────────────────────────────────────────
-        latency_total = round((time.perf_counter() - t0) * 1000.0, 2)
-        self._processed_turns.add(turn_fingerprint)
+            staged_changes = self.commit_pipeline.stage_changes(
+                student_id=req.student_id,
+                course_id=req.course_id,
+                mastery_updates=[proposed_mastery],
+                learning_events=[proposed_event],
+            )
 
-        return TutorTurnResult(
-            turn_id=turn_id,
-            session_id=req.session_id,
-            student_id=req.student_id,
-            course_id=req.course_id,
-            concept_id=target_concept,
-            response_text=final_text,
-            pedagogical_action=response_plan.pedagogical_action,
-            validation_passed=val_result.is_valid,
-            state_committed=commit_result.committed,
-            rag_sources_used=rag_sources_used,
-            tools_invoked=allowed_tools,
-            teacher_instructions_applied=len(instructions),
-            latency_ms=latency_total,
-            provider_used=ai_res.provider,
-            model_used=ai_res.model,
-            status=turn_status,
-            validation_issues=[i.to_dict() for i in val_result.issues],
-            applied_instruction_ids=applied_instruction_ids,
-            contributed_source_ids=contributed_source_ids,
-            contributed_chunk_ids=contributed_chunk_ids,
-            provenance_records=provenance_records,
-        )
+            # ── 15. Transactional State Commit ────────────────────────────────
+            if val_result.is_valid:
+                commit_result = self.commit_pipeline.validate_and_commit(
+                    staged=staged_changes,
+                    generated_response=generated_text,
+                    target_concept=target_concept,
+                    response_plan=response_plan,
+                )
+            else:
+                commit_result = CommitResult(
+                    committed=False,
+                    reason="Validation failed. State changes rolled back.",
+                    staged_summary={"mastery_updates": 0, "misconception_records": 0, "learning_events": 0},
+                    validation_result=val_result,
+                )
+
+            # If validation failed, use safe sanitized or fallback response
+            final_text = generated_text
+            turn_status = "SUCCESS"
+            if not val_result.is_valid:
+                turn_status = "VALIDATION_FAILED"
+                final_text = (
+                    val_result.fallback_response
+                    or "Let's approach this step-by-step. What foundational concept or principle explains this behavior?"
+                )
+                logger.warning(f"Turn response failed validation: {[i.to_dict() for i in val_result.issues]}. State rolled back.")
+
+            # ── 16. Audit & Telemetry ─────────────────────────────────────────
+            latency_total = round((time.perf_counter() - t0) * 1000.0, 2)
+            self._processed_turns.add(turn_fingerprint)
+
+            return TutorTurnResult(
+                turn_id=turn_id,
+                session_id=req.session_id,
+                student_id=req.student_id,
+                course_id=req.course_id,
+                concept_id=target_concept,
+                response_text=final_text,
+                pedagogical_action=response_plan.pedagogical_action,
+                validation_passed=val_result.is_valid,
+                state_committed=commit_result.committed,
+                rag_sources_used=rag_sources_used,
+                tools_invoked=allowed_tools,
+                teacher_instructions_applied=len(instructions),
+                latency_ms=latency_total,
+                provider_used=ai_res.provider,
+                model_used=ai_res.model,
+                status=turn_status,
+                validation_issues=[i.to_dict() for i in val_result.issues],
+                applied_instruction_ids=applied_instruction_ids,
+                contributed_source_ids=contributed_source_ids,
+                contributed_chunk_ids=contributed_chunk_ids,
+                provenance_records=provenance_records,
+            )
+        except (ValueError, CourseNotFoundError, EnrollmentError):
+            raise
+        except Exception as crash_exc:
+            logger.error("Turn execution crashed for student %s on course %s: %s", req.student_id, req.course_id, crash_exc, exc_info=True)
+            rec = FailureRecoveryManager.handle_crash_mid_turn(
+                error=crash_exc,
+                turn_id=turn_id,
+                student_id=req.student_id,
+                step="ORCHESTRATOR_EXECUTE_TURN",
+            )
+            return TutorTurnResult(
+                turn_id=turn_id,
+                session_id=req.session_id,
+                student_id=req.student_id,
+                course_id=req.course_id,
+                concept_id=target_concept,
+                response_text=rec.user_message,
+                pedagogical_action="SAFE_ERROR_RECOVERY",
+                validation_passed=False,
+                state_committed=False,
+                latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+                status="CRASH_RECOVERED",
+                validation_issues=[{"code": "APP_CRASH_MID_TURN", "message": rec.technical_diagnostic}],
+            )

@@ -576,3 +576,21 @@ ecent_events and misconceptions.
 - Added RBAC-normalized role resolution to course review-queue endpoint.
 - Confirmed prior session edits are still active: classes RBAC, instructions cross-tenant validation, rag/service.py filename safety, sync.py PermissionError mapping.
 - 1,102 total tests passing clean across full suite.
+
+
+## Phase 23 - Reliability, Failure Injection & Recovery
+**Date:** 2026-10-02
+**Objective:** Prove the system fails safely and recovers predictably across 12 concrete failure injection scenarios with explicit classification, observable status, safe user messages, technical diagnostics, retryability, and rollback decisions.
+**Status:** COMPLETE
+
+**Completed Tasks:**
+- Refactored FailureRecoveryManager and RecoveryResult (central_platform/recovery/manager.py) with all 6 mandatory resilience properties: ailure_category, status, user_message, 	echnical_diagnostic, etryable, and commit_decision.
+- Added CommitDecision enum (COMMIT, ROLLBACK, NOOP, RETRY).
+- Implemented 12 dedicated failure recovery handlers: missing model, corrupt model, provider timeout, provider malformed response, RAG retrieval failure, database unavailable, broken migration, broken upload, interrupted publish, expired instruction, duplicate sync, and app crash mid-turn.
+- Integrated crash-recovery boundary into GenericTutorOrchestrator.execute_turn (central_platform/tutor/orchestrator.py), ensuring unhandled errors trigger clean state rollback (zero orphaned events) and safe pedagogical redirection without crashing sessions.
+- Integrated handle_interrupted_publish into CourseService.approve_and_publish_version (central_platform/courses/service.py), preserving draft status upon transaction errors.
+- Integrated handle_duplicate_sync into SyncService.process_sync_batch (central_platform/sync/service.py), returning cached receipts with recovery metadata.
+- Integrated handle_expired_instruction into TeacherInstructionEngine._is_temporally_valid (central_platform/teacher/instruction.py).
+- Fixed **BUG-23A**: resolved AttributeError on inst.id in _is_temporally_valid, stopping silent exception swallowing that kept expired instructions active.
+- Created 	ests/test_phase23_reliability_failure_injection_recovery.py with 12 unit and integration tests (12/12 passing).
+- 1,114 total tests passing clean across full suite.
