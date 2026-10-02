@@ -42,7 +42,7 @@ Establish repository ground truth, reconcile canonical branch policy, make CI re
 - The repository currently passes existing tests because those tests assert old contracts (e.g. unauthenticated access or auto-enrollment). These will be upgraded phase-by-phase without breaking genuine user workflows.
 
 ## Ending commit
-(Pending commit on `fix/phase-00-ground-truth`)
+`07512c0` (`fix/phase-00-ground-truth`)
 
 ## Next phase
 Phase 01: Authentication and Identity Binding
