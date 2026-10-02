@@ -69,7 +69,7 @@ phases:
 
   phase_05_state_slr:
     status: "COMPLETE"
-    commit: "pending_merge"
+    commit: "5895df9"
     implementation_verified: true
     tests_passed: true
     runtime_verified: true

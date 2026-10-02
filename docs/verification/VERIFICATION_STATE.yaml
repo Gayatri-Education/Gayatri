@@ -81,7 +81,7 @@ phases:
   phase_05_state_slr:
     name: "Transactional Learning State and Authoritative SLR"
     status: "COMPLETE"
-    commit: "pending_merge"
+    commit: "5895df9"
     branch: "fix/phase-05-state-slr"
     test_command: "pytest -v tests/test_phase05_state_slr_remediation.py && pytest -q"
     test_result: "PASSED (9 phase tests passed; 1187 full suite passed in 268.60s)"
