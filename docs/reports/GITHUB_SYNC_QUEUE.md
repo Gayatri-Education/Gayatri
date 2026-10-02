@@ -388,8 +388,29 @@
   - tests/test_phase16_teacher_workflow_ui.py: 12 comprehensive unit and integration tests covering course/class scoping, class creation, honest empty rosters, unauthorized student selection rejection (403), class note RAG scoping, cross-class isolation, remedial content RAG scoping, cross-student isolation, hierarchical instructions, real assignments, controller workflows, and desktop bridge facade durability.
   - Regression results: 1,029/1,029 passed in 165.76s (100% green, 0 regressions).
   ```
+- **Push Status:** `COMPLETED (commit 1210a25 pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 018: Phase 17 Completion Update
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 17 Student Multi-Course Workflow UI Complete`
+- **Intended Labels:** `ui`, `student-portal`, `multi-course`, `course-selector`, `concurrency`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 17 Student Multi-Course Workflow UI completed.
+
+  Deliverables:
+  - central_platform/db.py: get_assignments_for_student (scoped to course and student's class group), get_knowledge_sources_for_student (authorized published course, class, and student-targeted remedial sources), get_mastery_states convenience accessor.
+  - central_platform/api/schemas.py & central_platform/api/routes/students.py: Endpoints for GET /api/v1/students/{id}/courses, GET /api/v1/students/{id}/courses/{course_id}/curriculum (with live student concept mastery overlay), GET /api/v1/students/{id}/courses/{course_id}/assignments, GET /api/v1/students/{id}/courses/{course_id}/knowledge, POST /api/v1/students/{id}/courses/switch (enforcing HTTP 409 Conflict safe turn cancellation invariant), GET /api/v1/students/{id}/courses/{course_id}/offline-status.
+  - app/portals/student/controller.py: Real DB and CourseService/CurriculumService/RAGService/SLRService integration for enrolled courses listing, safe course switching, scoped curriculum navigation, scoped assignments, scoped knowledge sources, and offline indicators.
+  - app/bridge/facade.py: Added PySide6 slots get_student_courses, switch_student_course (with active generation check), get_student_course_curriculum, get_student_course_assignments, get_student_course_knowledge, get_student_course_offline_status.
+  - app/ui/student_dashboard.html: Dynamic course switcher dropdown (#courseSelector), live sync/cache status badge (#courseOfflineBadge), active course context metadata binding, and JavaScript handlers with active turn generation protection.
+  - tests/test_phase17_student_multi_course_workflow_ui.py: 12 comprehensive unit and integration tests covering enrolled courses listing, context resolution, active context switching, concurrency guard (409 Conflict), unauthorized course rejection (403 Forbidden), scoped curriculum DAG navigation, scoped assignments isolation, class group boundaries, scoped knowledge notes, offline indicators, PySide6 bridge slots, and HTML controls.
+  - Regression results: 1,041/1,041 passed (100% green, 0 regressions).
+  ```
 - **Push Status:** `PENDING`
 - **Issue Operations Status:** `QUEUED`
+
 
 
 

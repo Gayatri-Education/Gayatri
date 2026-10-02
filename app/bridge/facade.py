@@ -59,6 +59,26 @@ def get_teacher_intervention_engine():
     return _teacher_intervention_engine_singleton
 
 
+# ── Student Portal Controller Singleton (Phase 17) ──────────────────────
+_student_portal_controller_singleton = None
+
+
+def reset_student_controller_singleton() -> None:
+    """Reset StudentPortalController singleton for test isolation."""
+    global _student_portal_controller_singleton
+    _student_portal_controller_singleton = None
+
+
+def get_student_portal_controller():
+    """Retrieve StudentPortalController singleton."""
+    global _student_portal_controller_singleton
+    if _student_portal_controller_singleton is None:
+        from app.portals.student.controller import StudentPortalController
+        _student_portal_controller_singleton = StudentPortalController()
+    return _student_portal_controller_singleton
+
+
+
 
 class Bridge(QObject):
     """Exposes async slots and streaming signals to the UI via QWebChannel.
@@ -1418,6 +1438,84 @@ class Bridge(QObject):
             })
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc), "server_url": server_url})
+
+    # ── Student Multi-Course Workflow Slots (Phase 17) ──────────────────────
+
+    @Slot(str, result=str)
+    def get_student_courses(self, student_id: str = "") -> str:
+        """Retrieve all active enrolled courses for the student."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            courses = ctrl.get_enrolled_courses(sid)
+            return json.dumps({"ok": True, "courses": courses})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "courses": []})
+
+    @Slot(str, str, bool, result=str)
+    def switch_student_course(self, student_id: str, course_id: str, active_turn_generating: bool = False) -> str:
+        """Switch student active course context ensuring safe turn completion/cancellation."""
+        try:
+            if self._generation_active or active_turn_generating:
+                return json.dumps({
+                    "ok": False,
+                    "error": "Cannot switch courses while an AI turn is generating. Complete or cancel the active turn first.",
+                })
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            res = ctrl.switch_course(student_id=sid, target_course_id=course_id, active_turn_generating=False)
+            return json.dumps({"ok": True, "data": res})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(str, str, result=str)
+    def get_student_course_curriculum(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve curriculum hierarchy for active or specified course with student mastery overlaid."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            curriculum = ctrl.get_course_curriculum(sid, cid)
+            return json.dumps({"ok": True, "curriculum": curriculum})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "curriculum": {}})
+
+    @Slot(str, str, result=str)
+    def get_student_course_assignments(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve assignments scoped to this student, their class/cohort, and the active course."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            assignments = ctrl.get_course_assignments(sid, cid)
+            return json.dumps({"ok": True, "assignments": assignments})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "assignments": []})
+
+    @Slot(str, str, result=str)
+    def get_student_course_knowledge(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve authorized knowledge sources scoped to this student and the active course."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            knowledge = ctrl.get_course_knowledge(sid, cid)
+            return json.dumps({"ok": True, "knowledge": knowledge})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "knowledge": []})
+
+    @Slot(str, str, result=str)
+    def get_student_course_offline_status(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve offline sync and cache indicators for the course."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            status_data = ctrl.get_offline_status(sid, cid)
+            return json.dumps({"ok": True, "offline_status": status_data})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "offline_status": {}})
+
 
 
 

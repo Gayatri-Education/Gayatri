@@ -118,6 +118,46 @@ class StudentProfileResponse(BaseModel):
     recent_activity: Any = Field(default_factory=list)
 
 
+class StudentEnrolledCourseResponse(BaseModel):
+    id: str
+    course_id: str
+    code: str
+    title: str
+    description: str = ""
+    organization_id: str
+    cohort_id: Optional[str] = None
+    cohort_name: Optional[str] = None
+    class_group_id: Optional[str] = None
+    class_name: Optional[str] = None
+    enrolled_at: str
+    is_active: bool = True
+    overall_mastery: float = 0.0
+    active_concept: str = ""
+
+
+class StudentCourseSwitchRequest(BaseModel):
+    target_course_id: str
+    active_turn_generating: bool = False
+
+
+class StudentCourseSwitchResponse(BaseModel):
+    student_id: str
+    active_course_id: str
+    course_title: str
+    switched_at: str
+    active_concept: str
+    overall_mastery: float
+
+
+class StudentOfflineStatusResponse(BaseModel):
+    student_id: str
+    course_id: str
+    is_cached: bool = True
+    is_synced: bool = True
+    offline_available: bool = True
+    last_synced_at: Optional[str] = None
+
+
 # ── Teacher & Directives ─────────────────────────────────────────────────
 
 class TeacherInstructionCreateRequest(BaseModel):

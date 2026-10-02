@@ -553,6 +553,15 @@
       </div>
     </div>
 
+    <!-- Active Course Switcher (Phase 17 Multi-Course Workflow) -->
+    <div class="persona-switcher" id="courseSwitcherContainer">
+      <span class="persona-label">Course:</span>
+      <select id="courseSelector" class="persona-select" onchange="StudentDashboardController.switchCourse(this.value)">
+        <option value="crs-chem-101">Class 11 Chemistry (CHEM-101)</option>
+      </select>
+      <span id="courseOfflineBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(39, 201, 63, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); font-weight:600;">🟢 Synced</span>
+    </div>
+
     <!-- Active Persona Switcher -->
     <div class="persona-switcher">
       <span class="persona-label">Demo Persona:</span>
@@ -880,6 +889,8 @@
       baseUrl: window.location.origin || 'http://127.0.0.1:8000',
       studentId: 'usr_student_arjun',
       courseId: 'crs_chem_101',
+      enrolledCourses: [],
+      isTurnGenerating: false,
       selectedOptionIndex: null,
 
       demoTokens: {
@@ -912,6 +923,11 @@
           if (sel) sel.value = saved;
         }
 
+        const savedCourse = localStorage.getItem('active_course_id');
+        if (savedCourse) {
+          this.courseId = savedCourse;
+        }
+
         // Auto-authenticate with demo token if needed
         if (!localStorage.getItem('access_token')) {
           try {
@@ -925,7 +941,136 @@
           } catch (e) {}
         }
 
+        await this.loadCourses();
+        await this.checkOfflineStatus();
         this.fetchProgress();
+      },
+
+      async loadCourses() {
+        try {
+          let courses = [];
+          if (window.bridge && typeof window.bridge.get_student_courses === 'function') {
+            const raw = window.bridge.get_student_courses(this.studentId);
+            const res = JSON.parse(raw);
+            if (res.ok && res.courses) courses = res.courses;
+          } else {
+            const token = localStorage.getItem('access_token') || '';
+            const headers = { 'Accept': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch(`${this.baseUrl}/api/v1/students/${this.studentId}/courses`, { headers });
+            if (res.ok) {
+              const json = await res.json();
+              courses = json.data || [];
+            }
+          }
+          if (courses && courses.length > 0) {
+            this.enrolledCourses = courses;
+            const sel = document.getElementById('courseSelector');
+            if (sel) {
+              sel.innerHTML = courses.map(c => `<option value="${c.course_id}">${c.title} (${c.code})</option>`).join('');
+              if (courses.some(c => c.course_id === this.courseId)) {
+                sel.value = this.courseId;
+              } else {
+                this.courseId = courses[0].course_id;
+                sel.value = this.courseId;
+              }
+            }
+            this.updateCourseMetaUI();
+          }
+        } catch (e) {
+          console.warn('Could not load dynamic enrolled courses, using default:', e);
+        }
+      },
+
+      updateCourseMetaUI() {
+        const metaEl = document.getElementById('studentCourseMeta');
+        if (!metaEl) return;
+        const cur = (this.enrolledCourses || []).find(c => c.course_id === this.courseId);
+        if (cur) {
+          const cohortStr = cur.cohort_name ? ` • Cohort: ${cur.cohort_name}` : '';
+          const classStr = cur.class_name ? ` • Class: ${cur.class_name}` : '';
+          metaEl.textContent = `Course: ${cur.title} (${cur.code})${cohortStr}${classStr} • Active Concept: ${cur.active_concept || 'Intro'}`;
+        } else {
+          metaEl.textContent = `Course: ${this.courseId} • Active Learning`;
+        }
+      },
+
+      async switchCourse(targetCourseId) {
+        if (this.isTurnGenerating) {
+          alert('Cannot switch course while an AI turn is actively generating. Complete or cancel the active turn first.');
+          const sel = document.getElementById('courseSelector');
+          if (sel) sel.value = this.courseId;
+          return;
+        }
+
+        const sel = document.getElementById('courseSelector');
+        try {
+          if (window.bridge && typeof window.bridge.switch_student_course === 'function') {
+            const raw = window.bridge.switch_student_course(this.studentId, targetCourseId, this.isTurnGenerating);
+            const res = JSON.parse(raw);
+            if (!res.ok) {
+              alert(res.error || 'Failed to switch course');
+              if (sel) sel.value = this.courseId;
+              return;
+            }
+          } else {
+            const token = localStorage.getItem('access_token') || '';
+            const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch(`${this.baseUrl}/api/v1/students/${this.studentId}/courses/switch`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ target_course_id: targetCourseId, active_turn_generating: this.isTurnGenerating })
+            });
+            if (!res.ok) {
+              const errJson = await res.json().catch(() => ({}));
+              alert(errJson.detail || 'Failed to switch course');
+              if (sel) sel.value = this.courseId;
+              return;
+            }
+          }
+          this.courseId = targetCourseId;
+          localStorage.setItem('active_course_id', targetCourseId);
+          this.updateCourseMetaUI();
+          this.fetchProgress();
+          this.checkOfflineStatus();
+        } catch (e) {
+          console.error('Error switching course:', e);
+          if (sel) sel.value = this.courseId;
+        }
+      },
+
+      async checkOfflineStatus() {
+        const badge = document.getElementById('courseOfflineBadge');
+        if (!badge) return;
+        try {
+          let status = null;
+          if (window.bridge && typeof window.bridge.get_student_course_offline_status === 'function') {
+            const raw = window.bridge.get_student_course_offline_status(this.studentId, this.courseId);
+            const res = JSON.parse(raw);
+            if (res.ok && res.offline_status) status = res.offline_status;
+          } else {
+            const token = localStorage.getItem('access_token') || '';
+            const headers = { 'Accept': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const res = await fetch(`${this.baseUrl}/api/v1/students/${this.studentId}/courses/${this.courseId}/offline-status`, { headers });
+            if (res.ok) {
+              const json = await res.json();
+              status = json.data;
+            }
+          }
+          if (status && status.offline_available) {
+            badge.textContent = '🟢 Synced & Cached';
+            badge.style.borderColor = 'var(--accent-green)';
+            badge.style.color = 'var(--accent-green)';
+          } else {
+            badge.textContent = '🟡 Sync Pending';
+            badge.style.borderColor = 'var(--accent-amber)';
+            badge.style.color = 'var(--accent-amber)';
+          }
+        } catch (e) {
+          badge.textContent = '🟢 Local Cached';
+        }
       },
 
       retry() {
@@ -952,7 +1097,7 @@
         }
       },
 
-      switchPersona(studentId) {
+      async switchPersona(studentId) {
         this.studentId = studentId;
         localStorage.setItem('demo_student_id', studentId);
         const meta = this.demoTokens[studentId];
@@ -962,8 +1107,11 @@
           const avEl = document.getElementById('avatarLetter');
           if (avEl) avEl.textContent = meta.avatar;
         }
+        await this.loadCourses();
+        await this.checkOfflineStatus();
         this.fetchProgress();
       },
+
 
       renderDashboardData(data) {
         const isPriya = this.studentId === 'usr_student_priya';

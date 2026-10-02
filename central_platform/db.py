@@ -1469,6 +1469,13 @@ class PlatformDatabase:
                 for r in rows
             ]
 
+    def get_mastery_states(self, student_id: str, course_id: Optional[str] = None) -> List[MasteryState]:
+        slr = self.get_slr(student_id, course_id=course_id)
+        if not slr:
+            return []
+        return self.get_mastery_states_for_slr(slr.id)
+
+
     def create_misconception(self, misc: Misconception) -> Misconception:
         with self._get_connection() as conn:
             conn.execute(
@@ -1876,6 +1883,88 @@ class PlatformDatabase:
                 )
                 for r in rows
             ]
+
+    def get_assignments_for_student(self, student_id: str, course_id: str) -> List[Assignment]:
+        """Retrieve assignments accessible to the student for a given course."""
+        enrollments = self.get_enrollments_for_student(student_id)
+        enr = next((e for e in enrollments if e.course_id == course_id), None)
+        if not enr:
+            return []
+
+        class_id = None
+        if enr.cohort_id:
+            cohort = self.get_cohort(enr.cohort_id)
+            if cohort and cohort.class_group_id:
+                class_id = cohort.class_group_id
+
+        with self._get_connection() as conn:
+            params: list = [course_id]
+            if class_id:
+                sql = """
+                    SELECT * FROM assignments
+                    WHERE course_id = ? AND is_active = 1
+                      AND (class_group_id IS NULL OR class_group_id = '' OR class_group_id = ?)
+                    ORDER BY created_at DESC;
+                """
+                params.append(class_id)
+            else:
+                sql = """
+                    SELECT * FROM assignments
+                    WHERE course_id = ? AND is_active = 1
+                      AND (class_group_id IS NULL OR class_group_id = '')
+                    ORDER BY created_at DESC;
+                """
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [
+                Assignment(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    assessment_id=r["assessment_id"],
+                    title=r["title"],
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    cohort_id=r["cohort_id"] if "cohort_id" in r.keys() else None,
+                    class_group_id=r["class_group_id"] if "class_group_id" in r.keys() else None,
+                    assigned_by=r["assigned_by"] if "assigned_by" in r.keys() else None,
+                    instructions=r["instructions"] if "instructions" in r.keys() else "",
+                    due_at=r["due_at"] if "due_at" in r.keys() else None,
+                    is_active=bool(r["is_active"]) if "is_active" in r.keys() else True,
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_knowledge_sources_for_student(self, student_id: str, course_id: str) -> List[RAGSource]:
+        """Retrieve published knowledge sources authorized for this student in this course."""
+        enrollments = self.get_enrollments_for_student(student_id)
+        enr = next((e for e in enrollments if e.course_id == course_id), None)
+        if not enr:
+            return []
+
+        class_id = None
+        if enr.cohort_id:
+            cohort = self.get_cohort(enr.cohort_id)
+            if cohort and cohort.class_group_id:
+                class_id = cohort.class_group_id
+
+        sources = self.list_rag_sources(course_id=course_id, status="published")
+        authorized = []
+        for s in sources:
+            scope = (s.visibility_scope or "course").lower()
+            if scope in ("course", "public"):
+                authorized.append(s)
+            elif scope == "class":
+                if class_id and s.class_id == class_id:
+                    authorized.append(s)
+            elif scope == "student_targeted":
+                targets = s.target_student_ids or []
+                if isinstance(targets, str):
+                    try:
+                        targets = json.loads(targets)
+                    except Exception:
+                        targets = [targets]
+                if student_id in targets:
+                    authorized.append(s)
+        return authorized
 
     def record_assessment_attempt(self, attempt: AssessmentAttempt) -> AssessmentAttempt:
         with self._get_connection() as conn:

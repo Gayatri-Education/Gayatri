@@ -625,7 +625,49 @@ This log records every development phase and architectural transition in chronol
   - Added `get_offerings_by_course`, `get_cohort`, and `get_cohorts_for_class_group` to `PlatformDatabase`.
   - Corrected `RAGChunk` text field access from `chunk_text` to `(ch.clean_text or ch.text)`.
 - **Tests Run:** 1,029 tests collected, 1,029 passed in 165.76s (100% green).
-- **Remaining Risks:** None for Phase 16. Advancing to Phase 17 (AI Gateway & Model Router Platform).
+- **Remaining Risks:** None for Phase 16. Advancing to Phase 17 (Student Multi-Course Workflow UI).
+
+---
+
+### Entry: Phase 17 — Student Multi-Course Workflow UI (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Database Extensions (`central_platform/db.py`):
+    - Added `get_assignments_for_student(student_id, course_id)` enforcing class group scoping and target student isolation.
+    - Added `get_knowledge_sources_for_student(student_id, course_id)` supporting course, class, and student-targeted remedial note visibility.
+    - Added `get_mastery_states(student_id, course_id)` convenience retrieval method.
+  - API Schemas & Routes (`central_platform/api/schemas.py`, `central_platform/api/routes/students.py`):
+    - Added schemas: `StudentEnrolledCourseResponse`, `StudentCourseSwitchRequest`, `StudentCourseSwitchResponse`, `StudentOfflineStatusResponse`.
+    - Added `GET /api/v1/students/{student_id}/courses` (enrolled courses with live mastery, cohort, class, active concept).
+    - Added `GET /api/v1/students/{student_id}/courses/{course_id}/curriculum` (DAG hierarchy enriched with student concept mastery).
+    - Added `GET /api/v1/students/{student_id}/courses/{course_id}/assignments` (scoped assignments per course/class).
+    - Added `GET /api/v1/students/{student_id}/courses/{course_id}/knowledge` (authorized RAG sources).
+    - Added `POST /api/v1/students/{student_id}/courses/switch` (with 409 Conflict guard against active turn switching).
+    - Added `GET /api/v1/students/{student_id}/courses/{course_id}/offline-status` (cache and sync status).
+  - Student Portal Controller (`app/portals/student/controller.py`):
+    - Completely backed by real database services (`CourseService`, `CurriculumService`, `RAGService`, `PlatformDatabase`, `SLRService`).
+    - Added methods: `get_enrolled_courses`, `switch_course`, `get_course_curriculum`, `get_course_assignments`, `get_course_knowledge`, `get_offline_status`, `set_turn_generating`.
+    - Preserved 100% backward-compatible context schema (`portal: student`, `version: v4.0`).
+  - Desktop Bridge Facade (`app/bridge/facade.py`):
+    - Added PySide6 slots: `get_student_courses`, `switch_student_course`, `get_student_course_curriculum`, `get_student_course_assignments`, `get_student_course_knowledge`, `get_student_course_offline_status`.
+    - Enforced safe-switching invariant preventing course changes during turn generation.
+  - Student Dashboard UI (`app/ui/student_dashboard.html`):
+    - Integrated dynamic Course Selector dropdown in header (`#courseSelector`, `#courseSwitcherContainer`).
+    - Added `#courseOfflineBadge` indicating online/offline and sync status.
+    - Updated `StudentDashboardController` JS with `loadCourses`, `updateCourseMetaUI`, `switchCourse`, and `checkOfflineStatus`.
+  - Test Suite (`tests/test_phase17_student_multi_course_workflow_ui.py`):
+    - 12 comprehensive unit and integration tests covering enrolled courses listing, context resolution, active context switching, concurrency guard (409 Conflict), unauthorized course rejection (403 Forbidden), scoped curriculum DAG navigation, scoped assignments isolation, class group boundaries, scoped knowledge notes, offline indicators, PySide6 bridge slots, and HTML controls.
+  - Regression Suite:
+    - 1,041 tests collected, 100% green.
+- **Bugs Found & Fixed:**
+  - Added `Organization` creation to satisfy foreign key constraint on users in isolated test databases.
+  - Corrected `Cohort` constructor argument from `class_id` to `class_group_id`.
+  - Corrected `MasteryState` creation via `StudentLearningRecord(id=...)` and `upsert_mastery_state`.
+  - Replaced `.model_dump()` with `.to_dict()` for `Assignment` and `RAGSource` dataclasses in routes.
+  - Corrected `list_rag_sources` parameter from `only_published=True` to `status="published"`.
+- **Tests Run:** 1,041 tests collected, 1,041 passed (100% green).
+- **Remaining Risks:** None for Phase 17. Advancing to Phase 18 (AI Gateway & Model Router Platform).
+
 
 
 
