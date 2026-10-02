@@ -1,0 +1,189 @@
+# Gayatri Platform Verification Manifest
+# Master Plan: GAYATRI_AI_AGENT_FORENSIC_REMEDIATION_PLAN.md
+# Updated: 2026-10-02
+canonical_branch: "master"
+release_status: "BLOCKED"
+repository: "Gayatri-Education/Gayatri"
+
+phases:
+  phase_00_ground_truth:
+    name: "Establish Ground Truth & CI Reproducibility"
+    status: "COMPLETE"
+    commit: "379f911"
+    branch: "fix/phase-00-ground-truth"
+    test_command: "pytest -q"
+    test_result: "PASSED (1144 passed in 202.80s)"
+    runtime_result: "VERIFIED (compileall 0 errors, branch policy documented, clean environment verified)"
+    security_result: "VERIFIED (25 forensic findings cataloged; false release claims eliminated)"
+    regression_result: "VERIFIED (100% baseline preservation: 1144/1144 passing)"
+    evidence_path: "docs/verification/evidence/phase-00-baseline.md"
+    reviewer: "Principal AI Coding Agent"
+    timestamp: "2026-10-02T22:46:00+05:30"
+
+  phase_01_auth_identity:
+    name: "Authentication and Identity Binding"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-01-auth-identity"
+    test_command: "pytest -v tests/test_phase16_security_audit.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-01-auth-identity.md"
+    reviewer: null
+    timestamp: null
+
+  phase_02_context_enrollment:
+    name: "Course, Enrollment, Version, and Context Resolution"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-02-context-resolution"
+    test_command: "pytest -v tests/test_phase10_orchestrator.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-02-context.md"
+    reviewer: null
+    timestamp: null
+
+  phase_03_rag:
+    name: "RAG Authorization, Retrieval, and Grounding"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-03-rag-hardening"
+    test_command: "pytest -v tests/test_phase9_rag.py tests/test_phase13_rag_audit.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-03-rag.md"
+    reviewer: null
+    timestamp: null
+
+  phase_04_ai_gateway:
+    name: "AI Gateway and Explicit Failure Semantics"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-04-ai-gateway"
+    test_command: "pytest -v tests/test_phase11_ai_gateway.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-04-ai-gateway.md"
+    reviewer: null
+    timestamp: null
+
+  phase_05_state_slr:
+    name: "Transactional Learning State and Authoritative SLR"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-05-state-slr"
+    test_command: "pytest -v tests/test_phase20_commit_pipeline.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-05-state-slr.md"
+    reviewer: null
+    timestamp: null
+
+  phase_06_adaptive_learning:
+    name: "Evidence-Based Adaptive Learning"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-06-adaptive-learning"
+    test_command: "pytest -v tests/test_phase10_orchestrator.py tests/test_slm_pedagogical_alignment.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-06-adaptive.md"
+    reviewer: null
+    timestamp: null
+
+  phase_07_assessment:
+    name: "Assessment Correctness and Learner Evidence"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-07-assessment"
+    test_command: "pytest -v tests/test_phase19_assessment_grading.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-07-assessment.md"
+    reviewer: null
+    timestamp: null
+
+  phase_08_sync_offline:
+    name: "Offline Sync, Device Binding, and Durable Idempotency"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-08-sync-offline"
+    test_command: "pytest -v tests/test_server_live_sync.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-08-sync.md"
+    reviewer: null
+    timestamp: null
+
+  phase_09_analytics_portals:
+    name: "Analytics, Portals, and Privacy Isolation"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-09-analytics-portals"
+    test_command: "pytest -v tests/test_phase22_security_privacy_isolation_audit.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-09-analytics-portals.md"
+    reviewer: null
+    timestamp: null
+
+  phase_10_legacy_routes:
+    name: "Legacy, Dead Ends, and Route Reachability Audit"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-10-legacy-routes"
+    test_command: "pytest -v tests/architecture"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-10-legacy.md"
+    reviewer: null
+    timestamp: null
+
+  phase_11_production_runtime:
+    name: "Production Runtime and Database Validation"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-11-production-runtime"
+    test_command: "python scripts/migrate_db.py up && python scripts/verify_release.py"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-11-production.md"
+    reviewer: null
+    timestamp: null
+
+  phase_12_certification:
+    name: "Final Forensic Certification & Release Audit"
+    status: "NOT_STARTED"
+    commit: null
+    branch: "fix/phase-12-final-certification"
+    test_command: "pytest -v tests/"
+    test_result: "NOT_RUN"
+    runtime_result: "NOT_RUN"
+    security_result: "NOT_RUN"
+    regression_result: "NOT_RUN"
+    evidence_path: "docs/verification/evidence/phase-12-certification.md"
+    reviewer: null
+    timestamp: null
