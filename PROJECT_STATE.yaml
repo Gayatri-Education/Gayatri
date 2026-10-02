@@ -20,7 +20,7 @@ implementation:
 
 verification:
   compile: "VERIFIED (python -m compileall app core central_platform tests scripts: 0 errors)"
-  unit_tests: "VERIFIED (1,133 passed, 0 failed, 0 skipped)"
+  unit_tests: "VERIFIED (1,144 passed, 0 failed, 0 skipped)"
   integration_tests: "VERIFIED (Socket loopback, FastAPI test client, DB transaction isolation, RAG pipeline)"
   architecture_guards: "VERIFIED (13/13 passed: zero chemistry in courses, zero legacy imports, migration integrity)"
   true_e2e: "VERIFIED (Real journeys A, B, C and 11 adversarial negative journeys NJ-1..NJ-11 verified through live API and SQLite DB)"

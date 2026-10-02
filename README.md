@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
-[![Build & Tests](https://img.shields.io/badge/tests-1133%2B%20passed%20%7C%200%20failed-brightgreen.svg)]()
+[![Build & Tests](https://img.shields.io/badge/tests-1144%2B%20passed%20%7C%200%20failed-brightgreen.svg)]()
 [![Architecture](https://img.shields.io/badge/architecture-course--independent-orange.svg)]()
 [![Platform Version](https://img.shields.io/badge/platform-v5.0.0--final--release-purple.svg)]()
 [![Security & Reliability](https://img.shields.io/badge/resilience-12%2F12%20failure%20injections%20verified-teal.svg)]()
@@ -15,7 +15,7 @@
 
 If you are joining the project or reviewing this codebase, here is the state of the platform:
 
-- **Codebase Health**: **1,133+ tests passing**, 0 failing, 0 skipped (`pytest -q` verified in ~200s).
+- **Codebase Health**: **1,144+ tests passing**, 0 failing, 0 skipped (`pytest -q` verified in ~220s).
 - **Architecture Maturity**: **Phases 00 through 27 fully implemented, verified, audited, and release-gated**.
 - **Course-Independence**: Fully generalized. Zero hardcoded subject logic in the core orchestrator or learning engine; subject-specific capabilities (e.g. chemical formula balancing, code execution, math evaluation) are dynamically registered via the `ToolRegistry` and `EvaluatorRegistry`.
 - **Database Schema**: 50 authoritative tables managed by an immutable SQL DDL migration ledger (`migrations/001` through `008`) with SHA-256 tamper-detection and transactional rollback.
