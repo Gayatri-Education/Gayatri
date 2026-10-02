@@ -580,6 +580,53 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 1,017 tests collected, 1,017 passed in 154.32s (100% green).
 - **Remaining Risks:** None for Phase 15. Advancing to Phase 16 (Teacher Workflow UI).
 
+---
+
+### Entry: Phase 16 — Teacher Workflow UI & Class Management (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Database Extensions (`central_platform/db.py`):
+    - Added `get_class_group(class_id)`, `list_class_groups_by_organization(organization_id)`, `list_class_groups_by_course(course_id, organization_id)`, `get_students_for_class_group(class_id)`.
+    - Added `get_cohort(cohort_id)` and `get_cohorts_for_class_group(class_group_id)`.
+    - Added `get_offerings_by_course(course_id)`.
+    - Scoped `get_assigned_student_ids_for_teacher` by teacher's organization to prevent cross-tenant student assignment leakage.
+    - Updated `list_assignments` with `class_group_id` filtering and real entity serialization.
+  - RAG Service Updates (`central_platform/rag/service.py`):
+    - Updated `publish_knowledge_asset` to allow teachers to publish teacher-authored material (`authority="TEACHER"`, `visibility_scope in ("class", "student_targeted")`, `content_type in ("class_note", "remedial")`).
+  - Schemas & Routes (`central_platform/api/schemas.py`, `central_platform/api/routes/teachers.py`):
+    - Added schemas for `TeacherClassGroupCreateRequest`, `TeacherClassGroupResponse`, `TeacherClassNoteCreateRequest`, `TeacherClassNoteResponse`, `TeacherRemedialContentCreateRequest`, `TeacherRemedialContentResponse`, `TeacherAssignmentCreateRequest`, `TeacherAssignmentResponse`, `TeacherCourseResponse`.
+    - Added `intervention_alerts` field to `TeacherDashboardResponse`.
+    - Added `GET /api/v1/teachers/courses` and `GET /api/v1/teachers/classes`.
+    - Added `POST /api/v1/teachers/classes` (creates class group + default cohort).
+    - Added `GET /api/v1/teachers/classes/{class_id}/students` (returns real class roster with SLR concept mastery and honest empty states).
+    - Added `POST /api/v1/teachers/classes/{class_id}/notes` (publishes class-scoped RAG source with `visibility_scope="class"`).
+    - Added `POST /api/v1/teachers/remedial-content` (publishes student-targeted RAG source with `visibility_scope="student_targeted"` and enrollment validation).
+    - Added `POST /api/v1/teachers/assignments` and upgraded `GET /api/v1/teachers/assignments` with real DB querying.
+    - Upgraded `POST /api/v1/teachers/instructions` to enforce hierarchical scoping (`COURSE`, `CLASS`, `STUDENT`) and tenant isolation (403 Forbidden on foreign students or foreign classes).
+  - Teacher Portal Controller (`app/portals/teacher/controller.py`):
+    - Completely backed by real database services (`CourseService`, `RAGService`, `PlatformDatabase`, `SLRService`).
+    - Added methods: `get_courses`, `get_classes`, `create_class`, `get_class_students`, `upload_class_note`, `upload_remedial_content`, `create_assignment`.
+  - Desktop Bridge Facade (`app/bridge/facade.py`):
+    - Added PySide6 slots: `get_teacher_classes`, `get_class_students`, `upload_class_note`, `upload_remedial_content`, `create_assignment`.
+  - Teacher Portal Web UI (`app/ui/teacher_portal.html`):
+    - Added `#nav-classes` navigation tab in sidebar.
+    - Added dynamic course and class selectors in topbar (`#headerCourseSelect`, `#headerClassSelect`).
+    - Added `#view-classes` (Class Management, Notes & Remedial view).
+    - Added modals: `modalCreateClass`, `modalUploadClassNote`, `modalUploadRemedialContent`, `modalCreateAssignment`.
+    - Updated `TeacherApp` JS with preloading, routing, and form submission handlers.
+  - Test Suite (`tests/test_phase16_teacher_workflow_ui.py`):
+    - 12 comprehensive unit and integration tests covering course/class scoping, class creation, honest empty rosters, unauthorized student selection rejection (403), class note RAG scoping, cross-class isolation, remedial content RAG scoping, cross-student isolation, hierarchical instructions, real assignments, controller workflows, and desktop bridge facade durability.
+  - Regression Suite:
+    - 1,029 tests passing in 165.76s (100% green, zero regressions).
+- **Bugs Found & Fixed:**
+  - Added missing `intervention_alerts` field to `TeacherDashboardResponse` in Pydantic schemas.
+  - Replaced `ingest_content` call with `ingest_document` in RAG upload routes and controller.
+  - Added teacher role authorization for publishing teacher-authored class notes and remedial content in `RAGService.publish_knowledge_asset`.
+  - Added `get_offerings_by_course`, `get_cohort`, and `get_cohorts_for_class_group` to `PlatformDatabase`.
+  - Corrected `RAGChunk` text field access from `chunk_text` to `(ch.clean_text or ch.text)`.
+- **Tests Run:** 1,029 tests collected, 1,029 passed in 165.76s (100% green).
+- **Remaining Risks:** None for Phase 16. Advancing to Phase 17 (AI Gateway & Model Router Platform).
+
 
 
 

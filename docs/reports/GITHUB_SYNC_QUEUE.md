@@ -367,6 +367,27 @@
   - tests/test_phase15_admin_course_content_workflow.py: 12 comprehensive unit and integration tests covering private/public isolation, offering selection, versioning, RAG ingestion, review queue scoping, approve/publish, unauthorized role rejection, archiving, and controller audit trail.
   - Regression results: 1,017/1,017 passed in 154.32s (100% green, 0 regressions).
   ```
+- **Push Status:** `COMPLETED (commit 3fb9d8e pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 017: Phase 16 Completion Update
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 16 Teacher Workflow UI & Class Management Complete`
+- **Intended Labels:** `ui`, `teacher-portal`, `class-management`, `remedial-content`, `instructions`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 16 Teacher Workflow UI & Class Management completed.
+
+  Deliverables:
+  - central_platform/db.py: get_class_group, list_class_groups_by_organization, list_class_groups_by_course, get_students_for_class_group, get_cohort, get_cohorts_for_class_group, get_offerings_by_course, scoped teacher student assignments, class group assignment filtering.
+  - central_platform/rag/service.py: Updated publish_knowledge_asset to allow teachers to publish teacher-authored class notes and targeted remedial materials.
+  - central_platform/api/schemas.py & central_platform/api/routes/teachers.py: Added endpoints for GET/POST classes, GET class students, POST class notes, POST remedial content, POST assignments, GET assignments, and upgraded POST instructions with hierarchical scoping and strict cross-tenant 403 Forbidden enforcement. Added intervention_alerts to TeacherDashboardResponse.
+  - app/portals/teacher/controller.py: Real DB and CourseService/RAGService/SLRService integration for courses, classes, class notes, remedial content, assignments, and SLR progress review.
+  - app/bridge/facade.py: Added slots get_teacher_classes, get_class_students, upload_class_note, upload_remedial_content, create_assignment with JSON parsing and error sanitization.
+  - app/ui/teacher_portal.html: Added Classes navigation tab, dynamic course and class headers, view-classes UI, and modals (modalCreateClass, modalUploadClassNote, modalUploadRemedialContent, modalCreateAssignment).
+  - tests/test_phase16_teacher_workflow_ui.py: 12 comprehensive unit and integration tests covering course/class scoping, class creation, honest empty rosters, unauthorized student selection rejection (403), class note RAG scoping, cross-class isolation, remedial content RAG scoping, cross-student isolation, hierarchical instructions, real assignments, controller workflows, and desktop bridge facade durability.
+  - Regression results: 1,029/1,029 passed in 165.76s (100% green, 0 regressions).
+  ```
 - **Push Status:** `PENDING`
 - **Issue Operations Status:** `QUEUED`
 

@@ -525,12 +525,21 @@ class RAGService:
         role = user.role if user else user_role
         r_str = role.value.lower() if hasattr(role, "value") else (str(role).lower() if role else "")
 
-        if r_str not in ("org_admin", "super_admin", "userrole.org_admin", "userrole.super_admin"):
-            raise PermissionError("Only institutional administrators (ORG_ADMIN, SUPER_ADMIN) can publish knowledge assets.")
-
         source = self.db.get_rag_source(source_id)
         if not source:
             raise ValueError(f"Knowledge asset '{source_id}' not found.")
+
+        is_teacher_material = (
+            getattr(source, "authority", "") == "TEACHER"
+            or getattr(source, "visibility_scope", "") in ("class", "student_targeted")
+            or getattr(source, "content_type", "") in ("class_note", "remedial")
+        )
+        allowed_roles = ("org_admin", "super_admin", "userrole.org_admin", "userrole.super_admin")
+        if is_teacher_material:
+            allowed_roles = allowed_roles + ("teacher", "userrole.teacher")
+
+        if r_str and r_str not in allowed_roles:
+            raise PermissionError("Only institutional administrators (ORG_ADMIN, SUPER_ADMIN) or teachers for class notes can publish knowledge assets.")
 
         if source.status == RAGSourceStatus.FAILED.value:
             raise ValueError(f"Cannot publish failed knowledge asset '{source_id}'. Error: {source.error_message}")

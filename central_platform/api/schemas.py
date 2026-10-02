@@ -265,6 +265,84 @@ class TeacherDashboardResponse(BaseModel):
     recent_activity: List[Dict[str, Any]] = Field(default_factory=list)
     intervention_alerts: List[Dict[str, Any]] = Field(default_factory=list)
 
+class TeacherClassGroupCreateRequest(BaseModel):
+    course_id: str
+    name: str = Field(..., min_length=1, max_length=100)
+    section: str = Field(default="A", max_length=20)
+
+
+class TeacherClassGroupResponse(BaseModel):
+    id: str
+    organization_id: str
+    course_id: str
+    name: str
+    section: str
+    created_at: str
+
+
+class TeacherClassNoteCreateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1)
+
+
+class TeacherClassNoteResponse(BaseModel):
+    id: str
+    class_id: str
+    course_id: str
+    title: str
+    chunks_created: int
+    status: str
+    created_at: str
+
+
+class TeacherRemedialContentCreateRequest(BaseModel):
+    course_id: str
+    target_student_ids: List[str] = Field(..., min_items=1)
+    title: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1)
+
+
+class TeacherRemedialContentResponse(BaseModel):
+    id: str
+    course_id: str
+    target_student_ids: List[str]
+    title: str
+    chunks_created: int
+    status: str
+    created_at: str
+
+
+class TeacherAssignmentCreateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    course_id: str
+    description: Optional[str] = ""
+    class_group_id: Optional[str] = None
+    due_date: Optional[str] = None
+    instructions: Optional[str] = ""
+
+
+class TeacherAssignmentResponse(BaseModel):
+    id: str
+    course_id: str
+    title: str
+    description: Optional[str] = ""
+    class_group_id: Optional[str] = None
+    assigned_by: Optional[str] = None
+    due_date: Optional[str] = None
+    instructions: str = ""
+    is_active: bool = True
+    created_at: str
+
+
+class TeacherCourseResponse(BaseModel):
+    id: str
+    organization_id: str
+    code: str
+    title: str
+    description: str = ""
+    visibility: str = "PUBLIC"
+    status: str = "ACTIVE"
+
 
 # ── Curriculum & Courses ─────────────────────────────────────────────────
 

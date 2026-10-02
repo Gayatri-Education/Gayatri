@@ -1222,6 +1222,89 @@ class Bridge(QObject):
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
     @Slot(str, result=str)
+    @Slot(str, str, result=str)
+    def get_teacher_classes(self, course_id: str = "", teacher_id: str = "") -> str:
+        """Retrieve list of classes for the teacher's organization."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            classes = ctrl.get_classes(course_id=course_id or None, teacher_id=teacher_id or None)
+            return json.dumps({"ok": True, "classes": classes})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_get_teacher_classes")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, result=str)
+    def get_class_students(self, class_id: str) -> str:
+        """Retrieve student roster for a class group with SLR mastery."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            students = ctrl.get_class_students(class_id)
+            return json.dumps({"ok": True, "students": students})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_get_class_students")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, str, str, str, result=str)
+    def upload_class_note(self, class_id: str, title: str, content: str, teacher_id: str = "teacher_001") -> str:
+        """Upload class note strictly scoped to a class group."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            res = ctrl.upload_class_note(class_id, title, content, teacher_id)
+            return json.dumps({"ok": True, "data": res})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_upload_class_note")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, str, str, str, str, result=str)
+    def upload_remedial_content(self, course_id: str, student_ids_json: str, title: str, content: str, teacher_id: str = "teacher_001") -> str:
+        """Upload targeted remedial content strictly for selected students."""
+        try:
+            import json
+            from app.portals.teacher.controller import TeacherPortalController
+            target_ids = json.loads(student_ids_json) if isinstance(student_ids_json, str) else list(student_ids_json)
+            ctrl = TeacherPortalController()
+            res = ctrl.upload_remedial_content(course_id, target_ids, title, content, teacher_id)
+            return json.dumps({"ok": True, "data": res})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_upload_remedial_content")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, str, str, str, str, str, result=str)
+    def create_assignment(
+        self,
+        course_id: str,
+        title: str,
+        class_group_id: str = "",
+        due_date: str = "",
+        instructions: str = "",
+        teacher_id: str = "teacher_001",
+    ) -> str:
+        """Create a real assignment persisted to the database."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            res = ctrl.create_assignment(
+                course_id=course_id,
+                title=title,
+                class_group_id=class_group_id or None,
+                due_date=due_date or None,
+                instructions=instructions or None,
+                teacher_id=teacher_id,
+            )
+            return json.dumps({"ok": True, "assignment": res})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_create_assignment")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, result=str)
     def sync_with_central_server(self, server_url: str = "http://localhost:8000") -> str:
         """Sync local student progress snapshot to central server and pull active teacher instructions."""
         try:

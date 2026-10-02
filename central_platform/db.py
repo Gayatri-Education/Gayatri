@@ -392,16 +392,31 @@ class PlatformDatabase:
             return None
 
     def get_assigned_student_ids_for_teacher(self, teacher_id: str) -> Set[str]:
-        """Resolve all student IDs assigned to courses or class groups taught by the teacher."""
+        """Resolve all student IDs assigned to courses or class groups taught by the teacher's organization."""
         with self._get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT DISTINCT e.student_id 
-                FROM enrollments e
-                JOIN class_groups cg ON e.course_id = cg.course_id
-                WHERE e.is_active = 1;
-                """
-            ).fetchall()
+            teacher_row = conn.execute("SELECT organization_id FROM users WHERE id = ?;", (teacher_id,)).fetchone()
+            org_id = teacher_row["organization_id"] if teacher_row else None
+
+            if org_id:
+                rows = conn.execute(
+                    """
+                    SELECT DISTINCT e.student_id 
+                    FROM enrollments e
+                    JOIN class_groups cg ON e.course_id = cg.course_id
+                    JOIN users u ON e.student_id = u.id
+                    WHERE e.is_active = 1 AND (cg.organization_id = ? OR u.organization_id = ?);
+                    """,
+                    (org_id, org_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT DISTINCT e.student_id 
+                    FROM enrollments e
+                    JOIN class_groups cg ON e.course_id = cg.course_id
+                    WHERE e.is_active = 1;
+                    """
+                ).fetchall()
             student_ids = {r["student_id"] for r in rows}
             t_rows = conn.execute(
                 "SELECT DISTINCT student_id FROM teacher_instructions WHERE teacher_id = ?;",
@@ -740,6 +755,22 @@ class PlatformDatabase:
                 )
             return None
 
+    def get_offerings_by_course(self, course_id: str) -> List[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE course_id = ? AND is_active = 1;"
+            rows = conn.execute(sql, (course_id,)).fetchall()
+            return [
+                CourseOffering(
+                    id=r["id"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
+                )
+                for r in rows
+            ]
+
 
     def create_subject(self, subject: Subject) -> Subject:
         with self._get_connection() as conn:
@@ -1026,6 +1057,104 @@ class PlatformDatabase:
             )
         return class_group
 
+    def get_class_group(self, class_id: str) -> Optional[ClassGroup]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM class_groups WHERE id = ?;", (class_id,)).fetchone()
+            if r:
+                return ClassGroup(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    course_id=r["course_id"],
+                    name=r["name"],
+                    section=r["section"] if "section" in r.keys() else "A",
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def list_class_groups_by_organization(self, organization_id: str) -> List[ClassGroup]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM class_groups WHERE organization_id = ? ORDER BY name ASC;",
+                (organization_id,),
+            ).fetchall()
+            return [
+                ClassGroup(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    course_id=r["course_id"],
+                    name=r["name"],
+                    section=r["section"] if "section" in r.keys() else "A",
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def list_class_groups_by_course(self, course_id: str, organization_id: Optional[str] = None) -> List[ClassGroup]:
+        with self._get_connection() as conn:
+            if organization_id:
+                rows = conn.execute(
+                    "SELECT * FROM class_groups WHERE course_id = ? AND organization_id = ? ORDER BY name ASC;",
+                    (course_id, organization_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM class_groups WHERE course_id = ? ORDER BY name ASC;",
+                    (course_id,),
+                ).fetchall()
+            return [
+                ClassGroup(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    course_id=r["course_id"],
+                    name=r["name"],
+                    section=r["section"] if "section" in r.keys() else "A",
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_students_for_class_group(self, class_id: str) -> List[User]:
+        """Resolve all enrolled students belonging to this class group."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT u.* FROM users u
+                JOIN enrollments e ON u.id = e.student_id
+                JOIN cohorts c ON e.cohort_id = c.id
+                WHERE c.class_group_id = ? AND e.is_active = 1
+                ORDER BY u.full_name ASC;
+                """,
+                (class_id,),
+            ).fetchall()
+            if not rows:
+                cg = conn.execute("SELECT course_id, organization_id FROM class_groups WHERE id = ?;", (class_id,)).fetchone()
+                if cg:
+                    rows = conn.execute(
+                        """
+                        SELECT DISTINCT u.* FROM users u
+                        JOIN enrollments e ON u.id = e.student_id
+                        WHERE e.course_id = ? AND u.organization_id = ? AND e.is_active = 1
+                        ORDER BY u.full_name ASC;
+                        """,
+                        (cg["course_id"], cg["organization_id"]),
+                    ).fetchall()
+
+            return [
+                User(
+                    id=r["id"],
+                    email=r["email"],
+                    full_name=r["full_name"],
+                    role=UserRole(r["role"]),
+                    organization_id=r["organization_id"],
+                    is_active=bool(r["is_active"]),
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                    is_deleted=bool(r["is_deleted"]),
+                    deleted_at=r["deleted_at"],
+                )
+                for r in rows
+            ]
+
     def create_cohort(self, cohort: Cohort) -> Cohort:
         with self._get_connection() as conn:
             conn.execute(
@@ -1033,6 +1162,36 @@ class PlatformDatabase:
                 (cohort.id, cohort.class_group_id, cohort.name, cohort.academic_year, cohort.created_at),
             )
         return cohort
+
+    def get_cohort(self, cohort_id: str) -> Optional[Cohort]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM cohorts WHERE id = ?;", (cohort_id,)).fetchone()
+            if r:
+                return Cohort(
+                    id=r["id"],
+                    class_group_id=r["class_group_id"],
+                    name=r["name"],
+                    academic_year=r["academic_year"],
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def get_cohorts_for_class_group(self, class_group_id: str) -> List[Cohort]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM cohorts WHERE class_group_id = ? ORDER BY created_at ASC;",
+                (class_group_id,),
+            ).fetchall()
+            return [
+                Cohort(
+                    id=r["id"],
+                    class_group_id=r["class_group_id"],
+                    name=r["name"],
+                    academic_year=r["academic_year"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
 
     def create_enrollment(self, enrollment: Enrollment) -> Enrollment:
         with self._get_connection() as conn:
@@ -1678,6 +1837,7 @@ class PlatformDatabase:
         course_id: Optional[str] = None,
         cohort_id: Optional[str] = None,
         organization_id: Optional[str] = None,
+        class_group_id: Optional[str] = None,
         limit: int = 100,
     ) -> List[Assignment]:
         with self._get_connection() as conn:
@@ -1689,6 +1849,9 @@ class PlatformDatabase:
             if cohort_id:
                 sql += " AND cohort_id = ?"
                 params.append(cohort_id)
+            if class_group_id:
+                sql += " AND class_group_id = ?"
+                params.append(class_group_id)
             if organization_id:
                 sql += " AND organization_id = ?"
                 params.append(organization_id)
