@@ -563,7 +563,7 @@ def test_assessment_sanitized_delivery_and_review(client):
 # ── 7. Tutor Turn Execution Over Real HTTP ───────────────────────────────────
 
 def test_tutor_turn_over_real_http(client):
-    """Test real HTTP POST /api/v1/tutor/turn with GenericTutorOrchestrator."""
+    """Test real HTTP POST /api/v1/tutor/turn with GenericTutorOrchestrator and strict authentication."""
     student_id = f"std-tutor-{uuid.uuid4().hex[:6]}"
     session_id = f"sess-tutor-{uuid.uuid4().hex[:6]}"
 
@@ -579,7 +579,14 @@ def test_tutor_turn_over_real_http(client):
         "course_id": "crs-chem-101",
         "student_input": "Can you explain how Hess's Law works for multi-step reactions?",
     }
-    r_turn = client.post("/api/v1/tutor/turn", json=turn_req)
+
+    # Negative security test: unauthenticated turn must return 401
+    r_unauth = client.post("/api/v1/tutor/turn", json=turn_req)
+    assert r_unauth.status_code == 401
+
+    # Positive test: authenticated turn with token for student_id
+    token = create_access_token(user_id=student_id, role="student")
+    r_turn = client.post("/api/v1/tutor/turn", headers={"Authorization": f"Bearer {token}"}, json=turn_req)
     assert r_turn.status_code == 200
     turn_data = r_turn.json()
     res = turn_data.get("data", turn_data)

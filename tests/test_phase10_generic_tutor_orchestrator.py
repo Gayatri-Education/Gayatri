@@ -352,8 +352,9 @@ def test_generic_orchestrator_zero_chemistry_coupling():
 # ── 6. REST API Endpoint Integration ──────────────────────────────────────────
 
 def test_tutor_turn_api_endpoint(client, test_db, seeded_courses):
-    """Verify /api/v1/tutor/turn REST endpoint."""
+    """Verify /api/v1/tutor/turn REST endpoint with strict authentication."""
     from central_platform.auth.dependencies import get_db
+    from central_platform.auth.tokens import create_access_token
     app.dependency_overrides[get_db] = lambda: test_db
     try:
         enroll_student(test_db, "student-api-01", "course-cs")
@@ -365,7 +366,14 @@ def test_tutor_turn_api_endpoint(client, test_db, seeded_courses):
             "message": "Can you explain recursive functions?",
         }
 
-        resp = client.post("/api/v1/tutor/turn", json=payload)
+        # Negative test: unauthenticated call must return 401
+        unauth_resp = client.post("/api/v1/tutor/turn", json=payload)
+        assert unauth_resp.status_code == 401
+
+        # Positive test: authenticated call with valid token for matching student
+        token = create_access_token(user_id="student-api-01", role="student")
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = client.post("/api/v1/tutor/turn", headers=headers, json=payload)
         assert resp.status_code == 200
 
         data = resp.json()
