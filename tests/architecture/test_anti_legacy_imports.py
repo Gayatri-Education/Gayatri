@@ -49,3 +49,10 @@ def test_legacy_guard_negative_synthetic_detection():
     """Negative test: verify that synthetic legacy import is detected."""
     synthetic_line = "from legacy.agents.default_agents import _local_chat_stream"
     assert LEGACY_IMPORT_REGEX.search(synthetic_line) is not None
+
+
+def test_legacy_directory_eliminated():
+    """Phase 20 Guard: Assert that legacy/ directory has been completely deleted."""
+    legacy_dir = ROOT / "legacy"
+    assert not legacy_dir.exists(), f"legacy directory still exists on disk: {legacy_dir}"
+

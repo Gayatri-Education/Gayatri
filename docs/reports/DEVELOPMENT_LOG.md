@@ -724,6 +724,25 @@ This log records every development phase and architectural transition in chronol
 - **Tests Run:** 1,065 tests collected, 1,065 passed (100% green).
 - **Remaining Risks:** None for Phase 19. Advancing to Phase 20 (Legacy Removal & Dead-Code Cleanup).
 
+### Entry: Phase 20 — Legacy Removal & Dead-Code Cleanup (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Physical Deletion of `legacy/` Directory:
+    - Permanently removed `legacy/agents/default_agents.py`, `legacy/agents/__init__.py`, and `legacy/__init__.py` from git and filesystem after reachability proof confirmed zero remaining callers.
+  - Core Configuration Cleanup (`core/config.py`):
+    - Removed dead `enable_legacy_agents` flag from `FEATURE_FLAGS`.
+  - Scratch Directory Sanitization (`scratch/`):
+    - Deleted all stale forensic analysis scripts (`audit_scan.py`, `run.py`, etc.), intermediate JSON dumps, and obsolete SQLite databases (`test_migrations.db`).
+  - Architecture Guard Upgrade (`tests/architecture/test_anti_legacy_imports.py`):
+    - Added `test_legacy_directory_eliminated()`, verifying the permanent absence of the `legacy/` directory on disk.
+  - Test Suite (`tests/test_phase20_legacy_removal_dead_code_cleanup.py`):
+    - 12 comprehensive unit and integration tests covering filesystem cleanliness, zero codebase imports, dead configuration removal, scratch sanitization, clean imports across all architectural layers, inference service independence, context builder fidelity, FastAPI startup and health probes, sys.modules hygiene, and end-to-end tutor orchestration.
+  - Regression Suite:
+    - 1,078 tests passing across all 20 phases (100% green, 0 failures, 0 regressions).
+- **Tests Run:** 1,078 tests collected, 1,078 passed (100% green).
+- **Remaining Risks:** None for Phase 20. Advancing to Phase 21 (Zero-Coupling Verification & Course Authoring Smoke Test).
+
+
 
 
 

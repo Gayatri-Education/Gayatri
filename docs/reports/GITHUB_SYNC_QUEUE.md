@@ -451,8 +451,30 @@
   - tests/test_phase19_chemistry_adapter_extraction_disablement.py: 12 comprehensive unit and integration tests covering domain adapter contract, startup with chemistry disabled, tool registry omission, tool execution rejection, evaluator fallback, chemistry tool execution, equation evaluation, math/coding sandbox independence, cross-course isolation, concept keyword matcher isolation, dynamic runtime toggle, and env var configuration.
   - Regression results: 1,065/1,065 passed (100% green, 0 regressions).
   ```
+- **Push Status:** `COMPLETED (commit 7e2c6dc pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 021: Phase 20 Legacy Removal & Dead-Code Cleanup
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 20 Legacy Removal & Dead-Code Cleanup Complete`
+- **Intended Labels:** `cleanup`, `refactoring`, `dead-code`, `architecture`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 20 Legacy Removal & Dead-Code Cleanup completed.
+
+  Deliverables:
+  - Physical Deletion of legacy/ Directory: Deleted legacy/agents/default_agents.py, legacy/agents/__init__.py, and legacy/__init__.py after reachability proofs demonstrated zero production or test references.
+  - Core Configuration Cleanup: Removed dead enable_legacy_agents feature flag from core/config.py.
+  - Scratch Directory Sanitization: Removed obsolete forensic analysis scripts, JSON dumps, and test SQLite databases from scratch/.
+  - Architecture Guard Upgrade (tests/architecture/test_anti_legacy_imports.py): Added test_legacy_directory_eliminated() ensuring permanent absence of the legacy directory on disk.
+  - Clean Module Imports & Startup: Verified core, central_platform, app, and local_runtime modules import cleanly without deprecation warnings or missing module errors. Full platform boot and /healthz, /readyz, /livez probes verified.
+  - End-to-End Orchestrator Turn: Verified GenericTutorOrchestrator completes real tutoring turns with 100% fidelity without legacy code paths.
+  - tests/test_phase20_legacy_removal_dead_code_cleanup.py: 12 comprehensive unit and integration tests covering legacy directory deletion, zero codebase-wide imports, dead config removal, scratch sanitization, clean imports across all layers, inference service decoupling, context builder independence, health probes, packaging hygiene, and end-to-end tutor orchestration.
+  - Regression results: 1,078/1,078 passed (100% green, 0 regressions).
+  ```
 - **Push Status:** `PENDING`
 - **Issue Operations Status:** `QUEUED`
+
 
 
 

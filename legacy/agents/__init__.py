@@ -1,1 +1,0 @@
-"""Legacy agents compatibility package."""

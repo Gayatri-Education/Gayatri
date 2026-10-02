@@ -236,6 +236,4 @@ WINDOW_WIDTH: int = 1100
 WINDOW_HEIGHT: int = 720
 WINDOW_MIN_WIDTH: int = 800
 WINDOW_MIN_HEIGHT: int = 600
-FEATURE_FLAGS = {
-    "enable_legacy_agents": False
-}
+FEATURE_FLAGS: dict[str, bool] = {}
