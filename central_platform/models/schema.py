@@ -997,4 +997,20 @@ class SyncOperationRecord:
         return asdict(self)
 
 
+@dataclass
+class DeviceBinding:
+    device_id: str
+    student_id: str
+    organization_id: Optional[str] = None
+    device_name: Optional[str] = None
+    device_type: str = "desktop"
+    status: str = "ACTIVE"
+    bound_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_synced_at: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+
 

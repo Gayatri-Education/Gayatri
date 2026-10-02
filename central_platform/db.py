@@ -90,6 +90,7 @@ from central_platform.models.schema import (
     User,
     UserRole,
     SyncOperationRecord,
+    DeviceBinding,
 )
 from scripts.migrate_db import run_all_migrations
 
@@ -187,6 +188,29 @@ class PlatformDatabase:
         """Run initial DDL and migrations automatically."""
         conn = self._get_connection()
         run_all_migrations(conn)
+        with conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS device_bindings (
+                    device_id TEXT PRIMARY KEY,
+                    student_id TEXT NOT NULL,
+                    organization_id TEXT,
+                    device_name TEXT,
+                    device_type TEXT DEFAULT 'desktop',
+                    status TEXT NOT NULL DEFAULT 'ACTIVE',
+                    bound_at TEXT NOT NULL,
+                    last_synced_at TEXT,
+                    FOREIGN KEY(student_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_device_bindings_student
+                ON device_bindings (student_id);
+                """
+            )
+
 
     # ── 1. Organizations & Identity ──────────────────────────────────────────
 
@@ -3612,6 +3636,155 @@ class PlatformDatabase:
                     )
                 )
             return results
+
+    # --- Device Bindings ---
+
+    def bind_device(
+        self,
+        device_id: str,
+        student_id: str,
+        organization_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+        device_type: str = "desktop",
+        force: bool = False,
+    ) -> DeviceBinding:
+        """Register or bind a device identifier to a student.
+
+        Enforces device ownership security:
+        A device already bound to student A cannot be rebound to student B without force authorization.
+        """
+        existing = self.get_device_binding(device_id)
+        now_ts = datetime.now(timezone.utc).isoformat()
+        if existing:
+            if existing.student_id != student_id and not force:
+                raise PermissionError(
+                    f"Device '{device_id}' is already bound to student '{existing.student_id}'."
+                )
+            with self._get_connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE device_bindings
+                    SET student_id = ?, organization_id = COALESCE(?, organization_id),
+                        device_name = COALESCE(?, device_name), device_type = ?,
+                        status = 'ACTIVE', last_synced_at = ?
+                    WHERE device_id = ?;
+                    """,
+                    (student_id, organization_id, device_name, device_type, now_ts, device_id),
+                )
+            return DeviceBinding(
+                device_id=device_id,
+                student_id=student_id,
+                organization_id=organization_id or existing.organization_id,
+                device_name=device_name or existing.device_name,
+                device_type=device_type,
+                status="ACTIVE",
+                bound_at=existing.bound_at,
+                last_synced_at=now_ts,
+            )
+
+        # Ensure student user exists to satisfy foreign key constraint
+        if not self.get_user(student_id):
+            org_id = organization_id or "org-default"
+            if not self.get_organization(org_id):
+                self.create_organization(
+                    Organization(id=org_id, name="Default Organization", slug=f"slug-{org_id}")
+                )
+            self.create_user(
+                User(
+                    id=student_id,
+                    email=f"{student_id}@student.gayatri.ai",
+                    full_name=student_id,
+                    role=UserRole.STUDENT,
+                    organization_id=org_id,
+                )
+            )
+
+        binding = DeviceBinding(
+            device_id=device_id,
+            student_id=student_id,
+            organization_id=organization_id,
+            device_name=device_name,
+            device_type=device_type,
+            status="ACTIVE",
+            bound_at=now_ts,
+            last_synced_at=now_ts,
+        )
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO device_bindings (
+                    device_id, student_id, organization_id, device_name,
+                    device_type, status, bound_at, last_synced_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    binding.device_id,
+                    binding.student_id,
+                    binding.organization_id,
+                    binding.device_name,
+                    binding.device_type,
+                    binding.status,
+                    binding.bound_at,
+                    binding.last_synced_at,
+                ),
+            )
+        return binding
+
+    def get_device_binding(self, device_id: str) -> Optional[DeviceBinding]:
+        """Look up device registration by device hardware ID."""
+        with self._get_connection() as conn:
+            r = conn.execute(
+                "SELECT * FROM device_bindings WHERE device_id = ?;", (device_id,)
+            ).fetchone()
+            if not r:
+                return None
+            return DeviceBinding(
+                device_id=r["device_id"],
+                student_id=r["student_id"],
+                organization_id=r["organization_id"],
+                device_name=r["device_name"],
+                device_type=r["device_type"] if "device_type" in r.keys() else "desktop",
+                status=r["status"] if "status" in r.keys() else "ACTIVE",
+                bound_at=r["bound_at"],
+                last_synced_at=r["last_synced_at"],
+            )
+
+    def get_devices_for_student(self, student_id: str) -> List[DeviceBinding]:
+        """List all devices registered to a student."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM device_bindings WHERE student_id = ? ORDER BY bound_at ASC;",
+                (student_id,),
+            ).fetchall()
+            return [
+                DeviceBinding(
+                    device_id=r["device_id"],
+                    student_id=r["student_id"],
+                    organization_id=r["organization_id"],
+                    device_name=r["device_name"],
+                    device_type=r["device_type"] if "device_type" in r.keys() else "desktop",
+                    status=r["status"] if "status" in r.keys() else "ACTIVE",
+                    bound_at=r["bound_at"],
+                    last_synced_at=r["last_synced_at"],
+                )
+                for r in rows
+            ]
+
+    def unbind_device(self, device_id: str) -> bool:
+        """Revoke a device binding."""
+        with self._get_connection() as conn:
+            cur = conn.execute("DELETE FROM device_bindings WHERE device_id = ?;", (device_id,))
+            return cur.rowcount > 0
+
+    def update_device_sync_time(self, device_id: str, sync_time: Optional[str] = None) -> bool:
+        """Update last synchronization timestamp for an active device."""
+        ts = sync_time or datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cur = conn.execute(
+                "UPDATE device_bindings SET last_synced_at = ? WHERE device_id = ?;",
+                (ts, device_id),
+            )
+            return cur.rowcount > 0
 
 
 

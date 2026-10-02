@@ -1294,6 +1294,7 @@ class BatchSyncEventsResponse(BaseModel):
     latest_mastery: float = 0.50
     server_timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     is_replay: bool = False
+    sequence_gaps: List[Dict[str, int]] = Field(default_factory=list)
 
 
 class SyncStatusResponse(BaseModel):
@@ -1306,6 +1307,34 @@ class SyncStatusResponse(BaseModel):
     last_synced_at: Optional[str] = None
     latest_mastery: float = 0.0
     status: str = "HEALTHY"
+
+
+class DeviceBindRequest(BaseModel):
+    device_id: str
+    student_id: str
+    organization_id: Optional[str] = None
+    device_name: Optional[str] = None
+    device_type: Optional[str] = "desktop"
+
+
+class DeviceBindResponse(BaseModel):
+    device_id: str
+    student_id: str
+    device_name: Optional[str] = None
+    status: str = "ACTIVE"
+    bound_at: str
+
+
+class DeviceListItem(BaseModel):
+    device_id: str
+    student_id: str
+    organization_id: Optional[str] = None
+    device_name: Optional[str] = None
+    device_type: str = "desktop"
+    status: str = "ACTIVE"
+    bound_at: str
+    last_synced_at: Optional[str] = None
+
 
 
 

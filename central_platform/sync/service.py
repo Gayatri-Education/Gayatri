@@ -59,12 +59,43 @@ class SyncService:
         # In-memory device registry cache (device_id -> student_id)
         self._device_bindings: Dict[str, str] = {}
 
-    def bind_device(self, device_id: str, student_id: str) -> None:
-        """Bind device hardware identifier to student account."""
+    def bind_device(
+        self,
+        device_id: str,
+        student_id: str,
+        force: bool = False,
+        organization_id: Optional[str] = None,
+        device_name: Optional[str] = None,
+    ) -> None:
+        """Bind device hardware identifier to student account with database persistence.
+
+        Raises PermissionError if the device is already bound to another student without force=True.
+        """
+        current_bound = self.get_bound_student(device_id)
+        if current_bound and current_bound != student_id and not force:
+            raise PermissionError(f"Device '{device_id}' is bound to another student.")
+
+        try:
+            self.db.bind_device(
+                device_id=device_id,
+                student_id=student_id,
+                organization_id=organization_id,
+                device_name=device_name,
+                force=force,
+            )
+        except Exception as exc:
+            logger.warning("Failed to record device binding in db: %s", exc)
         self._device_bindings[device_id] = student_id
 
     def get_bound_student(self, device_id: str) -> Optional[str]:
-        """Look up student bound to device."""
+        """Look up student bound to device from DB or cache."""
+        try:
+            binding = self.db.get_device_binding(device_id)
+            if binding:
+                self._device_bindings[device_id] = binding.student_id
+                return binding.student_id
+        except Exception:
+            pass
         return self._device_bindings.get(device_id)
 
     def process_sync_batch(
@@ -123,6 +154,11 @@ class SyncService:
                 self.bind_device(device_id, student_id)
             elif bound_student != student_id:
                 raise PermissionError(f"Device '{device_id}' is bound to another student.")
+            else:
+                try:
+                    self.db.update_device_sync_time(device_id)
+                except Exception:
+                    pass
 
         # 3. Out-of-order event reconciliation: sort by sequence_num then timestamp
         def _sort_key(ev: Dict[str, Any]) -> Tuple[int, str]:
@@ -131,6 +167,21 @@ class SyncService:
             return (seq, ts)
 
         sorted_events = sorted(events, key=_sort_key)
+
+        # Sequence gap detection
+        seq_nums = [int(ev.get("sequence_num", 0)) for ev in sorted_events if int(ev.get("sequence_num", 0)) > 0]
+        sequence_gaps: List[Dict[str, int]] = []
+        for i in range(1, len(seq_nums)):
+            prev_s = seq_nums[i - 1]
+            curr_s = seq_nums[i]
+            if curr_s > prev_s + 1:
+                sequence_gaps.append({
+                    "expected": prev_s + 1,
+                    "received": curr_s,
+                    "gap_size": curr_s - prev_s - 1,
+                })
+        if sequence_gaps:
+            logger.warning("Detected %d sequence gap(s) for student %s: %s", len(sequence_gaps), student_id, sequence_gaps)
 
         synced_count = 0
         duplicate_count = 0
@@ -242,6 +293,7 @@ class SyncService:
             "latest_mastery": overall_mastery,
             "server_timestamp": now_ts,
             "is_replay": False,
+            "sequence_gaps": sequence_gaps,
         }
 
         # 7. Persist operation record for idempotency replay and auditing
@@ -278,7 +330,12 @@ class SyncService:
         slr = self.slr_service.get_authoritative_slr(student_id, target_course)
 
         total_synced_events = sum(op.synced_count for op in operations)
-        devices = {op.device_id for op in operations if op.device_id} | {
+        try:
+            db_devices = {b.device_id for b in self.db.get_devices_for_student(student_id)}
+        except Exception:
+            db_devices = set()
+
+        devices = {op.device_id for op in operations if op.device_id} | db_devices | {
             dev for dev, stu in self._device_bindings.items() if stu == student_id
         }
 
