@@ -36,5 +36,7 @@ jobs:
           pytest -v tests/architecture
 
       - name: Run headless test suite
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           pytest -v -m "not gui"
