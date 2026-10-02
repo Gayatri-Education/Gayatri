@@ -454,15 +454,12 @@ class GenericTutorOrchestrator:
             )
 
             # ── 14. Learning Evidence Staging ─────────────────────────────────
-            new_mastery_val = min(1.0, current_mastery + 0.05) if val_result.is_valid else current_mastery
-            proposed_mastery = MasteryState(
-                id=f"mst-{uuid.uuid4().hex[:8]}",
-                slr_id=canonical_state.slr.id,
-                concept_id=target_concept,
-                score=new_mastery_val,
-                confidence=0.85,
-                state="practicing" if new_mastery_val < 0.85 else "mastered",
-            )
+            # Per Master Plan Phase 06 (F-019):
+            # A tutor response alone must NOT fabricate an increase in student mastery.
+            # An explanatory or conversational turn records an interaction event (e.g. TUTOR_TURN_COMPLETED),
+            # but does not arbitrarily advance student mastery score.
+            # Mastery advances only when learner performance evidence (assessments, answers) is evaluated.
+            mastery_updates: List[MasteryState] = []
             proposed_event = LearningEvent(
                 id=f"evt-{uuid.uuid4().hex[:8]}",
                 session_id=req.session_id,
@@ -476,13 +473,14 @@ class GenericTutorOrchestrator:
                     "version_id": version_id,
                     "val_valid": val_result.is_valid,
                     "latency_ms": ai_res.latency_ms,
+                    "pedagogical_action": action_decision.action.value,
                 },
             )
 
             staged_changes = self.commit_pipeline.stage_changes(
                 student_id=req.student_id,
                 course_id=req.course_id,
-                mastery_updates=[proposed_mastery],
+                mastery_updates=mastery_updates,
                 learning_events=[proposed_event],
             )
 
