@@ -61,7 +61,7 @@ Enforce strict authentication on protected endpoints (`/tutor/turn`), bind reque
 None for Phase 01.
 
 ## Ending commit
-(Pending commit on `fix/phase-01-auth-identity`)
+`a2e6a03` (`fix/phase-01-auth-identity`)
 
 ## Next phase
 Phase 02: Course, Enrollment, Version, and Context Resolution

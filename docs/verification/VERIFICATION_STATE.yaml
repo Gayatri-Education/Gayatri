@@ -23,7 +23,7 @@ phases:
   phase_01_auth_identity:
     name: "Authentication and Identity Binding"
     status: "COMPLETE"
-    commit: "PENDING_COMMIT"
+    commit: "a2e6a03"
     branch: "fix/phase-01-auth-identity"
     test_command: "pytest -v tests/test_phase01_auth_identity_remediation.py && pytest -q"
     test_result: "PASSED (8 phase tests passed; 1152 full suite passed in 225.57s)"
