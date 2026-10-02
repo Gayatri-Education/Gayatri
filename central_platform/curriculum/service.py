@@ -448,8 +448,8 @@ class CurriculumService:
                         }
                     ]
                 return data
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed parsing version schema_data, falling back to relational tables: %s", exc)
 
         # Build dynamically from database tables
         subjects = self.db.get_subjects_by_course(curr.course_id)
@@ -636,8 +636,8 @@ class CurriculumService:
                 pkg["status"] = ver.status
                 pkg["published_at"] = ver.published_at
                 return pkg
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed parsing version schema_data on export, falling back to relational tables: %s", exc)
 
         # Build dynamically from relational tables
         curr = self.db.get_curriculum(ver.curriculum_id)

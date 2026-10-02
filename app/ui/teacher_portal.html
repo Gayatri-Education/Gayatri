@@ -317,6 +317,56 @@
     /* Page container visibility */
     .portal-view { display: none; }
     .portal-view.active { display: block; }
+
+    /* Modals & Dialogs */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-backdrop.active { display: flex; }
+    .modal-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 520px;
+      max-width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 8px;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .form-control {
+      width: 100%;
+      background: #0f0f23;
+      border: 1px solid var(--card-border);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -333,6 +383,7 @@
 
     <nav class="nav-links">
       <a href="#/dashboard" class="nav-link" id="nav-dashboard"><span>📊</span> Dashboard</a>
+      <a href="#/classes" class="nav-link" id="nav-classes"><span>🏫</span> Classes &amp; Notes</a>
       <a href="#/students" class="nav-link" id="nav-students"><span>👥</span> Students Roster</a>
       <a href="#/copilot" class="nav-link" id="nav-copilot"><span>🤖</span> AI Teacher Copilot</a>
       <a href="#/assignments" class="nav-link" id="nav-assignments"><span>📚</span> Assignments</a>
@@ -357,12 +408,20 @@
           <a href="/tutor" class="subtab-btn">💬 Web Tutor</a>
           <a href="/docs" target="_blank" class="subtab-btn">📖 API Docs</a>
         </div>
+        <div style="display: flex; gap: 8px; align-items: center; margin-left: 12px;">
+          <select id="headerCourseSelect" style="background:#16213e; color:white; border:1px solid #23274c; border-radius:6px; padding:4px 8px; font-size:12px;" onchange="TeacherApp.onCourseChanged(this.value)">
+            <option value="">Course: Loading...</option>
+          </select>
+          <select id="headerClassSelect" style="background:#16213e; color:white; border:1px solid #23274c; border-radius:6px; padding:4px 8px; font-size:12px;" onchange="TeacherApp.onClassChanged(this.value)">
+            <option value="">All Classes</option>
+          </select>
+        </div>
       </div>
       <div class="portal-user-badge">
         <div class="portal-avatar" id="teacherAvatar">AS</div>
         <div>
-          <div style="font-weight:600; color:var(--text-bright);" id="teacherName">Prof. Anita Sharma (Chemistry Lead)</div>
-          <div style="font-size:11px; color:var(--text-muted);" id="courseBadge">DPS Delhi • Grade 11 Chemistry</div>
+          <div style="font-weight:600; color:var(--text-bright);" id="teacherName">Prof. Anita Sharma</div>
+          <div style="font-size:11px; color:var(--text-muted);" id="courseBadge">Teaching Faculty</div>
         </div>
       </div>
     </header>
@@ -547,26 +606,86 @@
         </div>
       </div>
 
-      <!-- 11. #/assignments -->
-      <div id="view-assignments" class="portal-view">
+      <!-- Classes, Notes & Remedial: #/classes -->
+      <div id="view-classes" class="portal-view">
+        <div class="portal-card" style="margin-bottom:20px;">
+          <div class="portal-card-header">
+            <span class="portal-card-title"><span>🏫</span> Class Groups &amp; Cohorts</span>
+            <div style="display:flex; gap:8px;">
+              <button class="portal-btn portal-btn-secondary" onclick="TeacherApp.openModal('modalUploadClassNote')">📝 Upload Class Note</button>
+              <button class="portal-btn portal-btn-secondary" onclick="TeacherApp.openModal('modalUploadRemedialContent')">🎯 Remedial Material</button>
+              <button class="portal-btn" onclick="TeacherApp.openModal('modalCreateClass')">➕ Create Class Group</button>
+            </div>
+          </div>
+          <table class="portal-table">
+            <thead>
+              <tr>
+                <th>Class ID</th>
+                <th>Course</th>
+                <th>Class Name</th>
+                <th>Section</th>
+                <th>Students Enrolled</th>
+              </tr>
+            </thead>
+            <tbody id="classesTableBody">
+              <!-- Populated via API -->
+            </tbody>
+          </table>
+          <div id="classesEmptyState" style="display:none; padding:30px; text-align:center; color:var(--text-muted);">
+            No classes found for this course. Click "+ Create Class Group" to set up your first class.
+          </div>
+        </div>
+
         <div class="portal-card">
           <div class="portal-card-header">
-            <span class="portal-card-title"><span>📚</span> Curriculum Assignments &amp; Homework</span>
-            <button class="portal-btn" onclick="alert('Assignment creation is active.')">+ Create Assignment</button>
+            <span class="portal-card-title"><span>📑</span> Class Notes &amp; Remedial Materials (RAG Evidence)</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+            Class notes are strictly scoped to students in that class. Targeted remedial materials are strictly scoped to specified students.
           </div>
           <table class="portal-table">
             <thead>
               <tr>
                 <th>Title</th>
-                <th>Unit</th>
+                <th>Scope</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="notesTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+          <div id="notesEmptyState" style="display:none; padding:20px; text-align:center; color:var(--text-muted);">
+            No class notes or remedial content uploaded yet.
+          </div>
+        </div>
+      </div>
+
+      <!-- 11. #/assignments -->
+      <div id="view-assignments" class="portal-view">
+        <div class="portal-card">
+          <div class="portal-card-header">
+            <span class="portal-card-title"><span>📚</span> Curriculum Assignments &amp; Homework</span>
+            <button class="portal-btn" onclick="TeacherApp.openModal('modalCreateAssignment')">+ Create Assignment</button>
+          </div>
+          <table class="portal-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Course / Class</th>
                 <th>Due Date</th>
-                <th>Completed</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody id="assignmentsTableBody">
               <!-- Populated via API -->
             </tbody>
           </table>
+          <div id="assignmentsEmptyState" style="display:none; padding:30px; text-align:center; color:var(--text-muted);">
+            No assignments distributed yet. Click "+ Create Assignment" to set up coursework.
+          </div>
         </div>
       </div>
 
@@ -672,6 +791,122 @@
     </div><!-- /portal-scrollable -->
   </main>
 
+  <!-- Modals -->
+  <div id="modalCreateClass" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="color:var(--text-bright); margin:0;">Create Class Group</h3>
+        <button style="background:none; border:none; color:white; font-size:18px; cursor:pointer;" onclick="TeacherApp.closeModal('modalCreateClass')">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>Course ID</label>
+        <input type="text" id="newClassCourseId" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Class Name (e.g. Grade 11 Section A)</label>
+        <input type="text" id="newClassName" class="form-control" placeholder="Grade 11 Physics A" />
+      </div>
+      <div class="form-group">
+        <label>Section</label>
+        <input type="text" id="newClassSection" class="form-control" value="A" />
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="portal-btn portal-btn-secondary" onclick="TeacherApp.closeModal('modalCreateClass')">Cancel</button>
+        <button class="portal-btn" onclick="TeacherApp.submitCreateClass()">Create Class</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalUploadClassNote" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="color:var(--text-bright); margin:0;">Upload Class Note</h3>
+        <button style="background:none; border:none; color:white; font-size:18px; cursor:pointer;" onclick="TeacherApp.closeModal('modalUploadClassNote')">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>Target Class Group</label>
+        <select id="noteClassSelect" class="form-control"></select>
+      </div>
+      <div class="form-group">
+        <label>Note Title</label>
+        <input type="text" id="noteTitleInput" class="form-control" placeholder="Lecture 4 Summary Notes" />
+      </div>
+      <div class="form-group">
+        <label>Content (Markdown or Text)</label>
+        <textarea id="noteContentInput" class="form-control" rows="6" placeholder="# Lecture Key Concepts&#10;- Core derivations..."></textarea>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="portal-btn portal-btn-secondary" onclick="TeacherApp.closeModal('modalUploadClassNote')">Cancel</button>
+        <button class="portal-btn" onclick="TeacherApp.submitUploadClassNote()">Upload Note</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalUploadRemedialContent" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="color:var(--text-bright); margin:0;">Upload Targeted Remedial Content</h3>
+        <button style="background:none; border:none; color:white; font-size:18px; cursor:pointer;" onclick="TeacherApp.closeModal('modalUploadRemedialContent')">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>Course ID</label>
+        <input type="text" id="remedialCourseId" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Target Students (comma-separated student IDs)</label>
+        <input type="text" id="remedialStudentIds" class="form-control" placeholder="stu_001, stu_002" />
+        <small style="color:var(--text-muted); font-size:11px;">Students must belong to your organization and be enrolled in this course.</small>
+      </div>
+      <div class="form-group">
+        <label>Remedial Topic / Title</label>
+        <input type="text" id="remedialTitleInput" class="form-control" placeholder="Targeted Vector Resolution Guide" />
+      </div>
+      <div class="form-group">
+        <label>Remedial Walkthrough Content</label>
+        <textarea id="remedialContentInput" class="form-control" rows="6" placeholder="Breaking down prerequisite misconceptions step-by-step..."></textarea>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="portal-btn portal-btn-secondary" onclick="TeacherApp.closeModal('modalUploadRemedialContent')">Cancel</button>
+        <button class="portal-btn" onclick="TeacherApp.submitUploadRemedialContent()">Ingest Remedial Content</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalCreateAssignment" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="color:var(--text-bright); margin:0;">Create Assignment</h3>
+        <button style="background:none; border:none; color:white; font-size:18px; cursor:pointer;" onclick="TeacherApp.closeModal('modalCreateAssignment')">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>Course ID</label>
+        <input type="text" id="asgCourseId" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Target Class Group (optional)</label>
+        <select id="asgClassSelect" class="form-control">
+          <option value="">All Course Students</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Assignment Title</label>
+        <input type="text" id="asgTitleInput" class="form-control" placeholder="Homework 5: Problem Solving Set" />
+      </div>
+      <div class="form-group">
+        <label>Due Date</label>
+        <input type="date" id="asgDueDateInput" class="form-control" />
+      </div>
+      <div class="form-group">
+        <label>Instructions &amp; Guidance</label>
+        <textarea id="asgInstructionsInput" class="form-control" rows="4" placeholder="Review section 3 and complete questions 1-5..."></textarea>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+        <button class="portal-btn portal-btn-secondary" onclick="TeacherApp.closeModal('modalCreateAssignment')">Cancel</button>
+        <button class="portal-btn" onclick="TeacherApp.submitCreateAssignment()">Create Assignment</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     /**
      * Gayatri AI - Teacher Web Portal Application Controller (Phase 10)
@@ -684,24 +919,34 @@
      */
     const TeacherApp = {
       courseId: 'crs_chem_101',
+      classId: null,
       currentStudentId: null,
       currentSubTab: 'overview',
       studentsCache: [],
+      classesCache: [],
+      coursesCache: [],
       baseUrl: window.location.origin || 'http://127.0.0.1:8000',
 
-      async init() {
-        // Auto-authenticate with demo teacher token if not set
-        if (!localStorage.getItem('teacher_token')) {
+      async ensureToken(forceRefresh = false) {
+        if (forceRefresh || !localStorage.getItem('teacher_token')) {
           try {
             const res = await fetch(`${this.baseUrl}/api/v1/auth/demo-tokens`);
             if (res.ok) {
               const json = await res.json();
-              if (json.data && json.data.teacher) {
+              if (json.data && json.data.teacher && json.data.teacher.token) {
                 localStorage.setItem('teacher_token', json.data.teacher.token);
+                return json.data.teacher.token;
               }
             }
           } catch (e) {}
         }
+        return localStorage.getItem('teacher_token') || '';
+      },
+
+      async init() {
+        await this.ensureToken();
+        await this.loadCourses();
+        await this.loadClasses();
         window.addEventListener('hashchange', () => this.handleRoute());
         this.handleRoute();
       },
@@ -732,18 +977,25 @@
         }
       },
 
-      retry() {
+      async retry() {
         document.getElementById('stateApiError').classList.remove('active');
         document.getElementById('stateOffline').classList.remove('active');
+        await this.ensureToken(true);
         this.handleRoute();
       },
 
       async apiGet(path) {
-        const token = localStorage.getItem('teacher_token') || '';
-        const headers = { 'Accept': 'application/json' };
+        let token = await this.ensureToken();
+        let headers = { 'Accept': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, { headers });
+        let res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, { headers });
+        if (res.status === 401 || res.status === 403) {
+          // Token expired or invalid, auto-refresh and retry once
+          token = await this.ensureToken(true);
+          headers['Authorization'] = `Bearer ${token}`;
+          res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, { headers });
+        }
         if (res.status === 403) {
           this.setUIState('permission_error', { message: '403 Forbidden: Teacher authorization required to access this resource.' });
           throw new Error('403 Forbidden');
@@ -754,15 +1006,25 @@
       },
 
       async apiPost(path, body) {
-        const token = localStorage.getItem('teacher_token') || '';
-        const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+        let token = await this.ensureToken();
+        let headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, {
+        let res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, {
           method: 'POST',
           headers,
           body: JSON.stringify(body)
         });
+        if (res.status === 401 || res.status === 403) {
+          // Token expired or invalid, auto-refresh and retry once
+          token = await this.ensureToken(true);
+          headers['Authorization'] = `Bearer ${token}`;
+          res = await fetch(`${this.baseUrl}/api/v1/teachers${path}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+          });
+        }
         if (res.status === 403) {
           this.setUIState('permission_error', { message: '403 Forbidden: Teacher authorization required to access this resource.' });
           throw new Error('403 Forbidden');
@@ -790,6 +1052,8 @@
           this.renderLogin();
         } else if (page === 'dashboard') {
           this.renderDashboard();
+        } else if (page === 'classes') {
+          this.renderClasses();
         } else if (page === 'students') {
           if (parts[1]) {
             this.currentStudentId = parts[1] === 'current' ? (this.currentStudentId || 'student_1') : parts[1];
@@ -1351,6 +1615,180 @@
         }
       },
 
+      openModal(modalId) {
+        const el = document.getElementById(modalId);
+        if (el) el.classList.add('active');
+        if (modalId === 'modalCreateClass') {
+          const cid = document.getElementById('newClassCourseId');
+          if (cid) cid.value = this.courseId;
+        } else if (modalId === 'modalUploadClassNote') {
+          const sel = document.getElementById('noteClassSelect');
+          if (sel) {
+            sel.innerHTML = this.classesCache.map(c => `<option value="${c.id}">${c.name} (${c.section})</option>`).join('');
+          }
+        } else if (modalId === 'modalUploadRemedialContent') {
+          const cid = document.getElementById('remedialCourseId');
+          if (cid) cid.value = this.courseId;
+        } else if (modalId === 'modalCreateAssignment') {
+          const cid = document.getElementById('asgCourseId');
+          if (cid) cid.value = this.courseId;
+          const sel = document.getElementById('asgClassSelect');
+          if (sel) {
+            sel.innerHTML = '<option value="">All Course Students</option>' + this.classesCache.map(c => `<option value="${c.id}">${c.name} (${c.section})</option>`).join('');
+          }
+        }
+      },
+
+      closeModal(modalId) {
+        const el = document.getElementById(modalId);
+        if (el) el.classList.remove('active');
+      },
+
+      onCourseChanged(courseId) {
+        this.courseId = courseId;
+        this.loadClasses();
+        this.handleRoute();
+      },
+
+      onClassChanged(classId) {
+        this.classId = classId || null;
+        this.handleRoute();
+      },
+
+      async loadCourses() {
+        try {
+          const courses = await this.apiGet('/courses');
+          this.coursesCache = courses || [];
+          const headerSel = document.getElementById('headerCourseSelect');
+          const settingsSel = document.getElementById('courseSelector');
+          if (headerSel && this.coursesCache.length > 0) {
+            headerSel.innerHTML = this.coursesCache.map(c => `<option value="${c.id}" ${c.id === this.courseId ? 'selected' : ''}>${c.title} (${c.code || c.id})</option>`).join('');
+            if (!this.courseId && this.coursesCache.length > 0) {
+              this.courseId = this.coursesCache[0].id;
+            }
+          }
+          if (settingsSel && this.coursesCache.length > 0) {
+            settingsSel.innerHTML = this.coursesCache.map(c => `<option value="${c.id}" ${c.id === this.courseId ? 'selected' : ''}>${c.title} (${c.id})</option>`).join('');
+          }
+        } catch (e) {
+          console.warn('Failed to load courses:', e);
+        }
+      },
+
+      async loadClasses() {
+        try {
+          const classes = await this.apiGet(`/classes?course_id=${this.courseId}`);
+          this.classesCache = classes || [];
+          const headerClassSel = document.getElementById('headerClassSelect');
+          if (headerClassSel) {
+            headerClassSel.innerHTML = '<option value="">All Classes</option>' + this.classesCache.map(c => `<option value="${c.id}" ${c.id === this.classId ? 'selected' : ''}>${c.name} (${c.section})</option>`).join('');
+          }
+        } catch (e) {
+          console.warn('Failed to load classes:', e);
+        }
+      },
+
+      async renderClasses() {
+        document.getElementById('view-classes').classList.add('active');
+        document.getElementById('pageTitle').textContent = 'Classes, Notes & Remedial';
+        this.setUIState('loading');
+        try {
+          await this.loadClasses();
+          this.setUIState('success');
+          const tbody = document.getElementById('classesTableBody');
+          tbody.innerHTML = '';
+          const emptyEl = document.getElementById('classesEmptyState');
+          if (this.classesCache.length === 0) {
+            if (emptyEl) emptyEl.style.display = 'block';
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            for (const c of this.classesCache) {
+              let enrolledCount = 0;
+              try {
+                const roster = await this.apiGet(`/classes/${c.id}/students`);
+                enrolledCount = roster ? roster.length : 0;
+              } catch (e) {}
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                <td><code>${c.id}</code></td>
+                <td>${c.course_id}</td>
+                <td><strong>${c.name}</strong></td>
+                <td><span class="portal-badge badge-neutral">${c.section}</span></td>
+                <td>${enrolledCount} enrolled</td>
+              `;
+              tbody.appendChild(row);
+            }
+          }
+        } catch (err) {
+          if (err.message !== '403 Forbidden') this.setUIState('api_error', { message: err.message });
+        }
+      },
+
+      async submitCreateClass() {
+        const course_id = document.getElementById('newClassCourseId').value.trim();
+        const name = document.getElementById('newClassName').value.trim();
+        const section = document.getElementById('newClassSection').value.trim() || 'A';
+        if (!course_id || !name) return alert('Course ID and Class Name are required.');
+        try {
+          await this.apiPost('/classes', { course_id, name, section });
+          this.closeModal('modalCreateClass');
+          alert('Class created successfully! ✅');
+          await this.loadClasses();
+          this.renderClasses();
+        } catch (e) {
+          alert(`Failed to create class: ${e.message}`);
+        }
+      },
+
+      async submitUploadClassNote() {
+        const class_id = document.getElementById('noteClassSelect').value;
+        const title = document.getElementById('noteTitleInput').value.trim();
+        const content = document.getElementById('noteContentInput').value.trim();
+        if (!class_id || !title || !content) return alert('Class, Title, and Content are required.');
+        try {
+          await this.apiPost(`/classes/${class_id}/notes`, { title, content });
+          this.closeModal('modalUploadClassNote');
+          alert('Class note uploaded and indexed to RAG! ✅');
+          this.renderClasses();
+        } catch (e) {
+          alert(`Failed to upload class note: ${e.message}`);
+        }
+      },
+
+      async submitUploadRemedialContent() {
+        const course_id = document.getElementById('remedialCourseId').value.trim();
+        const rawIds = document.getElementById('remedialStudentIds').value.trim();
+        const title = document.getElementById('remedialTitleInput').value.trim();
+        const content = document.getElementById('remedialContentInput').value.trim();
+        if (!course_id || !rawIds || !title || !content) return alert('All fields are required.');
+        const target_student_ids = rawIds.split(',').map(s => s.trim()).filter(Boolean);
+        try {
+          await this.apiPost('/remedial-content', { course_id, target_student_ids, title, content });
+          this.closeModal('modalUploadRemedialContent');
+          alert('Targeted remedial content ingested and published! ✅');
+          this.renderClasses();
+        } catch (e) {
+          alert(`Failed to upload remedial content: ${e.message}`);
+        }
+      },
+
+      async submitCreateAssignment() {
+        const course_id = document.getElementById('asgCourseId').value.trim();
+        const class_group_id = document.getElementById('asgClassSelect').value.trim() || undefined;
+        const title = document.getElementById('asgTitleInput').value.trim();
+        const due_date = document.getElementById('asgDueDateInput').value.trim() || undefined;
+        const instructions = document.getElementById('asgInstructionsInput').value.trim() || undefined;
+        if (!course_id || !title) return alert('Course ID and Assignment Title are required.');
+        try {
+          await this.apiPost('/assignments', { course_id, class_group_id, title, due_date, instructions });
+          this.closeModal('modalCreateAssignment');
+          alert('Assignment created and distributed! ✅');
+          this.renderAssignments();
+        } catch (e) {
+          alert(`Failed to create assignment: ${e.message}`);
+        }
+      },
+
       async renderAssignments() {
         document.getElementById('view-assignments').classList.add('active');
         document.getElementById('pageTitle').textContent = 'Curriculum Assignments';
@@ -1360,16 +1798,22 @@
           this.setUIState('success');
           const tbody = document.getElementById('assignmentsTableBody');
           tbody.innerHTML = '';
-          assignments.forEach(a => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-              <td><strong>${a.title}</strong></td>
-              <td>${a.unit}</td>
-              <td>${a.due_date}</td>
-              <td><span class="pill pill-green">${a.completed_count} / ${a.total_count}</span></td>
-            `;
-            tbody.appendChild(row);
-          });
+          const emptyEl = document.getElementById('assignmentsEmptyState');
+          if (!assignments || assignments.length === 0) {
+            if (emptyEl) emptyEl.style.display = 'block';
+          } else {
+            if (emptyEl) emptyEl.style.display = 'none';
+            assignments.forEach(a => {
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                <td><strong>${a.title}</strong></td>
+                <td>${a.course_id || a.unit || this.courseId}</td>
+                <td>${a.due_date || 'No deadline'}</td>
+                <td><span class="pill pill-green">${a.is_active ? 'Active' : 'Closed'}</span></td>
+              `;
+              tbody.appendChild(row);
+            });
+          }
         } catch (err) {
           if (err.message !== '403 Forbidden') this.setUIState('api_error', { message: err.message });
         }

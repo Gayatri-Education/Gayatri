@@ -112,7 +112,7 @@ class ChemistryTutorRuntime:
         try:
             from core.rag.retriever import get_ncert_retriever
             from core.security.prompt import PromptSecurityGuard
-            from legacy.agents.default_agents import _build_messages, _get_tutor_context
+            from core.inference.context import _build_messages, _get_tutor_context
 
             # 0. Inspect user message for prompt injection, extraction, or command manipulation
             sanitized_msg, is_attack, attack_type = PromptSecurityGuard.inspect_and_sanitize(user_message)
@@ -178,8 +178,8 @@ class ChemistryTutorRuntime:
                 detected_mode = "HINT"
                 try:
                     self.state_machine.transition_to(TutorState.CHECKING)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("State transition to CHECKING ignored: %s", exc)
                 student.active_hint_level = min(5, getattr(student, "active_hint_level", 0) + 1)
                 lvl = student.active_hint_level
                 tier_hints = {
@@ -209,8 +209,8 @@ class ChemistryTutorRuntime:
                 detected_mode = "REMEDIATE"
                 try:
                     self.state_machine.transition_to(TutorState.REMEDIATING)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("State transition to REMEDIATING ignored: %s", exc)
                 prereq_concept = "THERMO_INTERNAL_ENERGY"
                 student.current_concept = prereq_concept
                 policy_directive = (
@@ -234,8 +234,8 @@ class ChemistryTutorRuntime:
                 detected_mode = "EVALUATE"
                 try:
                     self.state_machine.transition_to(TutorState.EVALUATING)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("State transition to EVALUATING ignored: %s", exc)
 
                 # Sign convention error diagnosis (Scene 4)
                 if "700" in lower_msg or "add them up" in lower_msg or ("positive" in lower_msg and "200" in lower_msg):
@@ -305,8 +305,8 @@ class ChemistryTutorRuntime:
                 detected_mode = "QUESTION"
                 try:
                     self.state_machine.transition_to(TutorState.PRACTICING)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("State transition to PRACTICING ignored: %s", exc)
                 student.active_hint_level = 0
                 policy_directive = (
                     "\n[TUTOR MODE: QUESTION - Adaptive Assessment]\n"
@@ -330,8 +330,8 @@ class ChemistryTutorRuntime:
                 detected_mode = "SUMMARY"
                 try:
                     self.state_machine.transition_to(TutorState.COMPLETED)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("State transition to COMPLETED ignored: %s", exc)
                 policy_directive = (
                     "\n[TUTOR MODE: SUMMARY - Pedagogical Review]\n"
                     f"Provide a structured lesson summary for concept '{student.current_concept}'. "
@@ -349,8 +349,8 @@ class ChemistryTutorRuntime:
                 detected_mode = "EXPLAIN"
                 try:
                     self.state_machine.transition_to(TutorState.EXPLAINING)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("State transition to EXPLAINING ignored: %s", exc)
                 student.active_hint_level = 0
                 policy_directive = ExplanationPolicy.get_directive(resolved.topic, resolved.subtopic, "medium")
                 event_logger.log_event(
@@ -469,8 +469,8 @@ class ChemistryTutorRuntime:
                             f"The teacher has provided the following pedagogical guidance which you MUST respect:\n"
                             f"{inst_bullet_list}"
                         )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to resolve teacher instructions in chemistry runtime: %s", exc)
 
             system = _build_chemistry_system_prompt(
                 self._topics or None,

@@ -7,6 +7,7 @@ Master Plan Section 13:
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -16,6 +17,8 @@ from central_platform.auth.dependencies import (
     get_db,
 )
 from central_platform.models.schema import User, UserRole
+
+logger = logging.getLogger("gayatri.central_platform.api.routes.users")
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -124,8 +127,8 @@ async def create_user(
         db.create_user(db_user)
         if req.password:
             db.set_user_password(db_user.id, req.password)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to persist user %s into database: %s", new_user.user_id, exc)
 
     return ApiResponse(ok=True, data=new_user)
 

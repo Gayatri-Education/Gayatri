@@ -6,7 +6,7 @@ multi-format ingestion, validation, publishing, and grounded scoped retrieval.
 from __future__ import annotations
 
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from central_platform.api.schemas import (
     ApiResponse,
@@ -21,10 +21,49 @@ from central_platform.api.schemas import (
     RAGSourceResponse,
     RAGValidateResponse,
 )
-from central_platform.auth.dependencies import get_db
+from central_platform.auth.dependencies import get_current_user_optional, get_db
+from central_platform.models.schema import RAGSource, User, UserRole
 from central_platform.rag.service import RAGService
 
 router = APIRouter(prefix="/rag", tags=["RAG"])
+
+_TEACHER_PLUS = {UserRole.TEACHER, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN}
+_ADMIN_PLUS = {UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN}
+
+
+def _get_role(user: User) -> UserRole:
+    """Normalize current_user.role to a UserRole enum instance."""
+    r = user.role
+    if isinstance(r, UserRole):
+        return r
+    # Might be a string — try both name and value
+    try:
+        return UserRole(str(r).lower())
+    except ValueError:
+        pass
+    try:
+        return UserRole[str(r).upper()]
+    except KeyError:
+        pass
+    return UserRole.STUDENT  # safe fallback
+
+
+def _require_teacher_plus(current_user: Optional[User]) -> UserRole:
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    role = _get_role(current_user)
+    if role not in _TEACHER_PLUS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only teachers and administrators can perform this action.")
+    return role
+
+
+def _require_admin_plus(current_user: Optional[User]) -> UserRole:
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    role = _get_role(current_user)
+    if role not in _ADMIN_PLUS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can perform this action.")
+    return role
 
 
 def get_rag_service() -> RAGService:
@@ -32,39 +71,71 @@ def get_rag_service() -> RAGService:
     return RAGService(db=db)
 
 
+def _build_source_response(s: RAGSource) -> RAGSourceResponse:
+    return RAGSourceResponse(
+        id=s.id,
+        organization_id=s.organization_id,
+        course_id=s.course_id,
+        subject=s.subject,
+        title=s.title,
+        source_type=s.source_type,
+        authority=s.authority,
+        version=s.version,
+        status=s.status,
+        checksum=s.checksum,
+        chunk_count=s.chunk_count,
+        content_type=s.content_type,
+        uploaded_by=s.uploaded_by,
+        published_by=s.published_by,
+        published_at=s.published_at,
+        error_message=s.error_message,
+        course_version_id=s.course_version_id,
+        visibility_scope=s.visibility_scope or "course",
+        class_id=s.class_id,
+        target_student_ids=s.target_student_ids or [],
+        created_at=s.created_at,
+        updated_at=s.updated_at,
+    )
+
+
 @router.post("/sources", response_model=ApiResponse[RAGSourceResponse], status_code=status.HTTP_201_CREATED)
-async def create_rag_source(req: RAGSourceCreateRequest):
-    """Register a new plug-and-play knowledge source for a course."""
+async def create_rag_source(
+    req: RAGSourceCreateRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Register a new plug-and-play knowledge source for a course. Requires TEACHER or above."""
+    role = _require_teacher_plus(current_user)
     svc = get_rag_service()
     try:
+        org_id = current_user.organization_id or "org-default"
+        if req.course_id:
+            c = svc.db.get_course(req.course_id)
+            if c:
+                # Cross-org protection: non-superadmin can only add to their org's courses
+                if role != UserRole.SUPER_ADMIN and c.organization_id != org_id:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot add knowledge sources to a course from another organization.")
+                org_id = c.organization_id
         source = svc.register_source(
-            organization_id="org-default",
+            organization_id=org_id,
             course_id=req.course_id,
             subject=req.subject,
             title=req.title,
             source_type=req.source_type,
             authority=req.authority,
             version=req.version,
+            content_type=req.content_type,
+            course_version_id=req.course_version_id,
+            visibility_scope=req.visibility_scope,
+            class_id=req.class_id,
+            target_student_ids=req.target_student_ids,
             metadata=req.metadata,
         )
         return ApiResponse(
             ok=True,
-            data=RAGSourceResponse(
-                id=source.id,
-                organization_id=source.organization_id,
-                course_id=source.course_id,
-                subject=source.subject,
-                title=source.title,
-                source_type=source.source_type,
-                authority=source.authority,
-                version=source.version,
-                status=source.status,
-                checksum=source.checksum,
-                chunk_count=source.chunk_count,
-                created_at=source.created_at,
-                updated_at=source.updated_at,
-            ),
+            data=_build_source_response(source),
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -75,6 +146,10 @@ async def list_rag_sources(
     subject: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     authority: Optional[str] = Query(None),
+    content_type: Optional[str] = Query(None),
+    course_version_id: Optional[str] = Query(None),
+    visibility_scope: Optional[str] = Query(None),
+    class_id: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
@@ -85,29 +160,16 @@ async def list_rag_sources(
         subject=subject,
         status=status,
         authority=authority,
+        content_type=content_type,
+        course_version_id=course_version_id,
+        visibility_scope=visibility_scope,
+        class_id=class_id,
         limit=limit,
         offset=offset,
     )
     return ApiResponse(
         ok=True,
-        data=[
-            RAGSourceResponse(
-                id=s.id,
-                organization_id=s.organization_id,
-                course_id=s.course_id,
-                subject=s.subject,
-                title=s.title,
-                source_type=s.source_type,
-                authority=s.authority,
-                version=s.version,
-                status=s.status,
-                checksum=s.checksum,
-                chunk_count=s.chunk_count,
-                created_at=s.created_at,
-                updated_at=s.updated_at,
-            )
-            for s in sources
-        ],
+        data=[_build_source_response(s) for s in sources],
     )
 
 
@@ -120,27 +182,19 @@ async def get_rag_source(source_id: str):
         raise HTTPException(status_code=404, detail=f"Knowledge source '{source_id}' not found.")
     return ApiResponse(
         ok=True,
-        data=RAGSourceResponse(
-            id=source.id,
-            organization_id=source.organization_id,
-            course_id=source.course_id,
-            subject=source.subject,
-            title=source.title,
-            source_type=source.source_type,
-            authority=source.authority,
-            version=source.version,
-            status=source.status,
-            checksum=source.checksum,
-            chunk_count=source.chunk_count,
-            created_at=source.created_at,
-            updated_at=source.updated_at,
-        ),
+        data=_build_source_response(source),
     )
 
 
+
 @router.post("/sources/{source_id}/ingest", response_model=ApiResponse[RAGIngestResponse])
-async def ingest_source_content(source_id: str, req: RAGIngestRequest):
-    """Parse, clean, chunk, and index content into the specified knowledge source."""
+async def ingest_source_content(
+    source_id: str,
+    req: RAGIngestRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Parse, clean, chunk, and index content into the specified knowledge source. Requires TEACHER or above."""
+    _require_teacher_plus(current_user)
     svc = get_rag_service()
     try:
         res = svc.ingest_document(
@@ -166,8 +220,12 @@ async def ingest_source_content(source_id: str, req: RAGIngestRequest):
 
 
 @router.post("/sources/{source_id}/validate", response_model=ApiResponse[RAGValidateResponse])
-async def validate_rag_source(source_id: str):
-    """Validate ingested chunks, verify lengths, and check prompt injection safety."""
+async def validate_rag_source(
+    source_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Validate ingested chunks, verify lengths, and check prompt injection safety. Requires TEACHER or above."""
+    _require_teacher_plus(current_user)
     svc = get_rag_service()
     try:
         res = svc.validate_source(source_id)
@@ -189,8 +247,12 @@ async def validate_rag_source(source_id: str):
 
 
 @router.post("/sources/{source_id}/publish", response_model=ApiResponse[RAGPublishResponse])
-async def publish_rag_source(source_id: str):
-    """Publish a validated knowledge source, making its chunks available for live retrieval."""
+async def publish_rag_source(
+    source_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Publish a validated knowledge source, making its chunks available for live retrieval. Requires ORG_ADMIN or SUPER_ADMIN."""
+    _require_admin_plus(current_user)
     svc = get_rag_service()
     try:
         source = svc.publish_source(source_id)
@@ -233,6 +295,9 @@ async def get_source_chunks(
                 text=c.text,
                 clean_text=c.clean_text,
                 provenance_type=c.provenance_type,
+                course_version_id=c.course_version_id,
+                visibility_scope=c.visibility_scope or "course",
+                class_id=c.class_id,
                 created_at=c.created_at,
             )
             for c in chunks
@@ -241,8 +306,14 @@ async def get_source_chunks(
 
 
 @router.delete("/sources/{source_id}", response_model=ApiResponse[dict])
-async def delete_rag_source(source_id: str):
-    """Delete a knowledge source and all its associated chunks."""
+async def delete_rag_source(
+    source_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Delete a knowledge source and all its associated chunks. Requires ORG_ADMIN or SUPER_ADMIN."""
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required.")
+    _require_admin_plus(current_user)
     svc = get_rag_service()
     deleted = svc.db.delete_rag_source(source_id)
     if not deleted:
@@ -260,6 +331,9 @@ async def query_rag(req: RAGQueryRequest):
             course_id=req.course_id,
             subject=req.subject,
             concept=req.concept_id,
+            course_version_id=req.course_version_id,
+            class_id=req.class_id,
+            student_id=req.student_id,
             top_k=req.top_k,
             confidence_threshold=req.confidence_threshold,
         )
@@ -279,11 +353,17 @@ async def query_rag(req: RAGQueryRequest):
                         text=r["text"],
                         score=r["score"],
                         citation=r["citation"],
+                        course_version_id=r.get("course_version_id"),
+                        visibility_scope=r.get("visibility_scope"),
+                        class_id=r.get("class_id"),
+                        provenance_type=r.get("provenance_type"),
+                        content_type=r.get("content_type"),
                     )
                     for r in res["results"]
                 ],
                 count=res["count"],
                 data_context=res.get("data_context"),
+                reason=res.get("reason"),
             ),
         )
     except Exception as exc:

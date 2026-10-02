@@ -101,7 +101,11 @@ class MasteryEvidenceEngine:
         for ev in valid_events:
             p = ev.payload or {}
             correctness = str(p.get("correctness", "")).lower()
-            hint_level = int(p.get("hint_level", p.get("hint_used", 0)))
+            hint_raw = p.get("hint_level", p.get("hint_used", 0))
+            try:
+                hint_level = int(hint_raw) if not isinstance(hint_raw, bool) else (1 if hint_raw else 0)
+            except (ValueError, TypeError):
+                hint_level = 0
 
             if ev.score is not None:
                 sc = ev.score

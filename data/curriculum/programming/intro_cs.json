@@ -1,0 +1,103 @@
+{
+  "subject": "Computer Science",
+  "course_id": "intro_programming_cs101",
+  "version": "1.0",
+  "title": "Introduction to Computer Science and Programming",
+  "description": "Algorithmic thinking, data structures, functional decomposition, and object-oriented architecture",
+  "modules": [
+    {
+      "id": "cs_mod_fundamentals",
+      "name": "Computational Thinking & Core Syntax",
+      "sequence_order": 1,
+      "topics": [
+        {
+          "id": "cs_top_basics",
+          "name": "State and Control",
+          "sequence_order": 1,
+          "concepts": [
+            {
+              "id": "cs_variables",
+              "name": "Variables and Primitive Types",
+              "description": "Memory allocation, identifiers, type safety, arithmetic evaluation",
+              "difficulty": 0.2,
+              "prerequisites": [],
+              "keywords": ["variables", "integers", "floats", "booleans", "constants", "data types"],
+              "aliases": ["primitive types", "memory storage"],
+              "domain": "Software Engineering",
+              "chapter": "Core Fundamentals"
+            },
+            {
+              "id": "cs_control_flow",
+              "name": "Branching and Iteration",
+              "description": "Conditional branching (if/else), loops (for/while), break, continue, termination conditions",
+              "difficulty": 0.3,
+              "prerequisites": ["cs_variables"],
+              "keywords": ["if statement", "loops", "while loop", "for loop", "iteration", "boolean logic"],
+              "aliases": ["control structures", "looping"],
+              "domain": "Software Engineering",
+              "chapter": "Core Fundamentals"
+            },
+            {
+              "id": "cs_functions",
+              "name": "Functions and Modular Decomposition",
+              "description": "Function definition, parameters, argument passing, return types, call stack and local scope",
+              "difficulty": 0.4,
+              "prerequisites": ["cs_control_flow"],
+              "keywords": ["function", "procedure", "parameters", "arguments", "return value", "scope", "call stack"],
+              "aliases": ["procedural abstraction", "subroutines"],
+              "domain": "Software Engineering",
+              "chapter": "Modular Programming"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cs_mod_paradigms",
+      "name": "Object-Oriented Programming & Data Structures",
+      "sequence_order": 2,
+      "topics": [
+        {
+          "id": "cs_top_oop",
+          "name": "Object-Oriented Design",
+          "sequence_order": 1,
+          "concepts": [
+            {
+              "id": "cs_classes",
+              "name": "Classes and Encapsulation",
+              "description": "Class declaration, constructor methods, instance attributes, access mutators",
+              "difficulty": 0.6,
+              "prerequisites": ["cs_functions"],
+              "keywords": ["class", "object", "instantiation", "constructor", "encapsulation", "attributes"],
+              "aliases": ["oop classes", "data abstraction"],
+              "domain": "Software Engineering",
+              "chapter": "Object Orientation"
+            },
+            {
+              "id": "cs_inheritance",
+              "name": "Inheritance and Polymorphism",
+              "description": "Subclassing, base classes, method overriding, super calls, interface contracts",
+              "difficulty": 0.7,
+              "prerequisites": ["cs_classes"],
+              "keywords": ["inheritance", "polymorphism", "subclass", "override", "super", "abstract class"],
+              "aliases": ["class hierarchy", "polymorphic dispatch"],
+              "domain": "Software Engineering",
+              "chapter": "Object Orientation"
+            },
+            {
+              "id": "cs_recursion",
+              "name": "Recursive Algorithms",
+              "description": "Base case, recurrence relation, call stack depth, recursion vs iteration",
+              "difficulty": 0.75,
+              "prerequisites": ["cs_functions"],
+              "keywords": ["recursion", "recursive function", "base case", "divide and conquer", "call stack"],
+              "aliases": ["recursive problem solving", "divide and conquer"],
+              "domain": "Algorithms",
+              "chapter": "Algorithmic Techniques"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

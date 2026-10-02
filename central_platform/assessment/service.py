@@ -13,9 +13,12 @@ Fulfills Master Plan Section 28:
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("gayatri.central_platform.assessment.service")
 
 from central_platform.assessment.adaptive import AdaptiveTestingEngine
 from central_platform.assessment.grading import AssessmentGradingEngine
@@ -45,6 +48,7 @@ from central_platform.models.schema import (
     User,
     UserRole,
 )
+from central_platform.assessment.sanitizer import AssessmentSanitizer
 from central_platform.slr.service import SLRService
 
 
@@ -72,8 +76,8 @@ class AssessmentService:
         try:
             if not self.db.get_organization(effective_org):
                 self.db.create_organization(Organization(id=effective_org, name="Default Organization", slug=f"slug-{effective_org}"))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision organization %s: %s", effective_org, exc)
 
         if student_id:
             try:
@@ -87,22 +91,24 @@ class AssessmentService:
                             organization_id=effective_org,
                         )
                     )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to auto-provision student %s: %s", student_id, exc)
 
-        effective_course = course_id or "crs-chem-101"
+        effective_course = course_id or "crs-general-101"
         try:
             if not self.db.get_course(effective_course):
+                course_code = "CHEM101" if "chem" in effective_course.lower() else effective_course.upper()[:10]
+                course_title = "General Chemistry" if "chem" in effective_course.lower() else f"Course {effective_course}"
                 self.db.create_course(
                     Course(
                         id=effective_course,
                         organization_id=effective_org,
-                        code="CHEM101",
-                        title="Chemistry",
+                        code=course_code,
+                        title=course_title,
                     )
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to auto-provision course %s: %s", effective_course, exc)
 
     # ── 1. Question Bank Operations ──────────────────────────────────────────
 
@@ -181,6 +187,21 @@ class AssessmentService:
         asmt.status = "published"
         asmt.updated_at = datetime.now(timezone.utc).isoformat()
         return self.db.create_assessment(asmt)
+
+    def get_sanitized_assessment(self, assessment_id: str, allow_hints: bool = False) -> Optional[Dict[str, Any]]:
+        """Retrieve assessment and its items safely sanitized for student examination without answer leakage."""
+        asmt = self.get_assessment(assessment_id)
+        if not asmt:
+            return None
+
+        # Fetch items
+        items = []
+        for item_id in asmt.item_ids:
+            qb_item = self.get_question(item_id)
+            if qb_item:
+                items.append(qb_item)
+
+        return AssessmentSanitizer.sanitize_assessment_for_student(asmt, items, allow_hints=allow_hints)
 
     # ── 3. Assignment Distribution ───────────────────────────────────────────
 
@@ -532,16 +553,38 @@ class AssessmentService:
         attempt.percentage = round((attempt.score / max(attempt.max_score, 1e-4)) * 100.0, 2)
         attempt.passed = attempt.percentage >= passing_threshold
         attempt.status = status
+        attempt.teacher_id = teacher_id
+        attempt.teacher_feedback = teacher_comments
         attempt.teacher_review = {
             "teacher_id": teacher_id,
             "reviewed_at": datetime.now(timezone.utc).isoformat(),
             "comments": teacher_comments,
+            "teacher_comments": teacher_comments,
             "adjusted_items": list(item_score_adjustments.keys()),
             "status": status,
         }
 
         self.db.record_assessment_attempt(attempt)
         return attempt
+
+    def review_attempt(
+        self,
+        attempt_id: str,
+        teacher_id: str,
+        score_adjustments: Optional[Dict[str, float]] = None,
+        teacher_feedback: str = "",
+        approved: bool = True,
+        status: Optional[str] = None,
+    ) -> AssessmentAttempt:
+        """Alias and ergonomic wrapper for teacher review of student attempts."""
+        effective_status = status or ("graded" if approved else "in_review")
+        return self.teacher_review_attempt(
+            attempt_id=attempt_id,
+            teacher_id=teacher_id,
+            item_score_adjustments=score_adjustments or {},
+            teacher_comments=teacher_feedback,
+            status=effective_status,
+        )
 
     # ── 5. Reassessment & Remediation ────────────────────────────────────────
 

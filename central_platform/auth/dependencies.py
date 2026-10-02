@@ -11,6 +11,7 @@ Master Plan Section 13:
 
 from __future__ import annotations
 
+import os
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 from fastapi import Depends, Header, HTTPException, status
 
@@ -29,9 +30,10 @@ _DB_INSTANCE = None
 
 def get_db():
     global _DB_INSTANCE
-    if _DB_INSTANCE is None:
+    env_path = os.environ.get("GAYATRI_DB_PATH")
+    if _DB_INSTANCE is None or (env_path and str(_DB_INSTANCE.db_path) != str(env_path)):
         from central_platform.db import PlatformDatabase
-        _DB_INSTANCE = PlatformDatabase()
+        _DB_INSTANCE = PlatformDatabase(env_path)
     return _DB_INSTANCE
 
 

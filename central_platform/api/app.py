@@ -46,17 +46,24 @@ from central_platform.api.routes.ai import router as ai_router
 from central_platform.api.routes.analytics import router as analytics_router
 from central_platform.api.routes.assessments import router as assessments_router
 from central_platform.api.routes.auth import router as auth_router
+from central_platform.api.routes.classes import router as classes_router
 from central_platform.api.routes.courses import router as courses_router
 from central_platform.api.routes.curricula import router as curricula_router
 from central_platform.api.routes.enrollments import router as enrollments_router
+from central_platform.api.routes.instructions import router as instructions_router
 from central_platform.api.routes.learning import router as learning_router
 from central_platform.api.routes.notifications import router as notifications_router
+from central_platform.api.routes.organizations import router as organizations_router
 from central_platform.api.routes.rag import router as rag_router
 from central_platform.api.routes.sessions import router as sessions_router
 from central_platform.api.routes.students import router as students_router
 from central_platform.api.routes.sync import router as sync_router
 from central_platform.api.routes.teachers import router as teachers_router
+from central_platform.api.routes.tools import router as tools_router
+from central_platform.api.routes.tutor import router as tutor_router
 from central_platform.api.routes.users import router as users_router
+from central_platform.health.service import PlatformHealthService
+from central_platform.api.schemas import PlatformHealthResponse
 
 # Central Platform Domain Services
 from central_platform.sync.manager import SyncEvent, SyncManager
@@ -123,6 +130,9 @@ def create_app() -> FastAPI:
     app.include_router(courses_router, prefix="/api/v1")
     app.include_router(curricula_router, prefix="/api/v1")
     app.include_router(enrollments_router, prefix="/api/v1")
+    app.include_router(classes_router, prefix="/api/v1")
+    app.include_router(organizations_router, prefix="/api/v1")
+    app.include_router(instructions_router, prefix="/api/v1")
     app.include_router(sessions_router, prefix="/api/v1")
     app.include_router(learning_router, prefix="/api/v1")
     app.include_router(assessments_router, prefix="/api/v1")
@@ -131,27 +141,55 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, prefix="/api/v1")
     app.include_router(notifications_router, prefix="/api/v1")
     app.include_router(sync_router, prefix="/api/v1")
+    app.include_router(tools_router, prefix="/api/v1")
+    app.include_router(tutor_router, prefix="/api/v1")
 
-    # 5. Standard Probes
-    @app.get("/healthz", response_model=HealthStatusResponse, tags=["Probes"])
+    # 5. Live Operational Probes & Health Subsystem
+    health_svc = PlatformHealthService()
+    app.state.health_service = health_svc
+
+    @app.get("/healthz", tags=["Probes"])
     async def healthz():
-        return HealthStatusResponse()
+        data = health_svc.check_health()
+        status_code = 200 if data["status"] != "UNHEALTHY" else 503
+        return JSONResponse(status_code=status_code, content=data)
 
     @app.get("/readyz", tags=["Probes"])
     async def readyz():
-        return {"ready": True, "database": "CONNECTED", "models": "AVAILABLE"}
+        is_ready, data = health_svc.check_ready()
+        status_code = 200 if is_ready else 503
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "ready": is_ready,
+                "status": data["status"],
+                "subsystems": data["subsystems"],
+            },
+        )
 
     @app.get("/livez", tags=["Probes"])
     async def livez():
-        return {"alive": True}
+        return health_svc.check_live()
+
+    @app.get("/api/v1/health", response_model=PlatformHealthResponse, tags=["Probes"])
+    async def api_v1_health():
+        data = health_svc.check_health()
+        status_code = 200 if data["status"] != "UNHEALTHY" else 503
+        return JSONResponse(status_code=status_code, content=data)
 
     # 6. Backwards-Compatibility Endpoints (Preserving 100% contracts for existing tests & client apps)
     @app.get("/api/health", tags=["Legacy Compatibility"])
     async def legacy_api_health():
+        h = health_svc.check_health()
+        students_count = 5
+        try:
+            students_count = _portal_service.get_dashboard_overview("crs-chem-101").total_students
+        except Exception as exc:
+            logger.debug("Failed resolving total_students for legacy health overview: %s", exc)
         return {
-            "status": "HEALTHY",
+            "status": "HEALTHY" if h["status"] != "UNHEALTHY" else "UNHEALTHY",
             "service": "TeacherPortalServer",
-            "students_monitored": _portal_service.get_dashboard_overview("crs-chem-101").total_students,
+            "students_monitored": students_count,
         }
 
     @app.get("/api/teacher/dashboard", tags=["Legacy Compatibility"])

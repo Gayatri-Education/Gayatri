@@ -202,3 +202,93 @@ def load_curriculum(graph, curriculum_path: str | Path) -> int:
     provider = CurriculumProvider(subject=subject, grade="unknown")
     provider.file_path = path
     return provider.load_into(graph)
+
+
+def load_generic_curriculum(
+    source: str | Path | dict,
+    course_id: str = "",
+    version_id: str = "1.0",
+) -> GenericCurriculum:
+    """Load an arbitrary subject curriculum (JSON file or dict) into a typed GenericCurriculum."""
+    from core.curriculum.models import GenericConcept, GenericCurriculum, GenericModule, GenericTopic
+
+    if isinstance(source, (str, Path)):
+        p = Path(source)
+        if not p.exists():
+            raise FileNotFoundError(f"Curriculum file not found: {p}")
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+    elif isinstance(source, dict):
+        data = source
+    else:
+        raise ValueError(f"Invalid source type for load_generic_curriculum: {type(source)}")
+
+    cid = course_id or data.get("course_id") or data.get("subject", "course").lower().replace(" ", "_")
+    vid = version_id or data.get("version") or "1.0"
+    title = data.get("title") or data.get("description") or cid
+    subject = data.get("subject") or cid
+
+    modules = []
+    direct_concepts = []
+
+    # 1. Parse structured modules if present
+    if "modules" in data:
+        for m_raw in data["modules"]:
+            topics = []
+            for t_raw in m_raw.get("topics", []):
+                concepts = [GenericConcept.from_dict(c) for c in t_raw.get("concepts", [])]
+                topics.append(GenericTopic(
+                    id=t_raw.get("id", ""),
+                    name=t_raw.get("name", ""),
+                    sequence_order=t_raw.get("sequence_order", 1),
+                    concepts=concepts,
+                ))
+            modules.append(GenericModule(
+                id=m_raw.get("id", ""),
+                name=m_raw.get("name", ""),
+                sequence_order=m_raw.get("sequence_order", 1),
+                topics=topics,
+            ))
+
+    # 2. Parse flat concepts if present
+    if "concepts" in data:
+        for c_raw in data["concepts"]:
+            direct_concepts.append(GenericConcept.from_dict(c_raw))
+
+    # 3. Parse domains if present (legacy manifest style)
+    if "domains" in data and not modules and not direct_concepts:
+        for idx, d_raw in enumerate(data["domains"]):
+            topics = []
+            for t_idx, t_name in enumerate(d_raw.get("topics", [])):
+                t_id = t_name.lower().replace(" ", "_").replace(",", "")
+                c = GenericConcept(
+                    id=t_id,
+                    name=t_name,
+                    domain=d_raw.get("name", ""),
+                    chapter=", ".join(d_raw.get("chapters", [])),
+                    topic=t_name,
+                    subtopic="",
+                    difficulty=0.5,
+                    prerequisites=d_raw.get("prerequisites", []),
+                    learning_outcomes=d_raw.get("learning_outcomes", []),
+                )
+                topics.append(GenericTopic(id=f"top_{t_id}", name=t_name, sequence_order=t_idx + 1, concepts=[c]))
+            modules.append(GenericModule(
+                id=d_raw.get("name", f"mod_{idx}").lower().replace(" ", "_"),
+                name=d_raw.get("name", f"Module {idx + 1}"),
+                sequence_order=idx + 1,
+                topics=topics,
+            ))
+
+    curriculum = GenericCurriculum(
+        id=f"curr_{cid}_{vid}",
+        course_id=cid,
+        version_id=vid,
+        title=title,
+        subject=subject,
+        modules=modules,
+        concepts=direct_concepts,
+        metadata={"description": data.get("description", "")},
+    )
+    return curriculum
+

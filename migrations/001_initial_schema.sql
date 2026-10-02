@@ -445,17 +445,6 @@ CREATE TABLE IF NOT EXISTS interventions (
 CREATE INDEX IF NOT EXISTS idx_interventions_student ON interventions(student_id);
 CREATE INDEX IF NOT EXISTS idx_interventions_course ON interventions(course_id);
 
-CREATE TABLE IF NOT EXISTS assignments (
-    id TEXT PRIMARY KEY,
-    course_id TEXT NOT NULL,
-    teacher_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    due_date TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY(course_id) REFERENCES courses(id) ON DELETE CASCADE,
-    FOREIGN KEY(teacher_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
     recipient_id TEXT NOT NULL,

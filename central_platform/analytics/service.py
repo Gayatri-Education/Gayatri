@@ -157,7 +157,7 @@ class AnalyticsService:
             delta_days = max(0.0, (now - last_practiced).total_seconds() / 86400.0)
             score_val = getattr(m, "p_mastery", getattr(m, "score", 0.5))
             stability = max(1.0, score_val * 14.0)
-            r = math.exp(-delta_days / stability)
+            r = min(1.0, max(0.0, math.exp(-delta_days / stability)))
             retention_scores.append(r)
         
         avg_retention = round(sum(retention_scores) / len(retention_scores), 4) if retention_scores else 1.0

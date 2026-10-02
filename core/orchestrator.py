@@ -291,6 +291,7 @@ class TurnOptions:
     forced_tier: str | None = None
     forced_agent: str | None = None
     student_id: str | None = None
+    course_id: str | None = None
 
 
 @dataclass
@@ -642,12 +643,12 @@ class Orchestrator:
                         if tutor_txn:
                             try:
                                 tutor_txn.rollback()
-                            except Exception:
-                                pass
+                            except Exception as rbe:
+                                logger.warning("Tutor transaction rollback failed: %s", rbe)
                         try:
                             lifecycle.update_stage(turn_id, TurnStage.TURN_ABORTED, error_detail=str(e))
-                        except Exception:
-                            pass
+                        except Exception as lce:
+                            logger.warning("Lifecycle TURN_ABORTED update failed: %s", lce)
                         yield str(e), True
                         return
                 else:

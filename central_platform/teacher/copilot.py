@@ -19,9 +19,12 @@ Enforces invariants:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Set
+
+logger = logging.getLogger("gayatri.central_platform.teacher.copilot")
 
 from central_platform.slr.record import StudentLearningRecord
 
@@ -178,8 +181,8 @@ class TeacherCopilot:
                     for st in states:
                         if st.concept_id not in mastery:
                             mastery[st.concept_id] = float(st.score)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to retrieve SLR mastery states for %s: %s", student_id, exc)
 
             # Ingest DB misconceptions
             try:
@@ -194,8 +197,8 @@ class TeacherCopilot:
                             "status": getattr(m, "status", "active"),
                             "timestamp": getattr(m, "detected_at", getattr(m, "created_at", "")),
                         })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to retrieve misconceptions for %s: %s", student_id, exc)
 
             # Ingest DB interventions
             try:
@@ -208,8 +211,8 @@ class TeacherCopilot:
                         "priority": getattr(itv, "priority", "MEDIUM"),
                         "timestamp": getattr(itv, "created_at", ""),
                     })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to retrieve interventions for %s: %s", student_id, exc)
 
             # Ingest DB events
             try:
@@ -224,8 +227,8 @@ class TeacherCopilot:
                             "timestamp": ev.timestamp,
                             "metadata": ev.payload,
                         })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to retrieve learning events for %s: %s", student_id, exc)
 
         return exists, mastery, events, misconceptions, interventions
 
@@ -572,8 +575,8 @@ class TeacherCopilot:
                 from central_platform.models.schema import UserRole
                 users = self.db.get_users_by_role(UserRole.STUDENT)
                 all_students.update([u.id for u in users])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to retrieve students from DB in copilot: %s", exc)
 
         flagged: list[dict] = []
         evidence: list[CopilotEvidenceItem] = []

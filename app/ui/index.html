@@ -1777,6 +1777,44 @@
             } catch(e) {}
             return JSON.stringify({ ok: true, student_id: 'usr_student_arjun', overall_mastery: 0.72 });
           },
+          get_sessions: async function() {
+            return JSON.stringify({
+              ok: true,
+              sessions: [
+                { id: "ses_chem_01", title: "Le Chatelier & Equilibrium Shift", mode: "chemistry_tutor", message_count: 4 },
+                { id: "ses_chem_02", title: "First Law Thermodynamics Work", mode: "chemistry_tutor", message_count: 6 },
+                { id: "ses_gen_01", title: "General Science Study Strategy", mode: "general_assistant", message_count: 3 }
+              ]
+            });
+          },
+          get_sessions_by_mode: async function(modeStr) {
+            if (modeStr === 'general_assistant') {
+              return JSON.stringify({
+                ok: true,
+                sessions: [
+                  { id: "ses_gen_01", title: "General Science Study Strategy", mode: "general_assistant", message_count: 3 }
+                ]
+              });
+            }
+            return JSON.stringify({
+              ok: true,
+              sessions: [
+                { id: "ses_chem_01", title: "Le Chatelier & Equilibrium Shift", mode: "chemistry_tutor", message_count: 4 },
+                { id: "ses_chem_02", title: "First Law Thermodynamics Work", mode: "chemistry_tutor", message_count: 6 }
+              ]
+            });
+          },
+          get_session_messages: async function(sessionId) {
+            return JSON.stringify({
+              ok: true,
+              messages: [
+                { role: "user", content: "Can you explain Le Chatelier's principle when pressure increases?" },
+                { role: "assistant", content: "When total pressure increases on a gaseous equilibrium system, Le Chatelier's principle states that the equilibrium position shifts toward the side with fewer moles of gas to relieve the stress. What happens to the number of moles of gas in N₂ + 3H₂ ⇌ 2NH₃?" }
+              ]
+            });
+          },
+          load_session_id: function(sessionId) {},
+          delete_session: function(sessionId) {},
           get_setting: async function(k) { return JSON.stringify("balanced"); },
           set_setting: function(k, v) {},
           new_chat: function() {}

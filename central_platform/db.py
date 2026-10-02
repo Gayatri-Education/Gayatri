@@ -11,10 +11,14 @@ Provides authoritative data access across all 29 Section 12 entities, supporting
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set
+
+logger = logging.getLogger("gayatri.central_platform.db")
 
 from central_platform.rbac.engine import hash_password, verify_password
 from central_platform.models.fees import (
@@ -50,6 +54,12 @@ from central_platform.models.schema import (
     Cohort,
     Concept,
     Course,
+    CourseOffering,
+    CoursePolicy,
+    CourseStatus,
+    CourseToolPolicy,
+    CourseVersion,
+    CourseVisibility,
     Curriculum,
     CurriculumBoard,
     CurriculumVersion,
@@ -78,6 +88,7 @@ from central_platform.models.schema import (
     Topic,
     User,
     UserRole,
+    SyncOperationRecord,
 )
 from scripts.migrate_db import run_all_migrations
 
@@ -246,6 +257,39 @@ class PlatformDatabase:
                 for r in rows
             ]
 
+    def get_users_by_role(
+        self,
+        role: UserRole | str,
+        organization_id: Optional[str] = None,
+        include_deleted: bool = False,
+    ) -> List[User]:
+        role_val = role.value if hasattr(role, "value") else str(role)
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM users WHERE (role = ? OR LOWER(role) = LOWER(?))"
+            params: list[Any] = [role_val, role_val]
+            if organization_id:
+                sql += " AND organization_id = ?"
+                params.append(organization_id)
+            if not include_deleted:
+                sql += " AND is_deleted = 0"
+            sql += " ORDER BY full_name ASC;"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [
+                User(
+                    id=r["id"],
+                    email=r["email"],
+                    full_name=r["full_name"],
+                    role=UserRole(r["role"]),
+                    organization_id=r["organization_id"],
+                    is_active=bool(r["is_active"]),
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                    is_deleted=bool(r["is_deleted"]),
+                    deleted_at=r["deleted_at"],
+                )
+                for r in rows
+            ]
+
     def soft_delete_user(self, user_id: str) -> bool:
         now_iso = datetime.now(timezone.utc).isoformat()
         with self._get_connection() as conn:
@@ -381,16 +425,31 @@ class PlatformDatabase:
             return None
 
     def get_assigned_student_ids_for_teacher(self, teacher_id: str) -> Set[str]:
-        """Resolve all student IDs assigned to courses or class groups taught by the teacher."""
+        """Resolve all student IDs assigned to courses or class groups taught by the teacher's organization."""
         with self._get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT DISTINCT e.student_id 
-                FROM enrollments e
-                JOIN class_groups cg ON e.course_id = cg.course_id
-                WHERE e.is_active = 1;
-                """
-            ).fetchall()
+            teacher_row = conn.execute("SELECT organization_id FROM users WHERE id = ?;", (teacher_id,)).fetchone()
+            org_id = teacher_row["organization_id"] if teacher_row else None
+
+            if org_id:
+                rows = conn.execute(
+                    """
+                    SELECT DISTINCT e.student_id 
+                    FROM enrollments e
+                    JOIN class_groups cg ON e.course_id = cg.course_id
+                    JOIN users u ON e.student_id = u.id
+                    WHERE e.is_active = 1 AND (cg.organization_id = ? OR u.organization_id = ?);
+                    """,
+                    (org_id, org_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT DISTINCT e.student_id 
+                    FROM enrollments e
+                    JOIN class_groups cg ON e.course_id = cg.course_id
+                    WHERE e.is_active = 1;
+                    """
+                ).fetchall()
             student_ids = {r["student_id"] for r in rows}
             t_rows = conn.execute(
                 "SELECT DISTINCT student_id FROM teacher_instructions WHERE teacher_id = ?;",
@@ -426,25 +485,66 @@ class PlatformDatabase:
 
     # ── 2. Academic Curriculum Hierarchy ────────────────────────────────────
 
+    def _row_to_course(self, r: sqlite3.Row) -> Course:
+        keys = r.keys()
+        vis_val = r["visibility"] if "visibility" in keys and r["visibility"] else "PRIVATE"
+        try:
+            vis = CourseVisibility(vis_val)
+        except Exception:
+            vis = CourseVisibility.PRIVATE
+        return Course(
+            id=r["id"],
+            organization_id=r["organization_id"],
+            code=r["code"],
+            title=r["title"],
+            description=r["description"] if "description" in keys and r["description"] else "",
+            visibility=vis,
+            created_at=r["created_at"],
+            updated_at=r["updated_at"],
+            is_deleted=bool(r["is_deleted"]),
+            deleted_at=r["deleted_at"] if "deleted_at" in keys else None,
+        )
+
     def create_course(self, course: Course) -> Course:
+        vis_val = course.visibility.value if isinstance(course.visibility, CourseVisibility) else str(course.visibility)
         with self._get_connection() as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO courses (id, organization_id, code, title, description, created_at, updated_at, is_deleted, deleted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (
-                    course.id,
-                    course.organization_id,
-                    course.code,
-                    course.title,
-                    course.description,
-                    course.created_at,
-                    course.updated_at,
-                    1 if course.is_deleted else 0,
-                    course.deleted_at,
-                ),
-            )
+            try:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO courses (id, organization_id, code, title, description, visibility, created_at, updated_at, is_deleted, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        course.id,
+                        course.organization_id,
+                        course.code,
+                        course.title,
+                        course.description,
+                        vis_val,
+                        course.created_at,
+                        course.updated_at,
+                        1 if course.is_deleted else 0,
+                        course.deleted_at,
+                    ),
+                )
+            except sqlite3.OperationalError:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO courses (id, organization_id, code, title, description, created_at, updated_at, is_deleted, deleted_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        course.id,
+                        course.organization_id,
+                        course.code,
+                        course.title,
+                        course.description,
+                        course.created_at,
+                        course.updated_at,
+                        1 if course.is_deleted else 0,
+                        course.deleted_at,
+                    ),
+                )
         return course
 
     def get_course(self, course_id: str, include_deleted: bool = False) -> Optional[Course]:
@@ -454,17 +554,7 @@ class PlatformDatabase:
                 sql += " AND is_deleted = 0"
             r = conn.execute(sql, (course_id,)).fetchone()
             if r:
-                return Course(
-                    id=r["id"],
-                    organization_id=r["organization_id"],
-                    code=r["code"],
-                    title=r["title"],
-                    description=r["description"],
-                    created_at=r["created_at"],
-                    updated_at=r["updated_at"],
-                    is_deleted=bool(r["is_deleted"]),
-                    deleted_at=r["deleted_at"],
-                )
+                return self._row_to_course(r)
             return None
 
     def get_courses_by_organization(self, organization_id: str, include_deleted: bool = False) -> List[Course]:
@@ -474,20 +564,267 @@ class PlatformDatabase:
                 sql += " AND is_deleted = 0"
             sql += " ORDER BY code ASC;"
             rows = conn.execute(sql, (organization_id,)).fetchall()
-            return [
-                Course(
+            return [self._row_to_course(r) for r in rows]
+
+    def list_courses(self, organization_id: Optional[str] = None, include_deleted: bool = False) -> List[Course]:
+        """List all courses with optional organization filter and soft-delete filtering."""
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM courses"
+            conditions = []
+            params: list[Any] = []
+            if organization_id:
+                conditions.append("organization_id = ?")
+                params.append(organization_id)
+            if not include_deleted:
+                conditions.append("is_deleted = 0")
+            if conditions:
+                sql += " WHERE " + " AND ".join(conditions)
+            sql += " ORDER BY code ASC;"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [self._row_to_course(r) for r in rows]
+
+    def get_public_courses(self, include_deleted: bool = False) -> List[Course]:
+        with self._get_connection() as conn:
+            try:
+                sql = "SELECT * FROM courses WHERE visibility = 'PUBLIC'"
+                if not include_deleted:
+                    sql += " AND is_deleted = 0"
+                sql += " ORDER BY code ASC;"
+                rows = conn.execute(sql).fetchall()
+                return [self._row_to_course(r) for r in rows]
+            except sqlite3.OperationalError:
+                return []
+
+    def create_course_version(self, version: CourseVersion) -> CourseVersion:
+        status_val = version.status.value if isinstance(version.status, CourseStatus) else str(version.status)
+        tool_policy_json = json.dumps(version.tool_policy.to_dict() if hasattr(version.tool_policy, "to_dict") else version.tool_policy)
+        tutor_policy_json = json.dumps(version.tutor_policy.to_dict() if hasattr(version.tutor_policy, "to_dict") else version.tutor_policy)
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO course_versions (id, course_id, version_number, status, tool_policy, tutor_policy, checksum, created_by, published_by, created_at, published_at, is_deleted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    version.id,
+                    version.course_id,
+                    version.version_number,
+                    status_val,
+                    tool_policy_json,
+                    tutor_policy_json,
+                    version.checksum,
+                    version.created_by,
+                    version.published_by,
+                    version.created_at,
+                    version.published_at,
+                    1 if version.is_deleted else 0,
+                ),
+            )
+        return version
+
+    def get_course_version(self, version_id: str, include_deleted: bool = False) -> Optional[CourseVersion]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM course_versions WHERE id = ?"
+            if not include_deleted:
+                sql += " AND is_deleted = 0"
+            r = conn.execute(sql, (version_id,)).fetchone()
+            if r:
+                return self._row_to_course_version(r)
+            return None
+
+    def get_course_versions_by_course(self, course_id: str, include_deleted: bool = False) -> List[CourseVersion]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM course_versions WHERE course_id = ?"
+            if not include_deleted:
+                sql += " AND is_deleted = 0"
+            sql += " ORDER BY version_number ASC;"
+            rows = conn.execute(sql, (course_id,)).fetchall()
+            return [self._row_to_course_version(r) for r in rows]
+
+    def list_course_versions(self, course_id: str, include_deleted: bool = False) -> List[CourseVersion]:
+        """List all versions for a course (alias for get_course_versions_by_course)."""
+        return self.get_course_versions_by_course(course_id, include_deleted=include_deleted)
+
+    def get_latest_published_course_version(self, course_id: str) -> Optional[CourseVersion]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM course_versions WHERE course_id = ? AND status = 'PUBLISHED' AND is_deleted = 0 ORDER BY version_number DESC LIMIT 1;"
+            r = conn.execute(sql, (course_id,)).fetchone()
+            if r:
+                return self._row_to_course_version(r)
+            return None
+
+    def publish_course_version(self, version_id: str, published_by: str) -> bool:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE course_versions
+                SET status = 'PUBLISHED', published_by = ?, published_at = ?
+                WHERE id = ? AND is_deleted = 0;
+                """,
+                (published_by, now_iso, version_id),
+            )
+            return cursor.rowcount > 0
+
+    def archive_course(self, course_id: str) -> bool:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE courses
+                SET is_deleted = 1, deleted_at = ?, updated_at = ?
+                WHERE id = ? AND is_deleted = 0;
+                """,
+                (now_iso, now_iso, course_id),
+            )
+            return cursor.rowcount > 0
+
+    def archive_course_version(self, version_id: str, archived_by: Optional[str] = None) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE course_versions
+                SET status = 'ARCHIVED'
+                WHERE id = ? AND is_deleted = 0;
+                """,
+                (version_id,),
+            )
+            return cursor.rowcount > 0
+
+    def get_course_versions_by_status(
+        self,
+        status: CourseStatus,
+        organization_id: Optional[str] = None,
+        include_deleted: bool = False,
+    ) -> List[CourseVersion]:
+        status_val = status.value if isinstance(status, CourseStatus) else str(status)
+        with self._get_connection() as conn:
+            if organization_id:
+                sql = """
+                SELECT cv.* FROM course_versions cv
+                JOIN courses c ON cv.course_id = c.id
+                WHERE cv.status = ? AND c.organization_id = ?
+                """
+                if not include_deleted:
+                    sql += " AND cv.is_deleted = 0 AND c.is_deleted = 0"
+                sql += " ORDER BY cv.created_at DESC;"
+                rows = conn.execute(sql, (status_val, organization_id)).fetchall()
+            else:
+                sql = "SELECT * FROM course_versions WHERE status = ?"
+                if not include_deleted:
+                    sql += " AND is_deleted = 0"
+                sql += " ORDER BY created_at DESC;"
+                rows = conn.execute(sql, (status_val,)).fetchall()
+            return [self._row_to_course_version(r) for r in rows]
+
+    def _row_to_course_version(self, r: sqlite3.Row) -> CourseVersion:
+        try:
+            status = CourseStatus(r["status"])
+        except Exception:
+            status = CourseStatus.DRAFT
+        try:
+            tool_dict = json.loads(r["tool_policy"]) if r["tool_policy"] else {}
+        except Exception:
+            tool_dict = {}
+        try:
+            tutor_dict = json.loads(r["tutor_policy"]) if r["tutor_policy"] else {}
+        except Exception:
+            tutor_dict = {}
+        return CourseVersion(
+            id=r["id"],
+            course_id=r["course_id"],
+            version_number=r["version_number"],
+            status=status,
+            tool_policy=CourseToolPolicy.from_dict(tool_dict),
+            tutor_policy=CoursePolicy.from_dict(tutor_dict),
+            checksum=r["checksum"] or "",
+            created_by=r["created_by"] or "",
+            published_by=r["published_by"],
+            created_at=r["created_at"],
+            published_at=r["published_at"],
+            is_deleted=bool(r["is_deleted"]),
+        )
+
+    def create_course_offering(self, offering: CourseOffering) -> CourseOffering:
+        with self._get_connection() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO organization_course_offerings (id, org_id, course_id, pinned_version_id, is_active, enrolled_at)
+                VALUES (?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    offering.id,
+                    offering.organization_id,
+                    offering.course_id,
+                    offering.pinned_version_id,
+                    1 if offering.is_active else 0,
+                    offering.enrolled_at,
+                ),
+            )
+        return offering
+
+    def get_course_offering(self, offering_id: str) -> Optional[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE id = ?"
+            r = conn.execute(sql, (offering_id,)).fetchone()
+            if r:
+                return CourseOffering(
                     id=r["id"],
-                    organization_id=r["organization_id"],
-                    code=r["code"],
-                    title=r["title"],
-                    description=r["description"],
-                    created_at=r["created_at"],
-                    updated_at=r["updated_at"],
-                    is_deleted=bool(r["is_deleted"]),
-                    deleted_at=r["deleted_at"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
+                )
+            return None
+
+    def get_course_offerings_by_org(self, organization_id: str) -> List[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE org_id = ? AND is_active = 1;"
+            rows = conn.execute(sql, (organization_id,)).fetchall()
+            return [
+                CourseOffering(
+                    id=r["id"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
                 )
                 for r in rows
             ]
+
+    def get_course_offering_by_org_and_course(self, organization_id: str, course_id: str) -> Optional[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE org_id = ? AND course_id = ? AND is_active = 1 LIMIT 1;"
+            r = conn.execute(sql, (organization_id, course_id)).fetchone()
+            if r:
+                return CourseOffering(
+                    id=r["id"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
+                )
+            return None
+
+    def get_offerings_by_course(self, course_id: str) -> List[CourseOffering]:
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM organization_course_offerings WHERE course_id = ? AND is_active = 1;"
+            rows = conn.execute(sql, (course_id,)).fetchall()
+            return [
+                CourseOffering(
+                    id=r["id"],
+                    organization_id=r["org_id"],
+                    course_id=r["course_id"],
+                    pinned_version_id=r["pinned_version_id"],
+                    is_active=bool(r["is_active"]),
+                    enrolled_at=r["enrolled_at"],
+                )
+                for r in rows
+            ]
+
 
     def create_subject(self, subject: Subject) -> Subject:
         with self._get_connection() as conn:
@@ -774,6 +1111,104 @@ class PlatformDatabase:
             )
         return class_group
 
+    def get_class_group(self, class_id: str) -> Optional[ClassGroup]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM class_groups WHERE id = ?;", (class_id,)).fetchone()
+            if r:
+                return ClassGroup(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    course_id=r["course_id"],
+                    name=r["name"],
+                    section=r["section"] if "section" in r.keys() else "A",
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def list_class_groups_by_organization(self, organization_id: str) -> List[ClassGroup]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM class_groups WHERE organization_id = ? ORDER BY name ASC;",
+                (organization_id,),
+            ).fetchall()
+            return [
+                ClassGroup(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    course_id=r["course_id"],
+                    name=r["name"],
+                    section=r["section"] if "section" in r.keys() else "A",
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def list_class_groups_by_course(self, course_id: str, organization_id: Optional[str] = None) -> List[ClassGroup]:
+        with self._get_connection() as conn:
+            if organization_id:
+                rows = conn.execute(
+                    "SELECT * FROM class_groups WHERE course_id = ? AND organization_id = ? ORDER BY name ASC;",
+                    (course_id, organization_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM class_groups WHERE course_id = ? ORDER BY name ASC;",
+                    (course_id,),
+                ).fetchall()
+            return [
+                ClassGroup(
+                    id=r["id"],
+                    organization_id=r["organization_id"],
+                    course_id=r["course_id"],
+                    name=r["name"],
+                    section=r["section"] if "section" in r.keys() else "A",
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_students_for_class_group(self, class_id: str) -> List[User]:
+        """Resolve all enrolled students belonging to this class group."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT u.* FROM users u
+                JOIN enrollments e ON u.id = e.student_id
+                JOIN cohorts c ON e.cohort_id = c.id
+                WHERE c.class_group_id = ? AND e.is_active = 1
+                ORDER BY u.full_name ASC;
+                """,
+                (class_id,),
+            ).fetchall()
+            if not rows:
+                cg = conn.execute("SELECT course_id, organization_id FROM class_groups WHERE id = ?;", (class_id,)).fetchone()
+                if cg:
+                    rows = conn.execute(
+                        """
+                        SELECT DISTINCT u.* FROM users u
+                        JOIN enrollments e ON u.id = e.student_id
+                        WHERE e.course_id = ? AND u.organization_id = ? AND e.is_active = 1
+                        ORDER BY u.full_name ASC;
+                        """,
+                        (cg["course_id"], cg["organization_id"]),
+                    ).fetchall()
+
+            return [
+                User(
+                    id=r["id"],
+                    email=r["email"],
+                    full_name=r["full_name"],
+                    role=UserRole(r["role"]),
+                    organization_id=r["organization_id"],
+                    is_active=bool(r["is_active"]),
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                    is_deleted=bool(r["is_deleted"]),
+                    deleted_at=r["deleted_at"],
+                )
+                for r in rows
+            ]
+
     def create_cohort(self, cohort: Cohort) -> Cohort:
         with self._get_connection() as conn:
             conn.execute(
@@ -781,6 +1216,36 @@ class PlatformDatabase:
                 (cohort.id, cohort.class_group_id, cohort.name, cohort.academic_year, cohort.created_at),
             )
         return cohort
+
+    def get_cohort(self, cohort_id: str) -> Optional[Cohort]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM cohorts WHERE id = ?;", (cohort_id,)).fetchone()
+            if r:
+                return Cohort(
+                    id=r["id"],
+                    class_group_id=r["class_group_id"],
+                    name=r["name"],
+                    academic_year=r["academic_year"],
+                    created_at=r["created_at"],
+                )
+            return None
+
+    def get_cohorts_for_class_group(self, class_group_id: str) -> List[Cohort]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM cohorts WHERE class_group_id = ? ORDER BY created_at ASC;",
+                (class_group_id,),
+            ).fetchall()
+            return [
+                Cohort(
+                    id=r["id"],
+                    class_group_id=r["class_group_id"],
+                    name=r["name"],
+                    academic_year=r["academic_year"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
 
     def create_enrollment(self, enrollment: Enrollment) -> Enrollment:
         with self._get_connection() as conn:
@@ -814,8 +1279,22 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             status_val = session.status.value if isinstance(session.status, SessionStatus) else str(session.status)
             conn.execute(
-                "INSERT OR REPLACE INTO sessions (id, student_id, course_id, concept_id, status, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?);",
-                (session.id, session.student_id, session.course_id, session.concept_id, status_val, session.started_at, session.ended_at),
+                """
+                INSERT OR REPLACE INTO sessions 
+                (id, student_id, course_id, concept_id, status, started_at, ended_at, course_version_id, class_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    session.id,
+                    session.student_id,
+                    session.course_id,
+                    session.concept_id,
+                    status_val,
+                    session.started_at,
+                    session.ended_at,
+                    session.course_version_id,
+                    session.class_id,
+                ),
             )
         return session
 
@@ -823,6 +1302,7 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             r = conn.execute("SELECT * FROM sessions WHERE id = ?;", (session_id,)).fetchone()
             if r:
+                keys = r.keys()
                 return Session(
                     id=r["id"],
                     student_id=r["student_id"],
@@ -831,6 +1311,8 @@ class PlatformDatabase:
                     status=SessionStatus(r["status"]),
                     started_at=r["started_at"],
                     ended_at=r["ended_at"],
+                    course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+                    class_id=r["class_id"] if "class_id" in keys else None,
                 )
             return None
 
@@ -843,24 +1325,36 @@ class PlatformDatabase:
             )
             return cursor.rowcount > 0
 
-    def get_sessions_for_student(self, student_id: str, limit: int = 20) -> List[Session]:
+    def get_sessions_for_student(self, student_id: str, course_id: Optional[str] = None, limit: int = 20) -> List[Session]:
         with self._get_connection() as conn:
-            rows = conn.execute(
-                "SELECT * FROM sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT ?;",
-                (student_id, limit),
-            ).fetchall()
-            return [
-                Session(
-                    id=r["id"],
-                    student_id=r["student_id"],
-                    course_id=r["course_id"],
-                    concept_id=r["concept_id"],
-                    status=SessionStatus(r["status"]),
-                    started_at=r["started_at"],
-                    ended_at=r["ended_at"],
+            if course_id:
+                rows = conn.execute(
+                    "SELECT * FROM sessions WHERE student_id = ? AND course_id = ? ORDER BY started_at DESC LIMIT ?;",
+                    (student_id, course_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM sessions WHERE student_id = ? ORDER BY started_at DESC LIMIT ?;",
+                    (student_id, limit),
+                ).fetchall()
+            result = []
+            for r in rows:
+                keys = r.keys()
+                result.append(
+                    Session(
+                        id=r["id"],
+                        student_id=r["student_id"],
+                        course_id=r["course_id"],
+                        concept_id=r["concept_id"],
+                        status=SessionStatus(r["status"]),
+                        started_at=r["started_at"],
+                        ended_at=r["ended_at"],
+                        course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+                        class_id=r["class_id"] if "class_id" in keys else None,
+                    )
                 )
-                for r in rows
-            ]
+            return result
+
 
     def record_learning_event(self, event: LearningEvent) -> LearningEvent:
         with self._get_connection() as conn:
@@ -961,12 +1455,14 @@ class PlatformDatabase:
             event_type=r["event_type"],
             organization_id=r["organization_id"] if "organization_id" in keys else None,
             course_id=r["course_id"] if "course_id" in keys else None,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
             source=r["source"] if "source" in keys and r["source"] else "student_desktop",
             payload=payload_data,
             score=float(r["score"]) if r["score"] is not None else None,
             schema_version=r["schema_version"] if "schema_version" in keys and r["schema_version"] else "1.0.0",
             created_at=r["created_at"],
         )
+
 
     # ── 5. Student Learning Records & Mastery ────────────────────────────────
 
@@ -1026,6 +1522,13 @@ class PlatformDatabase:
                 )
                 for r in rows
             ]
+
+    def get_mastery_states(self, student_id: str, course_id: Optional[str] = None) -> List[MasteryState]:
+        slr = self.get_slr(student_id, course_id=course_id)
+        if not slr:
+            return []
+        return self.get_mastery_states_for_slr(slr.id)
+
 
     def create_misconception(self, misc: Misconception) -> Misconception:
         with self._get_connection() as conn:
@@ -1395,6 +1898,7 @@ class PlatformDatabase:
         course_id: Optional[str] = None,
         cohort_id: Optional[str] = None,
         organization_id: Optional[str] = None,
+        class_group_id: Optional[str] = None,
         limit: int = 100,
     ) -> List[Assignment]:
         with self._get_connection() as conn:
@@ -1406,6 +1910,9 @@ class PlatformDatabase:
             if cohort_id:
                 sql += " AND cohort_id = ?"
                 params.append(cohort_id)
+            if class_group_id:
+                sql += " AND class_group_id = ?"
+                params.append(class_group_id)
             if organization_id:
                 sql += " AND organization_id = ?"
                 params.append(organization_id)
@@ -1430,6 +1937,88 @@ class PlatformDatabase:
                 )
                 for r in rows
             ]
+
+    def get_assignments_for_student(self, student_id: str, course_id: str) -> List[Assignment]:
+        """Retrieve assignments accessible to the student for a given course."""
+        enrollments = self.get_enrollments_for_student(student_id)
+        enr = next((e for e in enrollments if e.course_id == course_id), None)
+        if not enr:
+            return []
+
+        class_id = None
+        if enr.cohort_id:
+            cohort = self.get_cohort(enr.cohort_id)
+            if cohort and cohort.class_group_id:
+                class_id = cohort.class_group_id
+
+        with self._get_connection() as conn:
+            params: list = [course_id]
+            if class_id:
+                sql = """
+                    SELECT * FROM assignments
+                    WHERE course_id = ? AND is_active = 1
+                      AND (class_group_id IS NULL OR class_group_id = '' OR class_group_id = ?)
+                    ORDER BY created_at DESC;
+                """
+                params.append(class_id)
+            else:
+                sql = """
+                    SELECT * FROM assignments
+                    WHERE course_id = ? AND is_active = 1
+                      AND (class_group_id IS NULL OR class_group_id = '')
+                    ORDER BY created_at DESC;
+                """
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [
+                Assignment(
+                    id=r["id"],
+                    course_id=r["course_id"],
+                    assessment_id=r["assessment_id"],
+                    title=r["title"],
+                    organization_id=r["organization_id"] if "organization_id" in r.keys() else None,
+                    cohort_id=r["cohort_id"] if "cohort_id" in r.keys() else None,
+                    class_group_id=r["class_group_id"] if "class_group_id" in r.keys() else None,
+                    assigned_by=r["assigned_by"] if "assigned_by" in r.keys() else None,
+                    instructions=r["instructions"] if "instructions" in r.keys() else "",
+                    due_at=r["due_at"] if "due_at" in r.keys() else None,
+                    is_active=bool(r["is_active"]) if "is_active" in r.keys() else True,
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    def get_knowledge_sources_for_student(self, student_id: str, course_id: str) -> List[RAGSource]:
+        """Retrieve published knowledge sources authorized for this student in this course."""
+        enrollments = self.get_enrollments_for_student(student_id)
+        enr = next((e for e in enrollments if e.course_id == course_id), None)
+        if not enr:
+            return []
+
+        class_id = None
+        if enr.cohort_id:
+            cohort = self.get_cohort(enr.cohort_id)
+            if cohort and cohort.class_group_id:
+                class_id = cohort.class_group_id
+
+        sources = self.list_rag_sources(course_id=course_id, status="published")
+        authorized = []
+        for s in sources:
+            scope = (s.visibility_scope or "course").lower()
+            if scope in ("course", "public"):
+                authorized.append(s)
+            elif scope == "class":
+                if class_id and s.class_id == class_id:
+                    authorized.append(s)
+            elif scope == "student_targeted":
+                targets = s.target_student_ids or []
+                if isinstance(targets, str):
+                    try:
+                        targets = json.loads(targets)
+                    except Exception:
+                        targets = [targets]
+                if student_id in targets:
+                    authorized.append(s)
+        return authorized
 
     def record_assessment_attempt(self, attempt: AssessmentAttempt) -> AssessmentAttempt:
         with self._get_connection() as conn:
@@ -1587,37 +2176,167 @@ class PlatformDatabase:
 
     # ── 7. Teacher Directives & Interventions ────────────────────────────────
 
+    def _row_to_teacher_instruction(self, r: Any) -> TeacherInstructionRecord:
+        keys = r.keys()
+        audit_trail = []
+        if "audit_trail_json" in keys and r["audit_trail_json"]:
+            try:
+                audit_trail = json.loads(r["audit_trail_json"])
+            except Exception as exc:
+                logger.warning("Failed to decode instruction audit trail JSON: %s", exc)
+        return TeacherInstructionRecord(
+            id=r["id"],
+            teacher_id=r["teacher_id"],
+            student_id=r["student_id"],
+            course_id=r["course_id"],
+            instruction_text=r["instruction_text"],
+            concept_scope=r["concept_scope"] if "concept_scope" in keys else "ALL",
+            priority=int(r["priority"]),
+            is_active=bool(r["is_active"]),
+            organization_id=r["organization_id"] if "organization_id" in keys else None,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+            class_id=r["class_id"] if "class_id" in keys else None,
+            session_id=r["session_id"] if "session_id" in keys else None,
+            scope_type=r["scope_type"] if "scope_type" in keys and r["scope_type"] else "COURSE",
+            status=r["status"] if "status" in keys and r["status"] else "ACTIVE",
+            safety_status=r["safety_status"] if "safety_status" in keys and r["safety_status"] else "VALIDATED",
+            safety_reasons=[],
+            start_at=r["start_at"] if "start_at" in keys else None,
+            expires_at=r["expires_at"] if "expires_at" in keys else None,
+            version=int(r["version"]) if "version" in keys and r["version"] is not None else 1,
+            audit_trail=audit_trail,
+            created_at=r["created_at"],
+            updated_at=r["updated_at"] if "updated_at" in keys else None,
+        )
+
     def create_teacher_instruction(self, inst: TeacherInstructionRecord) -> TeacherInstructionRecord:
         with self._get_connection() as conn:
+            scope_val = inst.scope_type.value if hasattr(inst.scope_type, "value") else str(inst.scope_type or "COURSE")
+            status_val = inst.status.value if hasattr(inst.status, "value") else str(inst.status or "ACTIVE")
+            safety_val = inst.safety_status.value if hasattr(inst.safety_status, "value") else str(inst.safety_status or "VALIDATED")
+            audit_json = json.dumps(inst.audit_trail) if isinstance(inst.audit_trail, list) else str(inst.audit_trail or "[]")
             conn.execute(
-                "INSERT OR REPLACE INTO teacher_instructions (id, teacher_id, student_id, course_id, instruction_text, concept_scope, priority, is_active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);",
-                (inst.id, inst.teacher_id, inst.student_id, inst.course_id, inst.instruction_text, inst.concept_scope, inst.priority, 1 if inst.is_active else 0, inst.created_at),
+                """
+                INSERT INTO teacher_instructions (
+                    id, teacher_id, student_id, course_id, instruction_text, concept_scope,
+                    priority, is_active, organization_id, course_version_id, class_id,
+                    session_id, scope_type, status, safety_status, start_at, expires_at,
+                    version, audit_trail_json, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    teacher_id=excluded.teacher_id,
+                    student_id=excluded.student_id,
+                    course_id=excluded.course_id,
+                    instruction_text=excluded.instruction_text,
+                    concept_scope=excluded.concept_scope,
+                    priority=excluded.priority,
+                    is_active=excluded.is_active,
+                    organization_id=excluded.organization_id,
+                    course_version_id=excluded.course_version_id,
+                    class_id=excluded.class_id,
+                    session_id=excluded.session_id,
+                    scope_type=excluded.scope_type,
+                    status=excluded.status,
+                    safety_status=excluded.safety_status,
+                    start_at=excluded.start_at,
+                    expires_at=excluded.expires_at,
+                    version=excluded.version,
+                    audit_trail_json=excluded.audit_trail_json,
+                    updated_at=excluded.updated_at;
+                """,
+                (
+                    inst.id, inst.teacher_id, inst.student_id, inst.course_id, inst.instruction_text,
+                    inst.concept_scope, inst.priority, 1 if inst.is_active else 0, inst.organization_id,
+                    inst.course_version_id, inst.class_id, inst.session_id, scope_val, status_val,
+                    safety_val, inst.start_at, inst.expires_at, inst.version, audit_json,
+                    inst.created_at, inst.updated_at,
+                ),
             )
         return inst
 
-    def get_teacher_instructions(self, course_id: str, student_id: Optional[str] = None) -> List[TeacherInstructionRecord]:
+    def get_teacher_instruction(self, instruction_id: str) -> Optional[TeacherInstructionRecord]:
         with self._get_connection() as conn:
-            sql = "SELECT * FROM teacher_instructions WHERE course_id = ? AND is_active = 1"
-            params: list[Any] = [course_id]
+            r = conn.execute("SELECT * FROM teacher_instructions WHERE id = ?;", (instruction_id,)).fetchone()
+            return self._row_to_teacher_instruction(r) if r else None
+
+    def delete_teacher_instruction(self, instruction_id: str) -> bool:
+        with self._get_connection() as conn:
+            cursor = conn.execute("DELETE FROM teacher_instructions WHERE id = ?;", (instruction_id,))
+            return cursor.rowcount > 0
+
+    def get_teacher_instructions(
+        self,
+        course_id: Optional[str] = None,
+        student_id: Optional[str] = None,
+        only_active: bool = True,
+    ) -> List[TeacherInstructionRecord]:
+        with self._get_connection() as conn:
+            conditions = []
+            params: list[Any] = []
+            if course_id:
+                conditions.append("course_id = ?")
+                params.append(course_id)
+            if only_active:
+                conditions.append("is_active = 1")
             if student_id:
-                sql += " AND (student_id = ? OR student_id = 'all')"
+                conditions.append("(student_id = ? OR student_id = 'all')")
                 params.append(student_id)
-            sql += " ORDER BY priority DESC, created_at DESC;"
+
+            where_str = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            sql = f"SELECT * FROM teacher_instructions {where_str} ORDER BY priority DESC, created_at DESC;"
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [
-                TeacherInstructionRecord(
-                    id=r["id"],
-                    teacher_id=r["teacher_id"],
-                    student_id=r["student_id"],
-                    course_id=r["course_id"],
-                    instruction_text=r["instruction_text"],
-                    concept_scope=r["concept_scope"],
-                    priority=int(r["priority"]),
-                    is_active=bool(r["is_active"]),
-                    created_at=r["created_at"],
-                )
-                for r in rows
-            ]
+            return [self._row_to_teacher_instruction(r) for r in rows]
+
+    def get_teacher_instructions_for_course(self, course_id: str) -> List[TeacherInstructionRecord]:
+        """Retrieve all active teacher instructions scoped to a course."""
+        return self.get_teacher_instructions(course_id=course_id, only_active=True)
+
+    def get_hierarchical_teacher_instructions(
+        self,
+        course_id: Optional[str] = None,
+        organization_id: Optional[str] = None,
+        class_id: Optional[str] = None,
+        student_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        only_active: bool = True,
+    ) -> List[TeacherInstructionRecord]:
+        with self._get_connection() as conn:
+            conditions = []
+            params: list[Any] = []
+
+            if only_active:
+                conditions.append("is_active = 1")
+                conditions.append("LOWER(status) = 'active'")
+                conditions.append("LOWER(safety_status) = 'validated'")
+
+            # Build scope conditions across hierarchy
+            scope_clauses = []
+            if organization_id:
+                scope_clauses.append("(scope_type = 'ORGANIZATION' AND (organization_id = ? OR organization_id IS NULL))")
+                params.append(organization_id)
+            if course_id:
+                scope_clauses.append("(scope_type = 'COURSE' AND (course_id = ? OR course_id = 'all'))")
+                params.append(course_id)
+            if class_id:
+                scope_clauses.append("(scope_type = 'CLASS' AND class_id = ?)")
+                params.append(class_id)
+            if student_id:
+                scope_clauses.append("(scope_type = 'STUDENT' AND (student_id = ? OR student_id = 'all'))")
+                params.append(student_id)
+            if session_id:
+                scope_clauses.append("(scope_type = 'SESSION' AND session_id = ?)")
+                params.append(session_id)
+
+            if scope_clauses:
+                conditions.append(f"({' OR '.join(scope_clauses)})")
+            elif course_id:
+                conditions.append("(course_id = ? OR course_id = 'all')")
+                params.append(course_id)
+
+            where_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            sql = f"SELECT * FROM teacher_instructions {where_sql} ORDER BY priority DESC, created_at DESC;"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [self._row_to_teacher_instruction(r) for r in rows]
 
     def create_intervention(self, alert: InterventionRecord) -> InterventionRecord:
         with self._get_connection() as conn:
@@ -2011,15 +2730,63 @@ class PlatformDatabase:
                 for r in rows
             ]
 
-    # ── 9. Plug-and-Play RAG Subsystem ──────────────────────────────────────
+    def _row_to_rag_source(self, r: sqlite3.Row) -> RAGSource:
+        metadata = {}
+        if r["metadata_json"]:
+            try:
+                metadata = json.loads(r["metadata_json"])
+            except Exception as exc:
+                logger.warning("Failed to decode RAG source metadata JSON: %s", exc)
+        keys = r.keys()
+        target_students = []
+        if "target_student_ids" in keys and r["target_student_ids"]:
+            try:
+                target_students = json.loads(r["target_student_ids"]) if isinstance(r["target_student_ids"], str) else list(r["target_student_ids"])
+            except Exception as exc:
+                logger.warning("Failed to decode RAG source target student IDs JSON: %s", exc)
+        return RAGSource(
+            id=r["id"],
+            organization_id=r["organization_id"],
+            course_id=r["course_id"],
+            subject=r["subject"],
+            title=r["title"],
+            source_type=r["source_type"],
+            authority=r["authority"],
+            version=r["version"],
+            status=r["status"],
+            checksum=r["checksum"] or "",
+            metadata_json=metadata,
+            chunk_count=r["chunk_count"],
+            content_type=r["content_type"] if "content_type" in keys and r["content_type"] else "textbook",
+            uploaded_by=r["uploaded_by"] if "uploaded_by" in keys else None,
+            published_by=r["published_by"] if "published_by" in keys else None,
+            published_at=r["published_at"] if "published_at" in keys else None,
+            error_message=r["error_message"] if "error_message" in keys else None,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+            visibility_scope=r["visibility_scope"] if "visibility_scope" in keys and r["visibility_scope"] else "course",
+            class_id=r["class_id"] if "class_id" in keys else None,
+            target_student_ids=target_students,
+            created_at=r["created_at"],
+            updated_at=r["updated_at"],
+        )
 
     def create_rag_source(self, source: RAGSource) -> RAGSource:
         with self._get_connection() as conn:
             metadata_str = json.dumps(source.metadata_json) if isinstance(source.metadata_json, dict) else str(source.metadata_json)
+            status_val = source.status.value if isinstance(source.status, Enum) else str(source.status)
+            content_type_val = source.content_type.value if isinstance(source.content_type, Enum) else str(source.content_type or "textbook")
+            vis_scope_val = source.visibility_scope.value if isinstance(source.visibility_scope, Enum) else str(source.visibility_scope or "course")
+            target_students_str = json.dumps(source.target_student_ids) if isinstance(source.target_student_ids, list) else str(source.target_student_ids or "[]")
             conn.execute(
                 """
-                INSERT INTO rag_sources (id, organization_id, course_id, subject, title, source_type, authority, version, status, checksum, metadata_json, chunk_count, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO rag_sources (
+                    id, organization_id, course_id, subject, title, source_type, authority,
+                    version, status, checksum, metadata_json, chunk_count, content_type,
+                    uploaded_by, published_by, published_at, error_message,
+                    course_version_id, visibility_scope, class_id, target_student_ids,
+                    created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     organization_id=excluded.organization_id,
                     course_id=excluded.course_id,
@@ -2032,6 +2799,15 @@ class PlatformDatabase:
                     checksum=excluded.checksum,
                     metadata_json=excluded.metadata_json,
                     chunk_count=excluded.chunk_count,
+                    content_type=excluded.content_type,
+                    uploaded_by=excluded.uploaded_by,
+                    published_by=excluded.published_by,
+                    published_at=excluded.published_at,
+                    error_message=excluded.error_message,
+                    course_version_id=excluded.course_version_id,
+                    visibility_scope=excluded.visibility_scope,
+                    class_id=excluded.class_id,
+                    target_student_ids=excluded.target_student_ids,
                     updated_at=excluded.updated_at;
                 """,
                 (
@@ -2043,10 +2819,19 @@ class PlatformDatabase:
                     source.source_type,
                     source.authority,
                     source.version,
-                    source.status,
+                    status_val,
                     source.checksum,
                     metadata_str,
                     source.chunk_count,
+                    content_type_val,
+                    source.uploaded_by,
+                    source.published_by,
+                    source.published_at,
+                    source.error_message,
+                    source.course_version_id,
+                    vis_scope_val,
+                    source.class_id,
+                    target_students_str,
                     source.created_at,
                     source.updated_at,
                 ),
@@ -2057,28 +2842,7 @@ class PlatformDatabase:
         with self._get_connection() as conn:
             r = conn.execute("SELECT * FROM rag_sources WHERE id = ?;", (source_id,)).fetchone()
             if r:
-                metadata = {}
-                if r["metadata_json"]:
-                    try:
-                        metadata = json.loads(r["metadata_json"])
-                    except Exception:
-                        pass
-                return RAGSource(
-                    id=r["id"],
-                    organization_id=r["organization_id"],
-                    course_id=r["course_id"],
-                    subject=r["subject"],
-                    title=r["title"],
-                    source_type=r["source_type"],
-                    authority=r["authority"],
-                    version=r["version"],
-                    status=r["status"],
-                    checksum=r["checksum"] or "",
-                    metadata_json=metadata,
-                    chunk_count=r["chunk_count"],
-                    created_at=r["created_at"],
-                    updated_at=r["updated_at"],
-                )
+                return self._row_to_rag_source(r)
             return None
 
     def list_rag_sources(
@@ -2087,6 +2851,10 @@ class PlatformDatabase:
         subject: Optional[str] = None,
         status: Optional[str] = None,
         authority: Optional[str] = None,
+        content_type: Optional[str] = None,
+        course_version_id: Optional[str] = None,
+        visibility_scope: Optional[str] = None,
+        class_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[RAGSource]:
@@ -2100,44 +2868,32 @@ class PlatformDatabase:
                 conditions.append("subject = ?")
                 params.append(subject)
             if status:
-                conditions.append("status = ?")
-                params.append(status)
+                conditions.append("LOWER(status) = ?")
+                params.append(status.lower())
             if authority:
                 conditions.append("authority = ?")
                 params.append(authority)
+            if content_type:
+                conditions.append("LOWER(content_type) = ?")
+                params.append(content_type.lower())
+            if course_version_id:
+                conditions.append("course_version_id = ?")
+                params.append(course_version_id)
+            if visibility_scope:
+                conditions.append("LOWER(visibility_scope) = ?")
+                params.append(visibility_scope.lower())
+            if class_id:
+                conditions.append("class_id = ?")
+                params.append(class_id)
 
             where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
             sql = f"SELECT * FROM rag_sources {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?;"
             params.extend([limit, offset])
 
             rows = conn.execute(sql, params).fetchall()
-            results = []
-            for r in rows:
-                metadata = {}
-                if r["metadata_json"]:
-                    try:
-                        metadata = json.loads(r["metadata_json"])
-                    except Exception:
-                        pass
-                results.append(
-                    RAGSource(
-                        id=r["id"],
-                        organization_id=r["organization_id"],
-                        course_id=r["course_id"],
-                        subject=r["subject"],
-                        title=r["title"],
-                        source_type=r["source_type"],
-                        authority=r["authority"],
-                        version=r["version"],
-                        status=r["status"],
-                        checksum=r["checksum"] or "",
-                        metadata_json=metadata,
-                        chunk_count=r["chunk_count"],
-                        created_at=r["created_at"],
-                        updated_at=r["updated_at"],
-                    )
-                )
-            return results
+            return [self._row_to_rag_source(r) for r in rows]
+
+
 
     def update_rag_source(self, source: RAGSource) -> RAGSource:
         source.updated_at = datetime.now(timezone.utc).isoformat()
@@ -2156,13 +2912,15 @@ class PlatformDatabase:
             for chunk in chunks:
                 emb_str = json.dumps(chunk.embedding_vector) if chunk.embedding_vector else "[]"
                 meta_str = json.dumps(chunk.metadata_json) if chunk.metadata_json else "{}"
+                vis_val = chunk.visibility_scope.value if isinstance(chunk.visibility_scope, Enum) else str(chunk.visibility_scope or "course")
                 conn.execute(
                     """
                     INSERT INTO rag_chunks (
                         id, source_id, course_id, subject, chapter, topic, concept,
                         difficulty, page, section, content_type, text, clean_text,
-                        embedding_vector, provenance_type, metadata_json, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        embedding_vector, provenance_type, metadata_json,
+                        course_version_id, visibility_scope, class_id, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         source_id=excluded.source_id,
                         course_id=excluded.course_id,
@@ -2178,7 +2936,10 @@ class PlatformDatabase:
                         clean_text=excluded.clean_text,
                         embedding_vector=excluded.embedding_vector,
                         provenance_type=excluded.provenance_type,
-                        metadata_json=excluded.metadata_json;
+                        metadata_json=excluded.metadata_json,
+                        course_version_id=excluded.course_version_id,
+                        visibility_scope=excluded.visibility_scope,
+                        class_id=excluded.class_id;
                     """,
                     (
                         chunk.id,
@@ -2197,6 +2958,9 @@ class PlatformDatabase:
                         emb_str,
                         chunk.provenance_type,
                         meta_str,
+                        chunk.course_version_id,
+                        vis_val,
+                        chunk.class_id,
                         chunk.created_at,
                     ),
                 )
@@ -2223,6 +2987,9 @@ class PlatformDatabase:
         subject: Optional[str] = None,
         concept: Optional[str] = None,
         only_published: bool = True,
+        course_version_id: Optional[str] = None,
+        class_id: Optional[str] = None,
+        student_id: Optional[str] = None,
         limit: int = 200,
     ) -> List[RAGChunk]:
         with self._get_connection() as conn:
@@ -2230,25 +2997,65 @@ class PlatformDatabase:
             params: List[Any] = [course_id]
 
             if only_published:
-                conditions.append("rs.status = 'published'")
+                conditions.append("LOWER(rs.status) = 'published'")
             if subject:
                 conditions.append("rc.subject = ?")
                 params.append(subject)
             if concept:
-                conditions.append("(rc.concept = ? OR rc.concept = '' OR rc.concept IS NULL)")
+                conditions.append("(rc.concept = ? OR rc.concept = '' OR rc.concept IS NULL OR rc.concept = 'General' OR rc.concept = 'ALL')")
                 params.append(concept)
 
             where_str = " AND ".join(conditions)
             sql = f"""
-                SELECT rc.* FROM rag_chunks rc
+                SELECT rc.*,
+                       rs.course_version_id as src_version_id,
+                       rs.visibility_scope as src_visibility_scope,
+                       rs.class_id as src_class_id,
+                       rs.target_student_ids as src_target_student_ids
+                FROM rag_chunks rc
                 JOIN rag_sources rs ON rc.source_id = rs.id
                 WHERE {where_str}
                 ORDER BY rc.created_at ASC
                 LIMIT ?;
             """
-            params.append(limit)
+            params.append(limit * 3)
             rows = conn.execute(sql, params).fetchall()
-            return [self._row_to_rag_chunk(r) for r in rows]
+
+            authorized_chunks = []
+            for r in rows:
+                keys = r.keys()
+                # 1. Version check
+                src_v = r["src_version_id"] if ("src_version_id" in keys and r["src_version_id"]) else (r["course_version_id"] if "course_version_id" in keys else None)
+                if course_version_id and src_v:
+                    if src_v != course_version_id:
+                        continue
+
+                # 2. Visibility scope check
+                raw_scope = r["src_visibility_scope"] if "src_visibility_scope" in keys and r["src_visibility_scope"] else "course"
+                scope = raw_scope.lower()
+                src_cls = r["src_class_id"] if "src_class_id" in keys else None
+
+                if scope == "class":
+                    if not class_id or class_id != src_cls:
+                        continue
+                elif scope == "student_targeted":
+                    if not student_id:
+                        continue
+                    targets_raw = r["src_target_student_ids"] if "src_target_student_ids" in keys else "[]"
+                    targets = []
+                    if targets_raw:
+                        try:
+                            targets = json.loads(targets_raw) if isinstance(targets_raw, str) else list(targets_raw)
+                        except Exception:
+                            targets = []
+                    if student_id not in targets:
+                        continue
+
+                authorized_chunks.append(self._row_to_rag_chunk(r))
+                if len(authorized_chunks) >= limit:
+                    break
+
+            return authorized_chunks
 
     def delete_rag_chunks_by_source(self, source_id: str) -> int:
         with self._get_connection() as conn:
@@ -2261,14 +3068,15 @@ class PlatformDatabase:
         if r["embedding_vector"]:
             try:
                 emb = json.loads(r["embedding_vector"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to decode RAG chunk embedding vector JSON: %s", exc)
         metadata = {}
         if r["metadata_json"]:
             try:
                 metadata = json.loads(r["metadata_json"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to decode RAG chunk metadata JSON: %s", exc)
+        keys = r.keys()
         return RAGChunk(
             id=r["id"],
             source_id=r["source_id"],
@@ -2286,8 +3094,12 @@ class PlatformDatabase:
             embedding_vector=emb,
             provenance_type=r["provenance_type"],
             metadata_json=metadata,
+            course_version_id=r["course_version_id"] if "course_version_id" in keys else None,
+            visibility_scope=r["visibility_scope"] if "visibility_scope" in keys and r["visibility_scope"] else "course",
+            class_id=r["class_id"] if "class_id" in keys else None,
             created_at=r["created_at"],
         )
+
 
     # ── Fee Management Subsystem (Phase 30) ────────────────────────────────────
 
@@ -2545,5 +3357,91 @@ class PlatformDatabase:
                 ),
             )
             return refund
+
+    # ── Phase 14 Sync Operations & Idempotency ───────────────────────
+
+    def record_sync_operation(self, op: SyncOperationRecord) -> SyncOperationRecord:
+        with self._get_connection() as conn:
+            conn.execute(
+                """INSERT INTO sync_operations (
+                       operation_id, student_id, device_id, course_id,
+                       synced_count, duplicate_count, failed_count,
+                       acknowledged_ids_json, conflicts_resolved, status,
+                       latest_mastery, server_timestamp, created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(operation_id) DO UPDATE SET
+                       synced_count = excluded.synced_count,
+                       duplicate_count = excluded.duplicate_count,
+                       failed_count = excluded.failed_count,
+                       acknowledged_ids_json = excluded.acknowledged_ids_json,
+                       conflicts_resolved = excluded.conflicts_resolved,
+                       status = excluded.status,
+                       latest_mastery = excluded.latest_mastery,
+                       server_timestamp = excluded.server_timestamp;""",
+                (
+                    op.operation_id, op.student_id, op.device_id, op.course_id,
+                    op.synced_count, op.duplicate_count, op.failed_count,
+                    json.dumps(op.acknowledged_ids), op.conflicts_resolved, op.status,
+                    op.latest_mastery, op.server_timestamp, op.created_at
+                ),
+            )
+            return op
+
+    def get_sync_operation(self, operation_id: str) -> Optional[SyncOperationRecord]:
+        with self._get_connection() as conn:
+            r = conn.execute("SELECT * FROM sync_operations WHERE operation_id = ?;", (operation_id,)).fetchone()
+            if not r:
+                return None
+            try:
+                ack_ids = json.loads(r["acknowledged_ids_json"])
+            except Exception:
+                ack_ids = []
+            return SyncOperationRecord(
+                operation_id=r["operation_id"],
+                student_id=r["student_id"],
+                device_id=r["device_id"],
+                course_id=r["course_id"],
+                synced_count=r["synced_count"],
+                duplicate_count=r["duplicate_count"],
+                failed_count=r["failed_count"],
+                acknowledged_ids=ack_ids,
+                conflicts_resolved=r["conflicts_resolved"] if "conflicts_resolved" in r.keys() else 0,
+                status=r["status"],
+                latest_mastery=float(r["latest_mastery"] or 0.0),
+                server_timestamp=r["server_timestamp"],
+                created_at=r["created_at"],
+            )
+
+    def get_sync_operations_for_student(self, student_id: str, limit: int = 50) -> List[SyncOperationRecord]:
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM sync_operations WHERE student_id = ? ORDER BY created_at DESC LIMIT ?;",
+                (student_id, limit),
+            ).fetchall()
+            results = []
+            for r in rows:
+                try:
+                    ack_ids = json.loads(r["acknowledged_ids_json"])
+                except Exception:
+                    ack_ids = []
+                results.append(
+                    SyncOperationRecord(
+                        operation_id=r["operation_id"],
+                        student_id=r["student_id"],
+                        device_id=r["device_id"],
+                        course_id=r["course_id"],
+                        synced_count=r["synced_count"],
+                        duplicate_count=r["duplicate_count"],
+                        failed_count=r["failed_count"],
+                        acknowledged_ids=ack_ids,
+                        conflicts_resolved=r["conflicts_resolved"] if "conflicts_resolved" in r.keys() else 0,
+                        status=r["status"],
+                        latest_mastery=float(r["latest_mastery"] or 0.0),
+                        server_timestamp=r["server_timestamp"],
+                        created_at=r["created_at"],
+                    )
+                )
+            return results
+
 
 

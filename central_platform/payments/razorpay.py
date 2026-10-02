@@ -68,13 +68,18 @@ class RazorpayPaymentAdapter(PaymentProvider):
         payment_id: str,
         signature: str,
     ) -> bool:
-        message = f"{order_id}|{payment_id}".encode("utf-8")
-        generated_signature = hmac.new(
-            self.key_secret.encode("utf-8"),
-            message,
-            hashlib.sha256
-        ).hexdigest()
-        return hmac.compare_digest(generated_signature, signature)
+        if not order_id or not payment_id or not signature:
+            return False
+        try:
+            message = f"{order_id}|{payment_id}".encode("utf-8")
+            generated_signature = hmac.new(
+                self.key_secret.encode("utf-8"),
+                message,
+                hashlib.sha256
+            ).hexdigest()
+            return hmac.compare_digest(generated_signature, signature)
+        except Exception:
+            return False
 
     def verify_webhook_signature(
         self,
@@ -82,12 +87,17 @@ class RazorpayPaymentAdapter(PaymentProvider):
         signature_header: str,
         secret: str,
     ) -> bool:
-        expected = hmac.new(
-            secret.encode("utf-8"),
-            payload_bytes,
-            hashlib.sha256
-        ).hexdigest()
-        return hmac.compare_digest(expected, signature_header)
+        if not payload_bytes or not signature_header or not secret:
+            return False
+        try:
+            expected = hmac.new(
+                secret.encode("utf-8"),
+                payload_bytes,
+                hashlib.sha256
+            ).hexdigest()
+            return hmac.compare_digest(expected, signature_header)
+        except Exception:
+            return False
 
     def fetch_payment_status(self, payment_id: str) -> PaymentStatusResponse:
         return PaymentStatusResponse(

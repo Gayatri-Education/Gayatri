@@ -1,10 +1,10 @@
-﻿name: CI
+name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
 
 jobs:
   test:
@@ -26,6 +26,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Verify compilation hygiene
+        run: |
+          python -m compileall app core central_platform tests scripts
+
+      - name: Run architecture guardrail suite
+        run: |
+          pytest -v tests/architecture
 
       - name: Run headless test suite
         run: |

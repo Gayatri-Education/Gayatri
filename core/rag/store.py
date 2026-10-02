@@ -36,7 +36,7 @@ class RAGStore:
         return self._db_conn
 
     def _create_schema(self) -> None:
-        from core.db import run_migrations
+        from core.db import add_column_if_missing, run_migrations
         conn = self.conn
 
         def migration_1(c: sqlite3.Connection) -> None:
@@ -46,7 +46,7 @@ class RAGStore:
                     title TEXT NOT NULL,
                     class_level TEXT NOT NULL,
                     chapter TEXT NOT NULL,
-                    subject TEXT DEFAULT 'Chemistry',
+                    subject TEXT DEFAULT 'chemistry',
                     source_type TEXT DEFAULT 'textbook',
                     version TEXT DEFAULT 'NCERT 2023-24',
                     license TEXT DEFAULT 'NCERT Educational',
@@ -69,15 +69,8 @@ class RAGStore:
             """)
 
         def migration_2(c: sqlite3.Connection) -> None:
-            try:
-                c.execute("ALTER TABLE rag_chunks ADD COLUMN section TEXT DEFAULT '';")
-            except sqlite3.OperationalError:
-                pass
-
-            try:
-                c.execute("ALTER TABLE rag_chunks ADD COLUMN provenance_type TEXT DEFAULT 'NCERT';")
-            except sqlite3.OperationalError:
-                pass
+            add_column_if_missing(c, "rag_chunks", "section TEXT DEFAULT ''")
+            add_column_if_missing(c, "rag_chunks", "provenance_type TEXT DEFAULT 'NCERT'")
 
         def migration_3(c: sqlite3.Connection) -> None:
             c.executescript("""

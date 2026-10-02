@@ -22,6 +22,18 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from central_platform.auth.tokens import create_access_token
 from central_platform.db import PlatformDatabase
+from central_platform.models.fees import (
+    FeeAccount,
+    FeeFrequency,
+    FeePlan,
+    FeeStructure,
+    Invoice,
+    InvoiceStatus,
+    Payment,
+    PaymentMethod,
+    PaymentStatus,
+    Receipt,
+)
 from central_platform.models.schema import (
     AIModel,
     AIProvider,
@@ -97,6 +109,28 @@ def seed_local_environment(db_path: str = "gayatri_local.db") -> dict:
             "name": "Vice-Principal Sunita Rao (KV Admin)",
             "role": UserRole.ORG_ADMIN,
             "org_id": "org_kv",
+        },
+        # Parents
+        {
+            "id": "usr_parent_patel",
+            "email": "parent.patel@dps.edu",
+            "name": "Sanjay Patel (Parent of Arjun Patel)",
+            "role": UserRole.PARENT,
+            "org_id": "org_dps",
+        },
+        {
+            "id": "usr_parent_sen",
+            "email": "parent.sen@dps.edu",
+            "name": "Ritu Sen (Parent of Priya Sen)",
+            "role": UserRole.PARENT,
+            "org_id": "org_dps",
+        },
+        {
+            "id": "usr_parent_gupta",
+            "email": "parent.gupta@dps.edu",
+            "name": "Vikram Gupta (Parent of Rohan Gupta)",
+            "role": UserRole.PARENT,
+            "org_id": "org_dps",
         },
         # Teachers
         {
@@ -800,7 +834,193 @@ def seed_local_environment(db_path: str = "gayatri_local.db") -> dict:
         db.record_audit_log(aud)
     print(f"  [OK] Seeded {len(audit_events)} Immutable Audit Trail Events")
 
-    # 10. Save local tokens to JSON file for immediate reference
+    # 10. Seed Fee Management Subsystem
+    fee_structures = [
+        FeeStructure(
+            id="fs_tuition_class11",
+            org_id="org_dps",
+            name="Class 11 Annual Tuition Fee",
+            code="FEE-TUIT-11",
+            description="Standard academic tuition fee for Grade 11 Science stream.",
+            amount=45000.0,
+            currency="INR",
+            frequency=FeeFrequency.ANNUAL,
+        ),
+        FeeStructure(
+            id="fs_lab_chem",
+            org_id="org_dps",
+            name="Chemistry & Physics Practical Laboratory Fee",
+            code="FEE-LAB-SCI",
+            description="Laboratory consumables, equipment usage, and safety gear.",
+            amount=5000.0,
+            currency="INR",
+            frequency=FeeFrequency.ANNUAL,
+        ),
+    ]
+    for fs in fee_structures:
+        db.create_fee_structure(fs)
+
+    fee_plans = [
+        FeePlan(
+            id="plan_class11_science",
+            org_id="org_dps",
+            name="Grade 11 Science Integrated Plan",
+            description="Combined Tuition and Science Lab Fee package for 2026 Academic Year.",
+            total_amount=50000.0,
+            installments_count=2,
+            fee_structure_ids=["fs_tuition_class11", "fs_lab_chem"],
+        ),
+    ]
+    for fp in fee_plans:
+        db.create_fee_plan(fp)
+
+    fee_accounts = [
+        FeeAccount(
+            id="fa_arjun",
+            student_id="usr_student_arjun",
+            org_id="org_dps",
+            fee_plan_id="plan_class11_science",
+            total_due=50000.0,
+            total_paid=25000.0,
+            total_discount=0.0,
+            balance_due=25000.0,
+            status="active",
+        ),
+        FeeAccount(
+            id="fa_priya",
+            student_id="usr_student_priya",
+            org_id="org_dps",
+            fee_plan_id="plan_class11_science",
+            total_due=50000.0,
+            total_paid=50000.0,
+            total_discount=0.0,
+            balance_due=0.0,
+            status="active",
+        ),
+        FeeAccount(
+            id="fa_rohan",
+            student_id="usr_student_rohan",
+            org_id="org_dps",
+            fee_plan_id="plan_class11_science",
+            total_due=50000.0,
+            total_paid=0.0,
+            total_discount=0.0,
+            balance_due=50000.0,
+            status="overdue",
+        ),
+    ]
+    for fa in fee_accounts:
+        db.create_fee_account(fa)
+
+    invoices = [
+        Invoice(
+            id="inv_arjun_01",
+            fee_account_id="fa_arjun",
+            student_id="usr_student_arjun",
+            org_id="org_dps",
+            invoice_number="INV-2026-001",
+            amount_due=25000.0,
+            amount_paid=25000.0,
+            due_date="2026-04-15",
+            status=InvoiceStatus.PAID,
+            notes="Term 1 Installment - Paid via UPI",
+        ),
+        Invoice(
+            id="inv_arjun_02",
+            fee_account_id="fa_arjun",
+            student_id="usr_student_arjun",
+            org_id="org_dps",
+            invoice_number="INV-2026-002",
+            amount_due=25000.0,
+            amount_paid=0.0,
+            due_date="2026-10-15",
+            status=InvoiceStatus.ISSUED,
+            notes="Term 2 Installment - Pending Payment",
+        ),
+        Invoice(
+            id="inv_priya_01",
+            fee_account_id="fa_priya",
+            student_id="usr_student_priya",
+            org_id="org_dps",
+            invoice_number="INV-2026-003",
+            amount_due=50000.0,
+            amount_paid=50000.0,
+            due_date="2026-04-15",
+            status=InvoiceStatus.PAID,
+            notes="Full Annual Academic Fee - Fully Paid",
+        ),
+        Invoice(
+            id="inv_rohan_01",
+            fee_account_id="fa_rohan",
+            student_id="usr_student_rohan",
+            org_id="org_dps",
+            invoice_number="INV-2026-004",
+            amount_due=25000.0,
+            amount_paid=0.0,
+            due_date="2026-04-15",
+            status=InvoiceStatus.OVERDUE,
+            notes="Term 1 Overdue Fee Notice Issued",
+        ),
+    ]
+    for inv in invoices:
+        db.create_invoice(inv)
+
+    payments = [
+        Payment(
+            id="pay_arjun_01",
+            invoice_id="inv_arjun_01",
+            fee_account_id="fa_arjun",
+            student_id="usr_student_arjun",
+            org_id="org_dps",
+            amount=25000.0,
+            payment_method=PaymentMethod.UPI,
+            transaction_reference="UPI-9876543210-DPS",
+            status=PaymentStatus.COMPLETED,
+            payment_date="2026-04-10T11:30:00Z",
+            notes="Payment received via GPay UPI",
+        ),
+        Payment(
+            id="pay_priya_01",
+            invoice_id="inv_priya_01",
+            fee_account_id="fa_priya",
+            student_id="usr_student_priya",
+            org_id="org_dps",
+            amount=50000.0,
+            payment_method=PaymentMethod.BANK_TRANSFER,
+            transaction_reference="NEFT-8877665544-DPS",
+            status=PaymentStatus.COMPLETED,
+            payment_date="2026-04-05T09:15:00Z",
+            notes="Payment received via Net Banking NEFT",
+        ),
+    ]
+    for pay in payments:
+        db.create_payment(pay)
+
+    receipts = [
+        Receipt(
+            id="rec_arjun_01",
+            payment_id="pay_arjun_01",
+            receipt_number="REC-2026-001",
+            amount=25000.0,
+            issued_to="Sanjay Patel (Parent of Arjun Patel)",
+            issued_at="2026-04-10T11:30:00Z",
+            notes="Term 1 Official Receipt",
+        ),
+        Receipt(
+            id="rec_priya_01",
+            payment_id="pay_priya_01",
+            receipt_number="REC-2026-002",
+            amount=50000.0,
+            issued_to="Ritu Sen (Parent of Priya Sen)",
+            issued_at="2026-04-05T09:15:00Z",
+            notes="Full Year Official Receipt",
+        ),
+    ]
+    for rec in receipts:
+        db.create_receipt(rec)
+    print(f"  [OK] Seeded Fee Subsystem: {len(fee_structures)} Fee Structures, {len(invoices)} Invoices, {len(payments)} Payments, {len(receipts)} Receipts")
+
+    # 11. Save local tokens to JSON file for immediate reference
     token_file = PROJECT_ROOT / "local_auth_tokens.json"
     token_file.write_text(json.dumps(tokens, indent=2), encoding="utf-8")
     print(f"\n[KEY] Generated Test Auth Tokens written to: {token_file.name}")

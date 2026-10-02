@@ -137,6 +137,121 @@ class Permission:
 
 # ── 2. Academic Curriculum Hierarchy ────────────────────────────────────
 
+class CourseVisibility(str, Enum):
+    PUBLIC = "PUBLIC"
+    PRIVATE = "PRIVATE"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().upper()
+            for member in cls:
+                if member.value == val_norm or member.name == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
+class CourseStatus(str, Enum):
+    DRAFT = "DRAFT"
+    PROCESSING = "PROCESSING"
+    READY_FOR_REVIEW = "READY_FOR_REVIEW"
+    PUBLISHED = "PUBLISHED"
+    ARCHIVED = "ARCHIVED"
+    FAILED = "FAILED"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().upper()
+            for member in cls:
+                if member.value == val_norm or member.name == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
+@dataclass
+class CourseToolPolicy:
+    calculator: bool = False
+    graphing: bool = False
+    code_execution: bool = False
+    equation_balancer: bool = False
+    periodic_table: bool = False
+    custom_tools: Dict[str, bool] = field(default_factory=dict)
+
+    def is_tool_enabled(self, tool_name: str) -> bool:
+        if tool_name in self.custom_tools:
+            return self.custom_tools[tool_name]
+        return getattr(self, tool_name, False)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> CourseToolPolicy:
+        if not data:
+            return cls()
+        known = {k: bool(v) for k, v in data.items() if k in {"calculator", "graphing", "code_execution", "equation_balancer", "periodic_table"}}
+        custom = {k: bool(v) for k, v in data.items() if k not in known}
+        return cls(**known, custom_tools=custom)
+
+
+@dataclass
+class CoursePolicy:
+    allow_cloud_fallback: bool = True
+    strict_prerequisites: bool = True
+    max_hints_per_concept: int = 3
+    remediation_threshold: float = 0.5
+    custom_rules: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> CoursePolicy:
+        if not data:
+            return cls()
+        known = {k: v for k, v in data.items() if k in {"allow_cloud_fallback", "strict_prerequisites", "max_hints_per_concept", "remediation_threshold"}}
+        custom = {k: v for k, v in data.items() if k not in known}
+        return cls(**known, custom_rules=custom)
+
+
+@dataclass
+class CourseVersion:
+    id: str
+    course_id: str
+    version_number: str = "1.0"
+    status: CourseStatus = CourseStatus.DRAFT
+    tool_policy: CourseToolPolicy = field(default_factory=CourseToolPolicy)
+    tutor_policy: CoursePolicy = field(default_factory=CoursePolicy)
+    checksum: str = ""
+    created_by: str = ""
+    published_by: Optional[str] = None
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    published_at: Optional[str] = None
+    is_deleted: bool = False
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        d["status"] = self.status.value if isinstance(self.status, CourseStatus) else str(self.status)
+        return d
+
+
+@dataclass
+class OrganizationCourseOffering:
+    id: str
+    organization_id: str
+    course_id: str
+    pinned_version_id: Optional[str] = None
+    is_active: bool = True
+    enrolled_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+CourseOffering = OrganizationCourseOffering
+
+
 @dataclass
 class Course:
     id: str
@@ -144,13 +259,17 @@ class Course:
     code: str
     title: str
     description: str = ""
+    visibility: CourseVisibility = CourseVisibility.PRIVATE
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     is_deleted: bool = False
     deleted_at: Optional[str] = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d["visibility"] = self.visibility.value if isinstance(self.visibility, CourseVisibility) else str(self.visibility)
+        return d
+
 
 
 @dataclass
@@ -282,6 +401,27 @@ class Enrollment:
         return asdict(self)
 
 
+@dataclass
+class CourseLearningContext:
+    """Authoritative scoped context binding a student to a specific course and version."""
+    student_id: str
+    course_id: str
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    course_offering_id: Optional[str] = None
+    cohort_id: Optional[str] = None
+    class_id: Optional[str] = None
+
+    def validate(self) -> None:
+        if not self.student_id or not str(self.student_id).strip():
+            raise ValueError("CourseLearningContext requires a non-empty student_id.")
+        if not self.course_id or not str(self.course_id).strip():
+            raise ValueError("CourseLearningContext requires a non-empty course_id.")
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
 # ── 4. Sessions & Granular Telemetry ─────────────────────────────────────
 
 @dataclass
@@ -293,6 +433,9 @@ class Session:
     status: SessionStatus = SessionStatus.ACTIVE
     started_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     ended_at: Optional[str] = None
+    course_version_id: Optional[str] = None
+    course_offering_id: Optional[str] = None
+    class_id: Optional[str] = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -309,6 +452,7 @@ class LearningEvent:
     event_type: str = "question_attempted"
     organization_id: Optional[str] = None
     course_id: Optional[str] = None
+    course_version_id: Optional[str] = None
     source: str = "student_desktop"
     payload: Dict[str, Any] = field(default_factory=dict)
     score: Optional[float] = None
@@ -323,6 +467,7 @@ class LearningEvent:
         d = asdict(self)
         d["event_id"] = self.id
         return d
+
 
 
 # ── 5. Student Learning Records & Mastery ────────────────────────────────
@@ -538,23 +683,39 @@ class Reassessment:
 
 # ── 7. Teacher Directives & Interventions ────────────────────────────────
 
+class InstructionScope(str, Enum):
+    """Authoritative scopes for teacher instruction cascading."""
+    ORGANIZATION = "ORGANIZATION"
+    COURSE = "COURSE"
+    CLASS = "CLASS"
+    STUDENT = "STUDENT"
+    SESSION = "SESSION"
+
+
 @dataclass
 class TeacherInstructionRecord:
     id: str
     teacher_id: str
-    student_id: str
-    course_id: str
-    instruction_text: str
+    student_id: str = "all"
+    course_id: str = "crs-default"
+    instruction_text: str = ""
     concept_scope: str = "ALL"
     priority: int = 2
     is_active: bool = True
-    start_at: Optional[str] = None
-    expires_at: Optional[str] = None
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    session_id: Optional[str] = None
+    scope_type: str = InstructionScope.COURSE.value
     status: str = "ACTIVE"
     safety_status: str = "VALIDATED"
     safety_reasons: List[str] = field(default_factory=list)
+    start_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    version: int = 1
     audit_trail: List[dict] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -697,12 +858,63 @@ class AuditLog:
 
 # ── 9. Plug-and-Play RAG Knowledge Subsystem ────────────────────────────
 
+class KnowledgeContentType(str, Enum):
+    TEXTBOOK = "textbook"
+    REFERENCE = "reference"
+    TEACHER_NOTE = "teacher_note"
+    WORKSHEET = "worksheet"
+    REMEDIAL = "remedial"
+    ASSESSMENT_SOURCE = "assessment_source"
+    SOLUTION_GUIDE = "solution_guide"
+    OTHER = "other"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
+class KnowledgeVisibilityScope(str, Enum):
+    COURSE = "course"
+    CLASS = "class"
+    STUDENT_TARGETED = "student_targeted"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
 class RAGSourceStatus(str, Enum):
     DRAFT = "draft"
+    PROCESSING = "processing"
     INGESTED = "ingested"
     VALIDATED = "validated"
+    READY_FOR_REVIEW = "ready_for_review"
+    APPROVED = "approved"
     PUBLISHED = "published"
     ARCHIVED = "archived"
+    FAILED = "failed"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if isinstance(value, str):
+            val_norm = value.strip().lower()
+            for member in cls:
+                if member.value == val_norm or member.name.lower() == val_norm:
+                    return member
+        return super()._missing_(value)
+
+
+KnowledgeAssetStatus = RAGSourceStatus
 
 
 @dataclass
@@ -719,11 +931,27 @@ class RAGSource:
     checksum: str = ""
     metadata_json: Dict[str, Any] = field(default_factory=dict)
     chunk_count: int = 0
+    content_type: str = "textbook"
+    uploaded_by: Optional[str] = None
+    published_by: Optional[str] = None
+    published_at: Optional[str] = None
+    error_message: Optional[str] = None
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
+    target_student_ids: List[str] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        if isinstance(self.status, Enum):
+            d["status"] = self.status.value
+        if isinstance(self.content_type, Enum):
+            d["content_type"] = self.content_type.value
+        if isinstance(self.visibility_scope, Enum):
+            d["visibility_scope"] = self.visibility_scope.value
+        return d
 
 
 @dataclass
@@ -744,8 +972,29 @@ class RAGChunk:
     embedding_vector: List[float] = field(default_factory=list)
     provenance_type: str = "NCERT"
     metadata_json: Dict[str, Any] = field(default_factory=dict)
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+@dataclass
+class SyncOperationRecord:
+    operation_id: str
+    student_id: str
+    device_id: Optional[str] = None
+    course_id: Optional[str] = None
+    synced_count: int = 0
+    duplicate_count: int = 0
+    failed_count: int = 0
+    acknowledged_ids: List[str] = field(default_factory=list)
+    conflicts_resolved: int = 0
+    status: str = "SYNCED"
+    latest_mastery: float = 0.0
+    server_timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
 

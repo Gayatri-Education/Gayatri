@@ -13,10 +13,21 @@ import logging
 import math
 import re
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from central_platform.db import PlatformDatabase
-from central_platform.models.schema import RAGChunk, RAGSource, RAGSourceStatus
+from central_platform.models.schema import (
+    CourseLearningContext,
+    CourseVisibility,
+    KnowledgeContentType,
+    KnowledgeVisibilityScope,
+    RAGChunk,
+    RAGSource,
+    RAGSourceStatus,
+    User,
+    UserRole,
+)
 from central_platform.rag.cleaner import DocumentCleaner
 from central_platform.rag.parsers import DocumentParserRouter, ParsedSection
 from central_platform.rag.security import RAGSecuritySanitizer
@@ -32,17 +43,26 @@ class SmartChunker:
         self.overlap_chars = overlap_chars
         self.min_chunk_chars = min_chunk_chars
 
-    def chunk_section(self, section: ParsedSection, source_id: str, course_id: str, subject: str) -> List[RAGChunk]:
+    def chunk_section(
+        self,
+        section: ParsedSection,
+        source_id: str,
+        course_id: str,
+        subject: str,
+        course_version_id: Optional[str] = None,
+        visibility_scope: str = "course",
+        class_id: Optional[str] = None,
+    ) -> List[RAGChunk]:
         text = section.text.strip()
         if not text or len(text) < self.min_chunk_chars:
             if not text:
                 return []
             # Keep small chunk if meaningful
-            return [self._build_chunk(text, section, source_id, course_id, subject, index=0)]
+            return [self._build_chunk(text, section, source_id, course_id, subject, index=0, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id)]
 
         # If text is already within reasonable bounds
         if len(text) <= self.target_chunk_chars + self.overlap_chars:
-            return [self._build_chunk(text, section, source_id, course_id, subject, index=0)]
+            return [self._build_chunk(text, section, source_id, course_id, subject, index=0, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id)]
 
         # Split text into sentences
         sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -55,7 +75,7 @@ class SmartChunker:
             s_len = len(sentence)
             if current_len + s_len > self.target_chunk_chars and current_sentences:
                 chunk_text = " ".join(current_sentences)
-                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx))
+                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id))
                 idx += 1
                 # Sliding window overlap
                 overlap_text: List[str] = []
@@ -75,7 +95,7 @@ class SmartChunker:
         if current_sentences:
             chunk_text = " ".join(current_sentences)
             if len(chunk_text) >= self.min_chunk_chars:
-                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx))
+                chunks.append(self._build_chunk(chunk_text, section, source_id, course_id, subject, index=idx, course_version_id=course_version_id, visibility_scope=visibility_scope, class_id=class_id))
 
         return chunks
 
@@ -87,6 +107,9 @@ class SmartChunker:
         course_id: str,
         subject: str,
         index: int,
+        course_version_id: Optional[str] = None,
+        visibility_scope: str = "course",
+        class_id: Optional[str] = None,
     ) -> RAGChunk:
         clean = DocumentCleaner.clean(raw_text)
         sanitized, _ = RAGSecuritySanitizer.sanitize_document_text(clean)
@@ -100,6 +123,7 @@ class SmartChunker:
         for w in words:
             word_freq[w] = word_freq.get(w, 0.0) + 1.0
 
+        vis_val = visibility_scope.value if isinstance(visibility_scope, Enum) else str(visibility_scope or "course")
         return RAGChunk(
             id=chunk_id,
             source_id=source_id,
@@ -121,8 +145,12 @@ class SmartChunker:
                 "term_freq": word_freq,
                 "raw_metadata": section.raw_metadata,
             },
+            course_version_id=course_version_id,
+            visibility_scope=vis_val,
+            class_id=class_id,
             created_at=datetime.now(timezone.utc).isoformat(),
         )
+
 
 
 class RAGService:
@@ -141,12 +169,20 @@ class RAGService:
         source_type: str = "text",
         authority: str = "NCERT",
         version: str = "1.0.0",
+        content_type: str | KnowledgeContentType = KnowledgeContentType.TEXTBOOK,
+        uploaded_by: Optional[str] = None,
+        course_version_id: Optional[str] = None,
+        visibility_scope: str | KnowledgeVisibilityScope = KnowledgeVisibilityScope.COURSE,
+        class_id: Optional[str] = None,
+        target_student_ids: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         source_id: Optional[str] = None,
     ) -> RAGSource:
         """Register a new knowledge source in draft state."""
         sid = source_id or f"src_{hashlib.sha256(f'{course_id}:{title}:{version}'.encode()).hexdigest()[:12]}"
         now = datetime.now(timezone.utc).isoformat()
+        ct_val = content_type.value if isinstance(content_type, KnowledgeContentType) else str(content_type or "textbook")
+        vis_val = visibility_scope.value if isinstance(visibility_scope, KnowledgeVisibilityScope) else str(visibility_scope or "course").lower()
         source = RAGSource(
             id=sid,
             organization_id=organization_id,
@@ -160,6 +196,12 @@ class RAGService:
             checksum="",
             metadata_json=metadata or {},
             chunk_count=0,
+            content_type=ct_val,
+            uploaded_by=uploaded_by,
+            course_version_id=course_version_id,
+            visibility_scope=vis_val,
+            class_id=class_id,
+            target_student_ids=target_student_ids or [],
             created_at=now,
             updated_at=now,
         )
@@ -180,6 +222,14 @@ class RAGService:
         # Compute content checksum
         raw_bytes = content.encode("utf-8") if isinstance(content, str) else content
         checksum = hashlib.sha256(raw_bytes).hexdigest()
+
+        if file_name:
+            if ".." in file_name or "/" in file_name or "\\" in file_name:
+                raise ValueError(f"Path traversal detected in upload filename '{file_name}'.")
+            ext = "." + file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+            dangerous_exts = {".exe", ".bat", ".cmd", ".sh", ".php", ".py", ".vbs", ".ps1", ".jar", ".dll", ".so"}
+            if ext in dangerous_exts:
+                raise ValueError(f"Dangerous/executable file extension '{ext}' is prohibited in upload.")
 
         source_type = override_source_type or source.source_type
         # 1. Parse
@@ -203,7 +253,15 @@ class RAGService:
         # 2. Chunk & Clean
         all_chunks: List[RAGChunk] = []
         for sec in parsed_sections:
-            chunks = self.chunker.chunk_section(sec, source.id, source.course_id, source.subject)
+            chunks = self.chunker.chunk_section(
+                sec,
+                source.id,
+                source.course_id,
+                source.subject,
+                course_version_id=source.course_version_id,
+                visibility_scope=source.visibility_scope,
+                class_id=source.class_id,
+            )
             all_chunks.extend(chunks)
 
         if not all_chunks:
@@ -292,8 +350,261 @@ class RAGService:
             "warnings": warnings,
         }
 
-    def publish_source(self, source_id: str) -> RAGSource:
+    def upload_knowledge_asset(
+        self,
+        course_id: str,
+        title: str,
+        content: str | bytes,
+        organization_id: str = "org-default",
+        subject: str = "General",
+        user: Optional[User] = None,
+        user_id: Optional[str] = None,
+        user_role: Optional[UserRole | str] = None,
+        source_type: str = "text",
+        content_type: str | KnowledgeContentType = KnowledgeContentType.TEXTBOOK,
+        authority: str = "NCERT",
+        version: str = "1.0.0",
+        course_version_id: Optional[str] = None,
+        visibility_scope: str | KnowledgeVisibilityScope = KnowledgeVisibilityScope.COURSE,
+        class_id: Optional[str] = None,
+        target_student_ids: Optional[List[str]] = None,
+        file_name: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+        raise_on_failure: bool = False,
+    ) -> RAGSource:
+        """Upload and process a knowledge asset through ingestion and validation pipeline.
+
+        Teachers and administrators can upload; students are strictly forbidden (PermissionError).
+        Successful processing transitions the asset to READY_FOR_REVIEW.
+        Errors transition the asset to FAILED with descriptive error_message.
+        """
+        role = user.role if user else user_role
+        uid = user.id if user else (user_id or "")
+
+        if role is not None:
+            r_str = role.value.lower() if hasattr(role, "value") else str(role).lower()
+            if r_str in ("student", "userrole.student"):
+                raise PermissionError("Students are not permitted to upload knowledge assets.")
+
+        if not course_id or not str(course_id).strip():
+            raise ValueError("Knowledge asset requires a non-empty course_id.")
+        if not title or not str(title).strip():
+            raise ValueError("Knowledge asset requires a non-empty title.")
+
+        if content is None:
+            raise ValueError("Content cannot be empty.")
+        if isinstance(content, str) and not content.strip():
+            raise ValueError("Content cannot be empty.")
+        if isinstance(content, bytes) and len(content) == 0:
+            raise ValueError("Content cannot be empty.")
+
+        raw_bytes = content.encode("utf-8") if isinstance(content, str) else content
+        if len(raw_bytes) > 10 * 1024 * 1024:
+            raise ValueError("Content exceeds maximum allowed size of 10MB.")
+
+        if file_name:
+            if ".." in file_name or "/" in file_name or "\\" in file_name:
+                raise ValueError(f"Path traversal detected in upload filename '{file_name}'.")
+            ext = "." + file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+            dangerous_exts = {".exe", ".bat", ".cmd", ".sh", ".php", ".py", ".vbs", ".ps1", ".jar", ".dll", ".so"}
+            if ext in dangerous_exts:
+                raise ValueError(f"Dangerous/executable file extension '{ext}' is prohibited in upload.")
+
+        sid = f"src_{hashlib.sha256(f'{course_id}:{title}:{version}'.encode()).hexdigest()[:12]}"
+        now = datetime.now(timezone.utc).isoformat()
+        ct_val = content_type.value if isinstance(content_type, KnowledgeContentType) else str(content_type or "textbook")
+        vis_val = visibility_scope.value if isinstance(visibility_scope, KnowledgeVisibilityScope) else str(visibility_scope or "course").lower()
+
+        source = RAGSource(
+            id=sid,
+            organization_id=organization_id,
+            course_id=course_id,
+            subject=subject,
+            title=title,
+            source_type=source_type,
+            authority=authority,
+            version=version,
+            status=RAGSourceStatus.PROCESSING.value,
+            checksum="",
+            metadata_json=metadata or {},
+            chunk_count=0,
+            content_type=ct_val,
+            uploaded_by=uid,
+            course_version_id=course_version_id,
+            visibility_scope=vis_val,
+            class_id=class_id,
+            target_student_ids=target_student_ids or [],
+            created_at=now,
+            updated_at=now,
+        )
+        self.db.create_rag_source(source)
+
+        try:
+            checksum = hashlib.sha256(raw_bytes).hexdigest()
+            default_meta = {
+                "source_id": source.id,
+                "course_id": source.course_id,
+                "subject": source.subject,
+                "authority": source.authority,
+                **source.metadata_json,
+            }
+            parsed_sections = DocumentParserRouter.parse(
+                content=content,
+                source_type=source_type,
+                file_name=file_name,
+                default_metadata=default_meta,
+            )
+            if not parsed_sections:
+                raise ValueError("Document parser returned 0 sections. Verify file format and content.")
+
+            all_chunks: List[RAGChunk] = []
+            for sec in parsed_sections:
+                chunks = self.chunker.chunk_section(
+                    sec,
+                    source.id,
+                    source.course_id,
+                    source.subject,
+                    course_version_id=course_version_id,
+                    visibility_scope=vis_val,
+                    class_id=class_id,
+                )
+                all_chunks.extend(chunks)
+
+            if not all_chunks:
+                raise ValueError("No valid chunks could be extracted from document.")
+
+            errors: List[str] = []
+            for c in all_chunks:
+                if not c.clean_text.strip():
+                    errors.append(f"Chunk {c.id} contains empty clean text.")
+
+            if errors:
+                raise ValueError("; ".join(errors))
+
+            self.db.delete_rag_chunks_by_source(source.id)
+            added_count = self.db.add_rag_chunks(all_chunks)
+
+            source.status = RAGSourceStatus.READY_FOR_REVIEW.value
+            source.checksum = checksum
+            source.chunk_count = added_count
+            source.error_message = None
+            source.updated_at = datetime.now(timezone.utc).isoformat()
+            return self.db.update_rag_source(source)
+
+        except Exception as exc:
+            source.status = RAGSourceStatus.FAILED.value
+            source.error_message = str(exc)
+            source.updated_at = datetime.now(timezone.utc).isoformat()
+            self.db.update_rag_source(source)
+            if raise_on_failure:
+                raise
+            return source
+
+    def approve_knowledge_asset(
+        self,
+        source_id: str,
+        user: Optional[User] = None,
+        user_id: Optional[str] = None,
+        user_role: Optional[UserRole | str] = None,
+    ) -> RAGSource:
+        """Approve a processed knowledge asset for publication. Only ORG_ADMIN or SUPER_ADMIN permitted."""
+        uid = user.id if user else (user_id or "")
+        role = user.role if user else user_role
+        r_str = role.value.lower() if hasattr(role, "value") else (str(role).lower() if role else "")
+
+        if r_str not in ("org_admin", "super_admin", "userrole.org_admin", "userrole.super_admin"):
+            raise PermissionError("Only institutional administrators (ORG_ADMIN, SUPER_ADMIN) can approve knowledge assets.")
+
+        source = self.db.get_rag_source(source_id)
+        if not source:
+            raise ValueError(f"Knowledge asset '{source_id}' not found.")
+
+        if source.status == RAGSourceStatus.FAILED.value:
+            raise ValueError(f"Cannot approve failed knowledge asset '{source_id}'. Error: {source.error_message}")
+
+        if source.chunk_count == 0:
+            raise ValueError(f"Cannot approve empty knowledge asset '{source_id}'. Ingest content first.")
+
+        source.status = RAGSourceStatus.APPROVED.value
+        source.updated_at = datetime.now(timezone.utc).isoformat()
+        return self.db.update_rag_source(source)
+
+    def publish_knowledge_asset(
+        self,
+        source_id: str,
+        user: Optional[User] = None,
+        user_id: Optional[str] = None,
+        user_role: Optional[UserRole | str] = None,
+    ) -> RAGSource:
+        """Publish an approved knowledge asset. Only ORG_ADMIN or SUPER_ADMIN permitted."""
+        uid = user.id if user else (user_id or "")
+        role = user.role if user else user_role
+        r_str = role.value.lower() if hasattr(role, "value") else (str(role).lower() if role else "")
+
+        source = self.db.get_rag_source(source_id)
+        if not source:
+            raise ValueError(f"Knowledge asset '{source_id}' not found.")
+
+        is_teacher_material = (
+            getattr(source, "authority", "") == "TEACHER"
+            or getattr(source, "visibility_scope", "") in ("class", "student_targeted")
+            or getattr(source, "content_type", "") in ("class_note", "remedial")
+        )
+        allowed_roles = ("org_admin", "super_admin", "userrole.org_admin", "userrole.super_admin")
+        if is_teacher_material:
+            allowed_roles = allowed_roles + ("teacher", "userrole.teacher")
+
+        if r_str and r_str not in allowed_roles:
+            raise PermissionError("Only institutional administrators (ORG_ADMIN, SUPER_ADMIN) or teachers for class notes can publish knowledge assets.")
+
+        if source.status == RAGSourceStatus.FAILED.value:
+            raise ValueError(f"Cannot publish failed knowledge asset '{source_id}'. Error: {source.error_message}")
+
+        if source.chunk_count == 0:
+            raise ValueError(f"Cannot publish empty knowledge asset '{source_id}'. Ingest content first.")
+
+        now = datetime.now(timezone.utc).isoformat()
+        source.status = RAGSourceStatus.PUBLISHED.value
+        source.published_by = uid
+        source.published_at = now
+        source.updated_at = now
+        return self.db.update_rag_source(source)
+
+    def archive_knowledge_asset(
+        self,
+        source_id: str,
+        user: Optional[User] = None,
+        user_id: Optional[str] = None,
+        user_role: Optional[UserRole | str] = None,
+    ) -> RAGSource:
+        """Archive a knowledge asset. Admins or the author can archive."""
+        source = self.db.get_rag_source(source_id)
+        if not source:
+            raise ValueError(f"Knowledge asset '{source_id}' not found.")
+
+        if user or user_role:
+            uid = user.id if user else (user_id or "")
+            role = user.role if user else user_role
+            r_str = role.value.lower() if hasattr(role, "value") else (str(role).lower() if role else "")
+            if r_str not in ("org_admin", "super_admin", "userrole.org_admin", "userrole.super_admin"):
+                if not (uid and source.uploaded_by == uid):
+                    raise PermissionError("Only administrators or the asset author can archive knowledge assets.")
+
+        source.status = RAGSourceStatus.ARCHIVED.value
+        source.updated_at = datetime.now(timezone.utc).isoformat()
+        return self.db.update_rag_source(source)
+
+    def publish_source(
+        self,
+        source_id: str,
+        user: Optional[User] = None,
+        user_id: Optional[str] = None,
+        user_role: Optional[UserRole | str] = None,
+    ) -> RAGSource:
         """Publish a validated knowledge source, making it active for query retrieval."""
+        if user or user_role:
+            return self.publish_knowledge_asset(source_id, user=user, user_id=user_id, user_role=user_role)
+
         source = self.db.get_rag_source(source_id)
         if not source:
             raise ValueError(f"Knowledge source '{source_id}' not found.")
@@ -301,8 +612,10 @@ class RAGService:
         if source.chunk_count == 0:
             raise ValueError(f"Cannot publish empty source '{source_id}'. Ingest content first.")
 
+        now = datetime.now(timezone.utc).isoformat()
         source.status = RAGSourceStatus.PUBLISHED.value
-        source.updated_at = datetime.now(timezone.utc).isoformat()
+        source.published_at = now
+        source.updated_at = now
         return self.db.update_rag_source(source)
 
     def query(
@@ -311,10 +624,19 @@ class RAGService:
         course_id: Optional[str] = None,
         subject: Optional[str] = None,
         concept: Optional[str] = None,
+        user: Optional[User] = None,
+        user_id: Optional[str] = None,
+        user_role: Optional[UserRole | str] = None,
         top_k: int = 3,
         confidence_threshold: float = 0.2,
+        context: Optional[CourseLearningContext] = None,
+        student_id: Optional[str] = None,
+        course_version_id: Optional[str] = None,
+        class_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Execute grounded hybrid retrieval scoped to course, subject, and concepts."""
+        """Execute grounded hybrid retrieval scoped to course, version, class, and student.
+        Enforces multi-tenant organization isolation and published asset gating.
+        """
         sanitized_query = RAGSecuritySanitizer.sanitize_query(query_text)
         if not sanitized_query:
             return {
@@ -325,19 +647,64 @@ class RAGService:
                 "data_context": "",
             }
 
-        # Retrieve available chunks from published sources
+        # Resolve effective query scoping parameters
+        effective_course_id = course_id
+        effective_student_id = student_id or (user.id if user else user_id)
+        effective_version_id = course_version_id
+        effective_class_id = class_id
+        student_org_id = user.organization_id if user else None
+
+        if context:
+            if not effective_course_id:
+                effective_course_id = context.course_id
+            if not effective_student_id:
+                effective_student_id = context.student_id
+            if not effective_version_id:
+                effective_version_id = context.course_version_id
+            if not effective_class_id:
+                effective_class_id = context.class_id
+            if not student_org_id and context.organization_id:
+                student_org_id = context.organization_id
+
+        if not student_org_id and effective_student_id:
+            usr = self.db.get_user(effective_student_id)
+            if usr:
+                student_org_id = usr.organization_id
+
+        # Multi-Tenant Org Isolation Check
+        if effective_course_id and student_org_id:
+            course = self.db.get_course(effective_course_id)
+            if course:
+                c_vis = course.visibility.value if hasattr(course.visibility, "value") else str(course.visibility).upper()
+                if c_vis != "PUBLIC" and course.organization_id != student_org_id:
+                    # Check if there is an active course offering for this student's org
+                    offering = self.db.get_course_offering_by_org_and_course(student_org_id, effective_course_id)
+                    if not offering:
+                        return {
+                            "status": "RAG_DENIED",
+                            "reason": f"Access denied: course '{effective_course_id}' is private to organization '{course.organization_id}' and not offered to organization '{student_org_id}'.",
+                            "query": query_text,
+                            "results": [],
+                            "count": 0,
+                            "data_context": "",
+                        }
+
+        # Retrieve available chunks from published sources matching course, version, class, student
         chunks: List[RAGChunk] = []
-        if course_id:
+        if effective_course_id:
             chunks = self.db.get_rag_chunks_by_course(
-                course_id=course_id,
+                course_id=effective_course_id,
                 subject=subject,
                 concept=concept,
                 only_published=True,
+                course_version_id=effective_version_id,
+                class_id=effective_class_id,
+                student_id=effective_student_id,
                 limit=500,
             )
 
         # Fallback to general/global published chunks if course has none or no course specified
-        if not chunks:
+        if not chunks and not effective_course_id:
             sources = self.db.list_rag_sources(
                 course_id=None,
                 subject=subject,
@@ -345,13 +712,19 @@ class RAGService:
                 limit=10,
             )
             for s in sources:
-                # Source isolation: only include global sources (no course_id) or matching course_id
-                if not s.course_id or s.course_id == course_id:
+                if not s.course_id:
                     chunks.extend(self.db.get_rag_chunks(s.id, limit=100))
 
         if not chunks:
-            # Check legacy JSON files in data/rag if DB is empty
-            return self._legacy_fallback_query(sanitized_query, top_k)
+            if not effective_course_id:
+                return self._legacy_fallback_query(sanitized_query, top_k)
+            return {
+                "status": "RAG_EMPTY",
+                "query": query_text,
+                "results": [],
+                "count": 0,
+                "data_context": "",
+            }
 
         # Score chunks using hybrid TF-IDF lexical overlap + concept match + authority weighting
         query_terms = set(re.findall(r"\w+", sanitized_query.lower()))
@@ -373,9 +746,10 @@ class RAGService:
             # Concept / Chapter / Topic match bonus
             if concept:
                 c_lower = concept.lower()
-                if chunk.concept and c_lower in chunk.concept.lower():
+                c_clean = c_lower.replace("cpt-", "").replace("cpt_", "")
+                if chunk.concept and (c_lower in chunk.concept.lower() or c_clean in chunk.concept.lower()):
                     lexical_score += 0.25
-                elif (chunk.chapter and c_lower in chunk.chapter.lower()) or (chunk.topic and c_lower in chunk.topic.lower()):
+                elif (chunk.chapter and (c_lower in chunk.chapter.lower() or c_clean in chunk.chapter.lower())) or (chunk.topic and (c_lower in chunk.topic.lower() or c_clean in chunk.topic.lower())):
                     lexical_score += 0.15
 
             if lexical_score == 0.0:
@@ -424,6 +798,9 @@ class RAGService:
                 "score": score,
                 "citation": cit,
                 "provenance_type": chunk.provenance_type,
+                "course_version_id": chunk.course_version_id,
+                "visibility_scope": chunk.visibility_scope,
+                "class_id": chunk.class_id,
             }
             result_items.append(item)
             evidence_cards.append(item)

@@ -82,7 +82,7 @@ class SessionStore:
 
     def _create_schema(self) -> None:
         """Create or migrate tables."""
-        from core.db import run_migrations
+        from core.db import add_column_if_missing, run_migrations
         conn = self.conn
 
         def initial_schema(c):
@@ -124,14 +124,8 @@ class SessionStore:
             """)
 
         def add_mode_and_user_id(c):
-            try:
-                c.execute("ALTER TABLE sessions ADD COLUMN mode TEXT DEFAULT 'general_assistant';")
-            except Exception:
-                pass
-            try:
-                c.execute("ALTER TABLE sessions ADD COLUMN user_id TEXT DEFAULT 'local_user_1';")
-            except Exception:
-                pass
+            add_column_if_missing(c, "sessions", "mode TEXT DEFAULT 'general_assistant'")
+            add_column_if_missing(c, "sessions", "user_id TEXT DEFAULT 'local_user_1'")
             c.execute("UPDATE sessions SET mode = 'general_assistant' WHERE mode IS NULL;")
             c.execute("UPDATE sessions SET user_id = 'local_user_1' WHERE user_id IS NULL;")
 
@@ -148,30 +142,22 @@ class SessionStore:
                 ("last_attempt_correct",  "INTEGER DEFAULT 0"),
                 ("state_json",            "TEXT DEFAULT '{}'"),
             ]:
-                try:
-                    c.execute(f"ALTER TABLE tutor_contexts ADD COLUMN {col} {defn};")
-                except Exception:
-                    pass  # column already exists
+                add_column_if_missing(c, "tutor_contexts", f"{col} {defn}")
             # Ensure sessions has profile_id (may be missing in truly old DBs)
-            try:
-                c.execute("ALTER TABLE sessions ADD COLUMN profile_id TEXT DEFAULT 'default';")
-            except Exception:
-                pass
+            add_column_if_missing(c, "sessions", "profile_id TEXT DEFAULT 'default'")
+
+        def add_summary_column(c):
+            """Migration 4: add summary column to sessions."""
+            add_column_if_missing(c, "sessions", "summary TEXT DEFAULT ''")
 
         migrations = {
             1: ("initial_schema", initial_schema),
             2: ("add_mode_and_user_id", add_mode_and_user_id),
             3: ("add_tutor_context_columns_and_profile_id", add_tutor_context_columns_and_profile_id),
+            4: ("add_summary_column", add_summary_column),
         }
 
         run_migrations(conn, migrations)
-
-
-        try:
-            conn.execute("ALTER TABLE sessions ADD COLUMN summary TEXT DEFAULT '';")
-            conn.commit()
-        except sqlite3.OperationalError:
-            pass  # Already present
 
         logger.info(f"Session DB ready: {self.db_path}")
 

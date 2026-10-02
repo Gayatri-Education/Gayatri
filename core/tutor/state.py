@@ -31,6 +31,7 @@ class ConceptMastery:
 class StudentConceptMastery:
     student_id: str
     concept_id: str
+    course_id: str = 'chemistry'
     mastery: float = 0.0
     confidence: float = 0.0
     exposure_count: int = 0
@@ -46,6 +47,7 @@ class StudentConceptMastery:
         return {
             'student_id': self.student_id,
             'concept_id': self.concept_id,
+            'course_id': self.course_id,
             'mastery': self.mastery,
             'confidence': self.confidence,
             'exposure_count': self.exposure_count,
@@ -66,6 +68,7 @@ class LearningEvent:
     session_id: str
     turn_id: str
     concept_id: str
+    course_id: str = 'chemistry'
     question_id: str = ''
     timestamp: str = ''
     difficulty: float = 0.5
@@ -93,6 +96,7 @@ class LearningEvent:
             'session_id': self.session_id,
             'turn_id': self.turn_id,
             'concept_id': self.concept_id,
+            'course_id': self.course_id,
             'question_id': self.question_id,
             'timestamp': self.timestamp,
             'difficulty': self.difficulty,
@@ -105,6 +109,7 @@ class LearningEvent:
             'misconception_code': self.misconception_code,
             'source': self.source,
         }
+
 
 
 @dataclass

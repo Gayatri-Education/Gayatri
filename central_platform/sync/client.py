@@ -210,8 +210,8 @@ class PersistentSyncQueue:
     def close(self) -> None:
         try:
             self.conn.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed closing local sync queue SQLite connection: %s", exc)
 
 
 @dataclass

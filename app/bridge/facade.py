@@ -24,76 +24,59 @@ _teacher_instruction_engine_singleton = None
 _teacher_intervention_engine_singleton = None
 
 
+def reset_teacher_singletons() -> None:
+    """Reset singleton instances for clean testing and offline launch verification."""
+    global _teacher_portal_singleton, _teacher_instruction_engine_singleton, _teacher_intervention_engine_singleton
+    _teacher_portal_singleton = None
+    _teacher_instruction_engine_singleton = None
+    _teacher_intervention_engine_singleton = None
+
+
 def get_teacher_portal_service():
+    """Retrieve TeacherPortalService backed by real platform database or honest empty state (BUG-ARCH-003)."""
     global _teacher_portal_singleton
     if _teacher_portal_singleton is None:
         from central_platform.teacher.portal import TeacherPortalService
         _teacher_portal_singleton = TeacherPortalService()
-        _teacher_portal_singleton.register_student_snapshot(
-            "local_student_1", "Rahul Kumar", "crs-chem-101", 0.85, needs_attention=False,
-            chapter_mastery={"Thermodynamics": 0.88, "Chemical Bonding": 0.84, "Coordination Chemistry": 0.80, "Periodic Trends": 0.90},
-            recent_activity="Solved Hess Law numerical",
-        )
-        _teacher_portal_singleton.register_student_snapshot(
-            "local_student_2", "Priya Sharma", "crs-chem-101", 0.94, needs_attention=False,
-            chapter_mastery={"Thermodynamics": 0.95, "Chemical Bonding": 0.92, "Coordination Chemistry": 0.94, "Periodic Trends": 0.95},
-            recent_activity="Practicing Gibbs free energy",
-        )
-        _teacher_portal_singleton.register_student_snapshot(
-            "local_student_3", "Amit Patel", "crs-chem-101", 0.42, needs_attention=True,
-            misconceptions=["THERMO_SIGN_CONVENTION"],
-            hint_count=7,
-            retention_rate=0.60,
-            chapter_mastery={"Thermodynamics": 0.36, "Chemical Bonding": 0.52, "Coordination Chemistry": 0.38, "Periodic Trends": 0.58},
-            recent_activity="Failed sign convention in expansion work",
-        )
     return _teacher_portal_singleton
 
 
 def get_teacher_instruction_engine():
+    """Retrieve TeacherInstructionEngine without hardcoded demo seeds."""
     global _teacher_instruction_engine_singleton
     if _teacher_instruction_engine_singleton is None:
-        from central_platform.teacher.instruction import TeacherInstruction, TeacherInstructionEngine
+        from central_platform.teacher.instruction import TeacherInstructionEngine
         _teacher_instruction_engine_singleton = TeacherInstructionEngine()
-        _teacher_instruction_engine_singleton.add_instruction(
-            TeacherInstruction(
-                instruction_id="inst-seed-01",
-                teacher_id="tchr-101",
-                student_id="all",
-                course_id="crs-chem-101",
-                instruction_text="Emphasize IUPAC sign conventions: work done by system is negative (-w).",
-                priority=2,
-            )
-        )
     return _teacher_instruction_engine_singleton
 
 
 def get_teacher_intervention_engine():
+    """Retrieve TeacherInterventionEngine without hardcoded demo seeds."""
     global _teacher_intervention_engine_singleton
     if _teacher_intervention_engine_singleton is None:
-        from central_platform.teacher.intervention import AlertSeverity, TeacherAlert, TeacherInterventionEngine
+        from central_platform.teacher.intervention import TeacherInterventionEngine
         _teacher_intervention_engine_singleton = TeacherInterventionEngine()
-        _teacher_intervention_engine_singleton.raise_alert(
-            TeacherAlert(
-                alert_id="alt-b01",
-                student_id="local_student_3",
-                course_id="crs-chem-101",
-                alert_type="repeated_failure",
-                severity=AlertSeverity.CRITICAL,
-                message="Amit Patel encountered repeated sign convention error in Thermodynamics expansion work.",
-            )
-        )
-        _teacher_intervention_engine_singleton.raise_alert(
-            TeacherAlert(
-                alert_id="alt-b02",
-                student_id="local_student_1",
-                course_id="crs-chem-101",
-                alert_type="advancement_ready",
-                severity=AlertSeverity.INFO,
-                message="Rahul Kumar reached 85% mastery. Ready for advanced numerical practice.",
-            )
-        )
     return _teacher_intervention_engine_singleton
+
+
+# ── Student Portal Controller Singleton (Phase 17) ──────────────────────
+_student_portal_controller_singleton = None
+
+
+def reset_student_controller_singleton() -> None:
+    """Reset StudentPortalController singleton for test isolation."""
+    global _student_portal_controller_singleton
+    _student_portal_controller_singleton = None
+
+
+def get_student_portal_controller():
+    """Retrieve StudentPortalController singleton."""
+    global _student_portal_controller_singleton
+    if _student_portal_controller_singleton is None:
+        from app.portals.student.controller import StudentPortalController
+        _student_portal_controller_singleton = StudentPortalController()
+    return _student_portal_controller_singleton
+
 
 
 
@@ -479,18 +462,18 @@ class Bridge(QObject):
             curr_mastery = student.get_mastery(curr_concept)
 
             from pathlib import Path
-            p_path = Path("PRIVATE_WORK/learning_graph/prerequisites.json")
+            curr_path = Path(__file__).resolve().parent.parent.parent / "data" / "curriculum" / "chemistry" / "ncert_class11_12.json"
             prereqs = []
-            if p_path.exists():
+            if curr_path.exists():
                 try:
-                    with open(p_path, encoding="utf-8") as f:
-                        p_data = json.load(f)
-                    for dep in p_data.get("dependencies", []):
-                        if dep.get("concept_id") == curr_concept:
-                            prereqs = dep.get("prerequisites", [])
+                    with open(curr_path, encoding="utf-8") as f:
+                        c_data = json.load(f)
+                    for item in c_data.get("concepts", []):
+                        if item.get("id") == curr_concept or item.get("name") == curr_concept:
+                            prereqs = item.get("prerequisites", [])
                             break
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Could not load prerequisites from curriculum: %s", exc)
 
             # Pedagogical next action mapping (Section 40)
             next_action = "QUESTION"
@@ -1259,6 +1242,89 @@ class Bridge(QObject):
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
     @Slot(str, result=str)
+    @Slot(str, str, result=str)
+    def get_teacher_classes(self, course_id: str = "", teacher_id: str = "") -> str:
+        """Retrieve list of classes for the teacher's organization."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            classes = ctrl.get_classes(course_id=course_id or None, teacher_id=teacher_id or None)
+            return json.dumps({"ok": True, "classes": classes})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_get_teacher_classes")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, result=str)
+    def get_class_students(self, class_id: str) -> str:
+        """Retrieve student roster for a class group with SLR mastery."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            students = ctrl.get_class_students(class_id)
+            return json.dumps({"ok": True, "students": students})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_get_class_students")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, str, str, str, result=str)
+    def upload_class_note(self, class_id: str, title: str, content: str, teacher_id: str = "teacher_001") -> str:
+        """Upload class note strictly scoped to a class group."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            res = ctrl.upload_class_note(class_id, title, content, teacher_id)
+            return json.dumps({"ok": True, "data": res})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_upload_class_note")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, str, str, str, str, result=str)
+    def upload_remedial_content(self, course_id: str, student_ids_json: str, title: str, content: str, teacher_id: str = "teacher_001") -> str:
+        """Upload targeted remedial content strictly for selected students."""
+        try:
+            import json
+            from app.portals.teacher.controller import TeacherPortalController
+            target_ids = json.loads(student_ids_json) if isinstance(student_ids_json, str) else list(student_ids_json)
+            ctrl = TeacherPortalController()
+            res = ctrl.upload_remedial_content(course_id, target_ids, title, content, teacher_id)
+            return json.dumps({"ok": True, "data": res})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_upload_remedial_content")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, str, str, str, str, str, result=str)
+    def create_assignment(
+        self,
+        course_id: str,
+        title: str,
+        class_group_id: str = "",
+        due_date: str = "",
+        instructions: str = "",
+        teacher_id: str = "teacher_001",
+    ) -> str:
+        """Create a real assignment persisted to the database."""
+        try:
+            from app.portals.teacher.controller import TeacherPortalController
+            ctrl = TeacherPortalController()
+            res = ctrl.create_assignment(
+                course_id=course_id,
+                title=title,
+                class_group_id=class_group_id or None,
+                due_date=due_date or None,
+                instructions=instructions or None,
+                teacher_id=teacher_id,
+            )
+            return json.dumps({"ok": True, "assignment": res})
+        except Exception as exc:
+            from core.errors import sanitize_error
+            sanitized = sanitize_error(exc, category="bridge_create_assignment")
+            return json.dumps({"ok": False, "error": sanitized.user_message})
+
+    @Slot(str, result=str)
     def sync_with_central_server(self, server_url: str = "http://localhost:8000") -> str:
         """Sync local student progress snapshot to central server and pull active teacher instructions."""
         try:
@@ -1372,6 +1438,84 @@ class Bridge(QObject):
             })
         except Exception as exc:
             return json.dumps({"ok": False, "error": str(exc), "server_url": server_url})
+
+    # ── Student Multi-Course Workflow Slots (Phase 17) ──────────────────────
+
+    @Slot(str, result=str)
+    def get_student_courses(self, student_id: str = "") -> str:
+        """Retrieve all active enrolled courses for the student."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            courses = ctrl.get_enrolled_courses(sid)
+            return json.dumps({"ok": True, "courses": courses})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "courses": []})
+
+    @Slot(str, str, bool, result=str)
+    def switch_student_course(self, student_id: str, course_id: str, active_turn_generating: bool = False) -> str:
+        """Switch student active course context ensuring safe turn completion/cancellation."""
+        try:
+            if self._generation_active or active_turn_generating:
+                return json.dumps({
+                    "ok": False,
+                    "error": "Cannot switch courses while an AI turn is generating. Complete or cancel the active turn first.",
+                })
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            res = ctrl.switch_course(student_id=sid, target_course_id=course_id, active_turn_generating=False)
+            return json.dumps({"ok": True, "data": res})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)})
+
+    @Slot(str, str, result=str)
+    def get_student_course_curriculum(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve curriculum hierarchy for active or specified course with student mastery overlaid."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            curriculum = ctrl.get_course_curriculum(sid, cid)
+            return json.dumps({"ok": True, "curriculum": curriculum})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "curriculum": {}})
+
+    @Slot(str, str, result=str)
+    def get_student_course_assignments(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve assignments scoped to this student, their class/cohort, and the active course."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            assignments = ctrl.get_course_assignments(sid, cid)
+            return json.dumps({"ok": True, "assignments": assignments})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "assignments": []})
+
+    @Slot(str, str, result=str)
+    def get_student_course_knowledge(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve authorized knowledge sources scoped to this student and the active course."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            knowledge = ctrl.get_course_knowledge(sid, cid)
+            return json.dumps({"ok": True, "knowledge": knowledge})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "knowledge": []})
+
+    @Slot(str, str, result=str)
+    def get_student_course_offline_status(self, student_id: str = "", course_id: str = "") -> str:
+        """Retrieve offline sync and cache indicators for the course."""
+        try:
+            ctrl = get_student_portal_controller()
+            sid = student_id or "student_001"
+            cid = course_id if course_id else None
+            status_data = ctrl.get_offline_status(sid, cid)
+            return json.dumps({"ok": True, "offline_status": status_data})
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc), "offline_status": {}})
+
 
 
 

@@ -81,6 +81,7 @@ class StateCommitPipeline:
         generated_response: str,
         target_concept: Optional[str] = None,
         rag_sources_required: bool = False,
+        response_plan: Optional[Any] = None,
     ) -> CommitResult:
         """Validate AI response and atomically commit staged changes only if validation passes."""
         summary = {
@@ -92,6 +93,7 @@ class StateCommitPipeline:
         # 1. Validate generated AI response using ResponseValidatorEngine
         val_result = self.validator.validate_response(
             generated_response=generated_response,
+            response_plan=response_plan,
             target_concept=target_concept,
             rag_sources_required=rag_sources_required,
         )

@@ -81,8 +81,18 @@ class TutorController:
         self._load_graph_prerequisites()
 
     def _load_graph_prerequisites(self) -> None:
-        """Load concept graph dependencies from learning_graph/prerequisites.json."""
+        """Load concept graph dependencies from curriculum data or learning graph."""
         self.prerequisites: dict[str, list[str]] = {}
+        c_path = PROJECT_ROOT / "data" / "curriculum" / "chemistry" / "ncert_class11_12.json"
+        if c_path.exists():
+            try:
+                with open(c_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                for item in data.get("concepts", []):
+                    self.prerequisites[item["id"]] = item.get("prerequisites", [])
+            except Exception as exc:
+                logger.warning(f"Could not load prerequisites from curriculum: {exc}")
+
         p_path = PROJECT_ROOT / "PRIVATE_WORK" / "learning_graph" / "prerequisites.json"
         if p_path.exists():
             try:
@@ -91,7 +101,7 @@ class TutorController:
                 for item in data.get("dependencies", []):
                     self.prerequisites[item["concept_id"]] = item.get("prerequisites", [])
             except Exception as exc:
-                logger.warning(f"Could not load prerequisites: {exc}")
+                logger.warning(f"Could not load prerequisites from PRIVATE_WORK: {exc}")
 
     def get_prerequisites(self, concept_id: str) -> list[str]:
         return self.prerequisites.get(concept_id, [])

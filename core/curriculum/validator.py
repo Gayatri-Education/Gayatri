@@ -28,7 +28,7 @@ ALLOWED_DOMAINS = {
     "Physical Chemistry",
 }
 
-STABLE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_.\-]+$")
+STABLE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_.\-:]+$")
 
 
 class CurriculumCorruptionError(Exception):
@@ -50,6 +50,10 @@ class CurriculumValidationResult:
 class CurriculumValidator:
     """Validates structural integrity of curriculum definitions and prerequisite graphs (Section 18)."""
 
+    def __init__(self, allowed_domains: set[str] | None = None, strict_domain_check: bool = False):
+        self.allowed_domains = allowed_domains
+        self.strict_domain_check = strict_domain_check
+
     def validate_concepts(self, concepts: list[dict]) -> CurriculumValidationResult:
         """Validate a list of concept dictionary definitions."""
         errors: list[str] = []
@@ -57,6 +61,7 @@ class CurriculumValidator:
 
         if not concepts:
             return CurriculumValidationResult(is_valid=False, errors=["Curriculum concept list is empty."])
+
 
         concept_map: dict[str, dict] = {}
         concept_ids: set[str] = set()
@@ -87,8 +92,11 @@ class CurriculumValidator:
 
             # Domain validation
             domain = c.get("domain", "")
-            if domain and domain not in ALLOWED_DOMAINS:
-                warnings.append(f"Concept '{cid}' has unlisted domain '{domain}'.")
+            if domain and self.allowed_domains is not None and domain not in self.allowed_domains:
+                if self.strict_domain_check:
+                    errors.append(f"Concept '{cid}' has unlisted domain '{domain}'.")
+                else:
+                    warnings.append(f"Concept '{cid}' has unlisted domain '{domain}'.")
 
             # Learning outcomes validation
             outcomes = c.get("learning_outcomes") or c.get("description")

@@ -123,7 +123,7 @@ def test_transaction_atomicity_and_partial_write_rollback(tmp_path):
     state_mgr = TutorStateManager(db_path=db_path)
 
     # Simulate an atomic transaction where an error occurs midway
-    try:
+    with pytest.raises(sqlite3.OperationalError, match="Simulated mid-transaction failure"):
         with state_mgr.conn:
             state_mgr.conn.execute("""
                 INSERT INTO learning_events (
@@ -132,8 +132,6 @@ def test_transaction_atomicity_and_partial_write_rollback(tmp_path):
             """)
             # Second statement deliberately fails
             raise sqlite3.OperationalError("Simulated mid-transaction failure")
-    except sqlite3.OperationalError:
-        pass
 
     # Verify first statement was rolled back completely
     row = state_mgr.conn.execute(

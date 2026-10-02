@@ -118,6 +118,46 @@ class StudentProfileResponse(BaseModel):
     recent_activity: Any = Field(default_factory=list)
 
 
+class StudentEnrolledCourseResponse(BaseModel):
+    id: str
+    course_id: str
+    code: str
+    title: str
+    description: str = ""
+    organization_id: str
+    cohort_id: Optional[str] = None
+    cohort_name: Optional[str] = None
+    class_group_id: Optional[str] = None
+    class_name: Optional[str] = None
+    enrolled_at: str
+    is_active: bool = True
+    overall_mastery: float = 0.0
+    active_concept: str = ""
+
+
+class StudentCourseSwitchRequest(BaseModel):
+    target_course_id: str
+    active_turn_generating: bool = False
+
+
+class StudentCourseSwitchResponse(BaseModel):
+    student_id: str
+    active_course_id: str
+    course_title: str
+    switched_at: str
+    active_concept: str
+    overall_mastery: float
+
+
+class StudentOfflineStatusResponse(BaseModel):
+    student_id: str
+    course_id: str
+    is_cached: bool = True
+    is_synced: bool = True
+    offline_available: bool = True
+    last_synced_at: Optional[str] = None
+
+
 # ── Teacher & Directives ─────────────────────────────────────────────────
 
 class TeacherInstructionCreateRequest(BaseModel):
@@ -129,6 +169,10 @@ class TeacherInstructionCreateRequest(BaseModel):
     start_at: Optional[str] = None
     expires_at: Optional[str] = None
     scope_type: Optional[str] = None
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    session_id: Optional[str] = None
 
 
 class TeacherInstructionResponse(BaseModel):
@@ -140,6 +184,11 @@ class TeacherInstructionResponse(BaseModel):
     priority: int
     concept_scope: str
     scope_type: str = "STUDENT"
+    organization_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    session_id: Optional[str] = None
+    version: int = 1
     is_active: bool
     status: str = "ACTIVE"
     start_at: Optional[str] = None
@@ -256,17 +305,268 @@ class TeacherDashboardResponse(BaseModel):
     recent_activity: List[Dict[str, Any]] = Field(default_factory=list)
     intervention_alerts: List[Dict[str, Any]] = Field(default_factory=list)
 
+class TeacherClassGroupCreateRequest(BaseModel):
+    course_id: str
+    name: str = Field(..., min_length=1, max_length=100)
+    section: str = Field(default="A", max_length=20)
+
+
+class TeacherClassGroupResponse(BaseModel):
+    id: str
+    organization_id: str
+    course_id: str
+    name: str
+    section: str
+    created_at: str
+
+
+class TeacherClassNoteCreateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1)
+
+
+class TeacherClassNoteResponse(BaseModel):
+    id: str
+    class_id: str
+    course_id: str
+    title: str
+    chunks_created: int
+    status: str
+    created_at: str
+
+
+class TeacherRemedialContentCreateRequest(BaseModel):
+    course_id: str
+    target_student_ids: List[str] = Field(..., min_items=1)
+    title: str = Field(..., min_length=1, max_length=255)
+    content: str = Field(..., min_length=1)
+
+
+class TeacherRemedialContentResponse(BaseModel):
+    id: str
+    course_id: str
+    target_student_ids: List[str]
+    title: str
+    chunks_created: int
+    status: str
+    created_at: str
+
+
+class TeacherAssignmentCreateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    course_id: str
+    description: Optional[str] = ""
+    class_group_id: Optional[str] = None
+    due_date: Optional[str] = None
+    instructions: Optional[str] = ""
+
+
+class TeacherAssignmentResponse(BaseModel):
+    id: str
+    course_id: str
+    title: str
+    description: Optional[str] = ""
+    class_group_id: Optional[str] = None
+    assigned_by: Optional[str] = None
+    due_date: Optional[str] = None
+    instructions: str = ""
+    is_active: bool = True
+    created_at: str
+
+
+class TeacherCourseResponse(BaseModel):
+    id: str
+    organization_id: str
+    code: str
+    title: str
+    description: str = ""
+    visibility: str = "PUBLIC"
+    status: str = "ACTIVE"
+
 
 # ── Curriculum & Courses ─────────────────────────────────────────────────
 
 class CourseResponse(BaseModel):
     course_id: str
     title: str
-    description: str
-    subject: str
-    grade_level: str
+    description: str = ""
+    subject: str = "General"
+    grade_level: str = "All"
     total_concepts: int = 12
     version: str = "v1.0"
+    visibility: str = "PUBLIC"
+    code: Optional[str] = None
+    organization_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class CourseCreateRequest(BaseModel):
+    code: str = Field(..., min_length=2, max_length=50)
+    title: str = Field(..., min_length=2, max_length=255)
+    description: str = Field(default="")
+    visibility: str = Field(default="PUBLIC")  # PUBLIC or PRIVATE
+    organization_id: Optional[str] = Field(default=None)
+    subject: str = Field(default="General")
+    grade_level: str = Field(default="All")
+
+
+class CourseSelectRequest(BaseModel):
+    organization_id: str
+    course_version_id: Optional[str] = None
+
+
+class CourseOfferingResponse(BaseModel):
+    id: str
+    course_id: str
+    organization_id: str
+    course_version_id: Optional[str] = None
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class CourseVersionCreateApiRequest(BaseModel):
+    version_tag: str = Field(..., min_length=1)
+    changelog: str = Field(default="")
+    curriculum_payload: Optional[Dict[str, Any]] = None
+
+
+class CourseVersionApiResponse(BaseModel):
+    id: str
+    course_id: str
+    version_tag: str
+    status: str
+    changelog: str = ""
+    created_by: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class CourseArchiveResponse(BaseModel):
+    ok: bool = True
+    course_id: str
+    status: str = "ARCHIVED"
+    message: str = "Course successfully archived"
+
+
+class CourseReviewQueueItemResponse(BaseModel):
+    version_id: str
+    course_id: str
+    course_code: str
+    course_title: str
+    version_number: str
+    status: str
+    created_by: str
+    created_at: str
+    organization_id: Optional[str] = None
+    visibility: str = "PRIVATE"
+
+
+
+class EnrollmentCreateRequest(BaseModel):
+    student_id: str = Field(..., min_length=1)
+    course_id: str = Field(..., min_length=1)
+    course_offering_id: Optional[str] = None
+    class_id: Optional[str] = None
+
+
+class EnrollmentResponse(BaseModel):
+    id: str
+    student_id: str
+    course_id: str
+    course_offering_id: Optional[str] = None
+    class_id: Optional[str] = None
+    status: str = "ACTIVE"
+    enrolled_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class ClassGroupCreateRequest(BaseModel):
+    id: Optional[str] = None
+    name: str = Field(..., min_length=1)
+    course_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
+    teacher_id: Optional[str] = None
+
+
+class ClassGroupResponse(BaseModel):
+    id: str
+    name: str
+    course_id: str
+    organization_id: str
+    teacher_id: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class CohortCreateRequest(BaseModel):
+    id: Optional[str] = None
+    name: str = Field(..., min_length=1)
+    class_id: str = Field(..., min_length=1)
+    course_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
+
+
+class CohortResponse(BaseModel):
+    id: str
+    name: str
+    class_id: str
+    course_id: str
+    organization_id: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class OrganizationCreateRequest(BaseModel):
+    name: str = Field(..., min_length=2)
+    slug: str = Field(..., min_length=2)
+    id: Optional[str] = None
+
+
+class OrganizationResponse(BaseModel):
+    id: str
+    name: str
+    slug: str
+    is_active: bool = True
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class SanitizedQuestionItemResponse(BaseModel):
+    id: str
+    course_id: str
+    question_text: str
+    item_type: str
+    options: Optional[List[str]] = None
+    difficulty: float = 0.5
+    bloom_level: str = "UNDERSTAND"
+    hints: List[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
+
+
+class SanitizedAssessmentResponse(BaseModel):
+    id: str
+    course_id: str
+    title: str
+    assessment_type: str
+    duration_minutes: int = 30
+    passing_score: float = 70.0
+    items: List[SanitizedQuestionItemResponse] = Field(default_factory=list)
+    status: str = "PUBLISHED"
+
+
+class SubsystemHealthDetail(BaseModel):
+    name: str
+    status: str
+    latency_ms: float = 0.0
+    error: Optional[str] = None
+    warning: Optional[str] = None
+    driver: Optional[str] = None
+    total_models: Optional[int] = None
+    db_path: Optional[str] = None
+
+
+class PlatformHealthResponse(BaseModel):
+    status: str
+    service: str
+    version: str
+    timestamp: str
+    subsystems: Dict[str, Any]
+
 
 
 class CurriculumResponse(BaseModel):
@@ -599,6 +899,11 @@ class RAGSourceCreateRequest(BaseModel):
     source_type: str = Field(default="text")
     authority: str = Field(default="NCERT")
     version: str = Field(default="1.0.0")
+    content_type: str = Field(default="textbook")
+    course_version_id: Optional[str] = None
+    visibility_scope: str = Field(default="course")
+    class_id: Optional[str] = None
+    target_student_ids: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -614,6 +919,15 @@ class RAGSourceResponse(BaseModel):
     status: str
     checksum: str = ""
     chunk_count: int = 0
+    content_type: str = "textbook"
+    uploaded_by: Optional[str] = None
+    published_by: Optional[str] = None
+    published_at: Optional[str] = None
+    error_message: Optional[str] = None
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
+    target_student_ids: List[str] = Field(default_factory=list)
     created_at: str
     updated_at: str
 
@@ -664,6 +978,9 @@ class RAGChunkResponse(BaseModel):
     text: str
     clean_text: str
     provenance_type: str = "NCERT"
+    course_version_id: Optional[str] = None
+    visibility_scope: str = "course"
+    class_id: Optional[str] = None
     created_at: str
 
 
@@ -672,6 +989,9 @@ class RAGQueryRequest(BaseModel):
     course_id: Optional[str] = None
     subject: Optional[str] = None
     concept_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    class_id: Optional[str] = None
+    student_id: Optional[str] = None
     top_k: int = Field(default=3, ge=1, le=20)
     confidence_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
 
@@ -686,6 +1006,11 @@ class RAGResultItem(BaseModel):
     citation: str
     concept: Optional[str] = None
     source_id: Optional[str] = None
+    course_version_id: Optional[str] = None
+    visibility_scope: Optional[str] = None
+    class_id: Optional[str] = None
+    provenance_type: Optional[str] = None
+    content_type: Optional[str] = None
 
 
 class RAGQueryResponse(BaseModel):
@@ -694,6 +1019,7 @@ class RAGQueryResponse(BaseModel):
     results: List[RAGResultItem]
     count: int
     data_context: Optional[str] = None
+    reason: Optional[str] = None
 
 
 # ── AI Gateway & Governance ──────────────────────────────────────────────
@@ -947,17 +1273,36 @@ class NotificationQueueStatsResponse(BaseModel):
 class BatchSyncEventsRequest(BaseModel):
     student_id: str
     events: List[Dict[str, Any]]
+    operation_id: Optional[str] = None
+    course_id: Optional[str] = None
+    device_id: Optional[str] = None
+    course_version: Optional[str] = None
 
 
 class BatchSyncEventsResponse(BaseModel):
     ok: bool = True
+    operation_id: Optional[str] = None
     synced_count: int
     duplicate_count: int = 0
     failed_count: int = 0
     acknowledged_ids: List[str] = Field(default_factory=list)
+    conflicts_resolved: int = 0
     status: str = "SYNCED"
     latest_mastery: float = 0.50
     server_timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    is_replay: bool = False
+
+
+class SyncStatusResponse(BaseModel):
+    student_id: str
+    course_id: str
+    total_operations: int
+    total_synced_events: int
+    registered_devices: List[str] = Field(default_factory=list)
+    last_operation_id: Optional[str] = None
+    last_synced_at: Optional[str] = None
+    latest_mastery: float = 0.0
+    status: str = "HEALTHY"
 
 
 
@@ -1228,6 +1573,35 @@ class AdminAuditEventResponse(BaseModel):
     organization_id: Optional[str] = None
     details: Dict[str, Any] = Field(default_factory=dict)
     timestamp: str
+
+
+# ── Course Tools (Phase 08) ──────────────────────────────────────────────
+
+class ToolCapabilityResponse(BaseModel):
+    tool_id: str
+    name: str
+    description: str
+    category: str
+    allowed_roles: List[str] = Field(default_factory=list)
+    resource_limits: Dict[str, Any] = Field(default_factory=dict)
+    input_schema: Dict[str, Any] = Field(default_factory=dict)
+    output_schema: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolExecuteRequest(BaseModel):
+    tool_id: str
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    course_id: str = "crs-chem-101"
+    session_id: Optional[str] = None
+
+
+class ToolExecuteResponse(BaseModel):
+    tool_id: str
+    success: bool
+    output: Any = None
+    error: Optional[str] = None
+    execution_time_ms: float = 0.0
+    resource_usage: Dict[str, Any] = Field(default_factory=dict)
 
 
 

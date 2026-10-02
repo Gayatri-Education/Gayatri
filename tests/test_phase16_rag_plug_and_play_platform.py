@@ -31,6 +31,8 @@ from central_platform.rag.service import RAGService, SmartChunker
 
 
 from central_platform.auth.dependencies import get_db
+from central_platform.auth.tokens import create_access_token
+from central_platform.models.schema import User, UserRole
 
 
 @pytest.fixture
@@ -307,9 +309,33 @@ def test_multi_subject_scoping_isolation(clean_db):
 # ── 6. REST API Endpoints Verification ───────────────────────────────────
 
 def test_rag_api_endpoints(client):
-    # 1. Create Knowledge Source
+    db = get_db()
+    # Seed teacher and admin users for auth
+    teacher = User(
+        id="usr-phase16-teacher",
+        email="teacher@phase16.edu",
+        full_name="Phase16 Teacher",
+        role=UserRole.TEACHER,
+        organization_id="org-default",
+    )
+    admin = User(
+        id="usr-phase16-admin",
+        email="admin@phase16.edu",
+        full_name="Phase16 Admin",
+        role=UserRole.ORG_ADMIN,
+        organization_id="org-default",
+    )
+    db.create_user(teacher)
+    db.create_user(admin)
+    teacher_token = create_access_token(user_id=teacher.id, role="TEACHER", organization_id="org-default")
+    admin_token = create_access_token(user_id=admin.id, role="ORG_ADMIN", organization_id="org-default")
+    t_hdr = {"Authorization": f"Bearer {teacher_token}"}
+    a_hdr = {"Authorization": f"Bearer {admin_token}"}
+
+    # 1. Create Knowledge Source (TEACHER required)
     resp = client.post(
         "/api/v1/rag/sources",
+        headers=t_hdr,
         json={
             "course_id": "crs-chem-101",
             "subject": "Chemistry",
@@ -323,7 +349,7 @@ def test_rag_api_endpoints(client):
     source_id = resp.json()["data"]["id"]
     assert resp.json()["data"]["status"] == "draft"
 
-    # 2. Ingest Content
+    # 2. Ingest Content (TEACHER required)
     content = (
         "Chapter 6: Chemical Thermodynamics\n\n"
         "Section 6.1: Enthalpy\n"
@@ -333,36 +359,37 @@ def test_rag_api_endpoints(client):
     )
     resp = client.post(
         f"/api/v1/rag/sources/{source_id}/ingest",
+        headers=t_hdr,
         json={"content": content, "file_name": "thermo.txt"},
     )
     assert resp.status_code == 200
     assert resp.json()["data"]["chunks_created"] >= 2
     assert resp.json()["data"]["status"] == "ingested"
 
-    # 3. Validate Source
-    resp = client.post(f"/api/v1/rag/sources/{source_id}/validate")
+    # 3. Validate Source (TEACHER required)
+    resp = client.post(f"/api/v1/rag/sources/{source_id}/validate", headers=t_hdr)
     assert resp.status_code == 200
     assert resp.json()["data"]["valid"] is True
     assert resp.json()["data"]["status"] == "validated"
 
-    # 4. Publish Source
-    resp = client.post(f"/api/v1/rag/sources/{source_id}/publish")
+    # 4. Publish Source (ADMIN required)
+    resp = client.post(f"/api/v1/rag/sources/{source_id}/publish", headers=a_hdr)
     assert resp.status_code == 200
     assert resp.json()["data"]["status"] == "published"
 
-    # 5. List Sources
+    # 5. List Sources (no auth required)
     resp = client.get("/api/v1/rag/sources?course_id=crs-chem-101")
     assert resp.status_code == 200
     assert len(resp.json()["data"]) >= 1
 
-    # 6. Get Chunks
+    # 6. Get Chunks (no auth required)
     resp = client.get(f"/api/v1/rag/sources/{source_id}/chunks")
     assert resp.status_code == 200
     chunks = resp.json()["data"]
     assert len(chunks) >= 2
     assert any("Enthalpy" in c["text"] for c in chunks)
 
-    # 7. Query RAG
+    # 7. Query RAG (no auth required)
     resp = client.post(
         "/api/v1/rag/query",
         json={
@@ -377,7 +404,7 @@ def test_rag_api_endpoints(client):
     assert res_data["count"] >= 1
     assert any("exothermic" in r["text"].lower() or "enthalpy" in r["text"].lower() for r in res_data["results"])
 
-    # 8. Delete Source
-    resp = client.delete(f"/api/v1/rag/sources/{source_id}")
+    # 8. Delete Source (ADMIN required)
+    resp = client.delete(f"/api/v1/rag/sources/{source_id}", headers=a_hdr)
     assert resp.status_code == 200
     assert resp.json()["data"]["deleted"] is True

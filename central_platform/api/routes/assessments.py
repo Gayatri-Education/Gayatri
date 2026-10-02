@@ -34,6 +34,8 @@ from central_platform.api.schemas import (
     QuestionBankItemResponse,
     ReassessmentGenerateRequest,
     ReassessmentResponse,
+    SanitizedAssessmentResponse,
+    SanitizedQuestionItemResponse,
     TeacherReviewAttemptRequest,
 )
 from central_platform.assessment.models import AssessmentType
@@ -318,6 +320,85 @@ async def get_assessment(
             updated_at=asmt.updated_at,
         ),
     )
+
+
+@router.get("/{assessment_id}/sanitized", response_model=ApiResponse[SanitizedAssessmentResponse])
+async def get_sanitized_assessment(
+    assessment_id: str,
+    service: AssessmentService = Depends(get_assessment_service),
+):
+    """Retrieve an assessment sanitized for student question delivery.
+    
+    Anti-Answer-Leakage Invariant:
+    All correct answers, answer keys, rubrics, and teacher explanations are scrubbed.
+    """
+    asmt_data = service.get_sanitized_assessment(assessment_id)
+    if not asmt_data:
+        raise HTTPException(status_code=404, detail=f"Assessment '{assessment_id}' not found.")
+
+    items = []
+    raw_items = asmt_data.get("items", []) if isinstance(asmt_data, dict) else getattr(asmt_data, "items", [])
+    for it in raw_items:
+        if isinstance(it, dict):
+            items.append(
+                SanitizedQuestionItemResponse(
+                    id=it.get("id", ""),
+                    course_id=it.get("course_id", asmt_data.get("course_id", "") if isinstance(asmt_data, dict) else getattr(asmt_data, "course_id", "")),
+                    question_text=it.get("question_text", ""),
+                    item_type=it.get("item_type", "MCQ"),
+                    options=it.get("options", []),
+                    difficulty=it.get("difficulty", 1),
+                    bloom_level=it.get("bloom_level", "recall"),
+                    hints=it.get("hints", []),
+                    tags=it.get("tags", []),
+                )
+            )
+        else:
+            items.append(
+                SanitizedQuestionItemResponse(
+                    id=getattr(it, "id", ""),
+                    course_id=getattr(it, "course_id", ""),
+                    question_text=getattr(it, "question_text", ""),
+                    item_type=getattr(it, "item_type", "MCQ"),
+                    options=getattr(it, "options", []),
+                    difficulty=getattr(it, "difficulty", 1),
+                    bloom_level=getattr(it, "bloom_level", "recall"),
+                    hints=getattr(it, "hints", []),
+                    tags=getattr(it, "tags", []),
+                )
+            )
+
+    if isinstance(asmt_data, dict):
+        asmt_id = asmt_data.get("id", "")
+        course_id = asmt_data.get("course_id", "")
+        title = asmt_data.get("title", "")
+        asmt_type_str = str(asmt_data.get("assessment_type", "formative"))
+        duration_minutes = int(asmt_data.get("duration_minutes", 0))
+        passing_score = float(asmt_data.get("passing_score", 70.0))
+        status_val = str(asmt_data.get("status", "draft"))
+    else:
+        asmt_id = asmt_data.id
+        course_id = asmt_data.course_id
+        title = asmt_data.title
+        asmt_type_str = asmt_data.assessment_type.value if hasattr(asmt_data.assessment_type, "value") else str(asmt_data.assessment_type)
+        duration_minutes = int(asmt_data.duration_minutes)
+        passing_score = float(asmt_data.passing_score)
+        status_val = str(asmt_data.status)
+
+    return ApiResponse(
+        ok=True,
+        data=SanitizedAssessmentResponse(
+            id=asmt_id,
+            course_id=course_id,
+            title=title,
+            assessment_type=asmt_type_str,
+            duration_minutes=duration_minutes,
+            passing_score=passing_score,
+            items=items,
+            status=status_val,
+        ),
+    )
+
 
 
 @router.post("/{assessment_id}/publish", response_model=ApiResponse[AssessmentResponse])
@@ -606,6 +687,7 @@ async def list_student_attempts(
 
 # ── 5. Teacher Review & Reassessment Endpoints ───────────────────────────────
 
+@router.post("/attempts/{attempt_id}/review", response_model=ApiResponse[AttemptDetailResponse])
 @router.post("/attempts/{attempt_id}/teacher-review", response_model=ApiResponse[AttemptDetailResponse])
 async def teacher_review_attempt(
     attempt_id: str,
