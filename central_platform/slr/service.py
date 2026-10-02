@@ -78,9 +78,6 @@ class SLRService:
         course_id: Optional[str] = None,
     ) -> AuthoritativeSLR:
         """Construct the canonical 15-dimension Authoritative SLR for a student."""
-        target_course = course_id or "crs-chem-101"
-        self._ensure_student_scaffolding(student_id, target_course)
-
         # 1. Identity
         user = self.db.get_user(student_id)
         if user:
@@ -101,12 +98,28 @@ class SLRService:
             )
             org_id = "org-default"
 
-        # 2. Enrollment
+        # Resolve target course from parameter or student enrollment
         enrollments = self.db.get_enrollments_for_student(student_id)
-        matched_enr = next(
-            (e for e in enrollments if e.course_id == target_course and e.is_active),
-            enrollments[0] if enrollments else None,
-        )
+        matched_enr = None
+        if course_id:
+            matched_enr = next((e for e in enrollments if e.course_id == course_id and e.is_active), None)
+            if not matched_enr:
+                matched_enr = next((e for e in enrollments if e.course_id == course_id), None)
+            target_course = course_id
+        else:
+            active_enrs = [e for e in enrollments if e.is_active]
+            if active_enrs:
+                matched_enr = active_enrs[0]
+                target_course = matched_enr.course_id
+            elif enrollments:
+                matched_enr = enrollments[0]
+                target_course = matched_enr.course_id
+            else:
+                target_course = "crs-unassigned"
+
+        self._ensure_student_scaffolding(student_id, target_course)
+
+        # 2. Enrollment
         if matched_enr:
             enrollment = SLREnrollment(
                 enrollment_id=matched_enr.id,
@@ -115,7 +128,6 @@ class SLRService:
                 is_active=matched_enr.is_active,
                 enrolled_at=matched_enr.enrolled_at,
             )
-            target_course = matched_enr.course_id
         else:
             enrollment = SLREnrollment(
                 enrollment_id=f"enr-{student_id}-{target_course}",
@@ -133,29 +145,17 @@ class SLRService:
                 description=db_course.description,
             )
         else:
+            is_chem = "chem" in target_course.lower()
+            code = "CHEM101" if is_chem else target_course.replace("crs-", "").upper()
+            title = "Thermodynamics & Physical Chemistry" if is_chem else f"Course {code}"
             course = SLRCourse(
                 course_id=target_course,
-                code="CHEM101",
-                title="Thermodynamics & Physical Chemistry",
-                description="Core Chemistry curriculum",
+                code=code,
+                title=title,
+                description="",
             )
 
-        # 4. Curriculum
-        db_curriculum = self.db.get_curriculum_for_course(target_course)
-        if db_curriculum:
-            curriculum = SLRCurriculum(
-                curriculum_id=db_curriculum.id,
-                version=db_curriculum.version,
-                current_concept="chem_thermo_first_law",
-            )
-        else:
-            curriculum = SLRCurriculum(
-                curriculum_id=f"cur-{target_course}",
-                version="1.0.0",
-                current_concept="chem_thermo_first_law",
-            )
-
-        # 5. Mastery
+        # Fetch mastery states from DB to determine true evidence
         db_slr = self.db.get_slr(student_id, target_course)
         concept_scores: Dict[str, float] = {}
         concept_confidences: Dict[str, float] = {}
@@ -165,21 +165,49 @@ class SLRService:
                 concept_scores[s.concept_id] = s.score
                 concept_confidences[s.concept_id] = s.confidence
 
-        if not concept_scores:
-            # Default active concept score baseline
-            concept_scores["chem_thermo_first_law"] = 0.50
-            concept_confidences["chem_thermo_first_law"] = 0.80
+        if concept_scores:
+            current_concept = list(concept_scores.keys())[-1]
+        elif "chem" in target_course.lower():
+            current_concept = "chem_thermo_first_law"
+        else:
+            current_concept = ""
 
-        avg_score = (
-            sum(concept_scores.values()) / len(concept_scores) if concept_scores else 0.50
-        )
-        mastery = SLRMastery(
-            overall_score=round(avg_score, 4),
-            retention_rate=0.85,
-            concept_scores=concept_scores,
-            concept_confidences=concept_confidences,
-            updated_at=_now_iso(),
-        )
+        # 4. Curriculum
+        db_curriculum = self.db.get_curriculum_for_course(target_course)
+        if db_curriculum:
+            curriculum = SLRCurriculum(
+                curriculum_id=db_curriculum.id,
+                version=db_curriculum.version,
+                current_concept=current_concept,
+            )
+        else:
+            curriculum = SLRCurriculum(
+                curriculum_id=f"cur-{target_course}",
+                version="1.0.0",
+                current_concept=current_concept,
+            )
+
+        # 5. Mastery: Authoritative evidence only (no fabricated 50% or 85% defaults)
+        if not concept_scores:
+            mastery = SLRMastery(
+                overall_score=0.0,
+                retention_rate=0.0,
+                evidence_status="INSUFFICIENT_EVIDENCE",
+                concept_scores={},
+                concept_confidences={},
+                updated_at=_now_iso(),
+            )
+        else:
+            avg_score = sum(concept_scores.values()) / len(concept_scores)
+            avg_conf = sum(concept_confidences.values()) / len(concept_confidences) if concept_confidences else 0.85
+            mastery = SLRMastery(
+                overall_score=round(avg_score, 4),
+                retention_rate=round(avg_conf, 4),
+                evidence_status="EVALUATED",
+                concept_scores=concept_scores,
+                concept_confidences=concept_confidences,
+                updated_at=_now_iso(),
+            )
 
         # 6. Recent Sessions
         db_sessions = self.db.get_sessions_for_student(student_id, limit=10)
@@ -431,6 +459,17 @@ class SLRService:
 
         return slr_instance
 
+    def _resolve_target_course(self, student_id: str, course_id: Optional[str] = None) -> str:
+        if course_id:
+            return course_id
+        enrollments = self.db.get_enrollments_for_student(student_id)
+        active_enrs = [e for e in enrollments if e.is_active]
+        if active_enrs:
+            return active_enrs[0].course_id
+        if enrollments:
+            return enrollments[0].course_id
+        return "crs-default"
+
     def update_concept_mastery(
         self,
         student_id: str,
@@ -440,28 +479,29 @@ class SLRService:
         confidence: float = 0.85,
     ) -> AuthoritativeSLR:
         """Update concept mastery in authoritative platform database and recompute SLR."""
-        target_course = course_id or "crs-chem-101"
+        target_course = self._resolve_target_course(student_id, course_id)
         self._ensure_student_scaffolding(student_id, target_course)
 
-        db_slr = self.db.get_slr(student_id, target_course)
-        if not db_slr:
-            db_slr = DBMasterSLR(
-                id=f"slr-{student_id}",
-                student_id=student_id,
-                course_id=target_course,
-                authoritative=True,
-            )
-            self.db.create_slr(db_slr)
+        with self.db.transaction():
+            db_slr = self.db.get_slr(student_id, target_course)
+            if not db_slr:
+                db_slr = DBMasterSLR(
+                    id=f"slr-{student_id}-{target_course}",
+                    student_id=student_id,
+                    course_id=target_course,
+                    authoritative=True,
+                )
+                self.db.create_slr(db_slr)
 
-        mastery_state = MasteryState(
-            id=f"mst-{student_id}-{concept_id}",
-            slr_id=db_slr.id,
-            concept_id=concept_id,
-            score=max(0.0, min(1.0, float(score))),
-            confidence=confidence,
-            updated_at=_now_iso(),
-        )
-        self.db.upsert_mastery_state(mastery_state)
+            mastery_state = MasteryState(
+                id=f"mst-{student_id}-{concept_id}",
+                slr_id=db_slr.id,
+                concept_id=concept_id,
+                score=max(0.0, min(1.0, float(score))),
+                confidence=confidence,
+                updated_at=_now_iso(),
+            )
+            self.db.upsert_mastery_state(mastery_state)
         return self.get_authoritative_slr(student_id, target_course)
 
     def record_student_misconception(
@@ -471,34 +511,35 @@ class SLRService:
         course_id: Optional[str] = None,
     ) -> AuthoritativeSLR:
         """Record or increment student misconception frequency."""
-        target_course = course_id or "crs-chem-101"
+        target_course = self._resolve_target_course(student_id, course_id)
         self._ensure_student_scaffolding(student_id, target_course)
 
-        existing_cat = self.db.get_misconception_by_code(misconception_code)
-        if not existing_cat:
-            self.db.create_misconception(
-                Misconception(
-                    id=f"misc-{misconception_code.lower()}",
-                    code=misconception_code,
-                    category="general",
-                    name=misconception_code.replace("_", " ").title(),
-                    description=f"Auto-registered misconception: {misconception_code}",
+        with self.db.transaction():
+            existing_cat = self.db.get_misconception_by_code(misconception_code)
+            if not existing_cat:
+                self.db.create_misconception(
+                    Misconception(
+                        id=f"misc-{misconception_code.lower()}",
+                        code=misconception_code,
+                        category="general",
+                        name=misconception_code.replace("_", " ").title(),
+                        description=f"Auto-registered misconception: {misconception_code}",
+                    )
                 )
-            )
 
-        existing = [
-            m for m in self.db.get_student_misconceptions(student_id)
-            if m.misconception_code == misconception_code
-        ]
-        freq = (existing[0].frequency + 1) if existing else 1
-        record = StudentMisconceptionRecord(
-            id=f"smr-{student_id}-{misconception_code}",
-            student_id=student_id,
-            misconception_code=misconception_code,
-            frequency=freq,
-            last_observed=_now_iso(),
-        )
-        self.db.record_student_misconception(record)
+            existing = [
+                m for m in self.db.get_student_misconceptions(student_id)
+                if m.misconception_code == misconception_code
+            ]
+            freq = (existing[0].frequency + 1) if existing else 1
+            record = StudentMisconceptionRecord(
+                id=f"smr-{student_id}-{misconception_code}",
+                student_id=student_id,
+                misconception_code=misconception_code,
+                frequency=freq,
+                last_observed=_now_iso(),
+            )
+            self.db.record_student_misconception(record)
         return self.get_authoritative_slr(student_id, target_course)
 
     def project_from_events(
@@ -507,7 +548,7 @@ class SLRService:
         course_id: Optional[str] = None,
     ) -> AuthoritativeSLR:
         """Replay student events through event store and project state into database."""
-        target_course = course_id or "crs-chem-101"
+        target_course = self._resolve_target_course(student_id, course_id)
         self._ensure_student_scaffolding(student_id, target_course)
 
         events = self.event_store.get_student_events(
@@ -518,27 +559,28 @@ class SLRService:
         # Event replay projection
         replay_res = self.event_store.replay_events(student_id=student_id)
 
-        db_slr = self.db.get_slr(student_id, target_course)
-        if not db_slr:
-            db_slr = DBMasterSLR(
-                id=f"slr-{student_id}",
-                student_id=student_id,
-                course_id=target_course,
-                authoritative=True,
-            )
-            self.db.create_slr(db_slr)
+        with self.db.transaction():
+            db_slr = self.db.get_slr(student_id, target_course)
+            if not db_slr:
+                db_slr = DBMasterSLR(
+                    id=f"slr-{student_id}-{target_course}",
+                    student_id=student_id,
+                    course_id=target_course,
+                    authoritative=True,
+                )
+                self.db.create_slr(db_slr)
 
-        # Sync projected mastery scores
-        for cid, score in replay_res.concept_mastery.items():
-            st = MasteryState(
-                id=f"mst-{student_id}-{cid}",
-                slr_id=db_slr.id,
-                concept_id=cid,
-                score=score,
-                confidence=0.85,
-                updated_at=_now_iso(),
-            )
-            self.db.upsert_mastery_state(st)
+            # Sync projected mastery scores
+            for cid, score in replay_res.concept_mastery.items():
+                st = MasteryState(
+                    id=f"mst-{student_id}-{cid}",
+                    slr_id=db_slr.id,
+                    concept_id=cid,
+                    score=score,
+                    confidence=0.85,
+                    updated_at=_now_iso(),
+                )
+                self.db.upsert_mastery_state(st)
 
         return self.get_authoritative_slr(student_id, target_course)
 
@@ -582,22 +624,27 @@ class SLRService:
 
         course = self.db.get_course(course_id)
         if not course:
+            is_chem = "chem" in course_id.lower()
+            code = "CHEM101" if is_chem else course_id.replace("crs-", "").upper()
+            title = "Thermodynamics & Physical Chemistry" if is_chem else f"Course {code}"
             self.db.create_course(
                 Course(
                     id=course_id,
                     organization_id="org-default",
-                    code="CHEM101",
-                    title="Thermodynamics & Physical Chemistry",
+                    code=code,
+                    title=title,
                 )
             )
 
         curriculum = self.db.get_curriculum_for_course(course_id)
         if not curriculum:
+            is_chem = "chem" in course_id.lower()
+            cur_title = "Chemistry Core Curriculum" if is_chem else f"Curriculum {course_id}"
             self.db.create_curriculum(
                 Curriculum(
                     id=f"cur-{course_id}",
                     course_id=course_id,
-                    title="Chemistry Core Curriculum",
+                    title=cur_title,
                     version="1.0.0",
                 )
             )

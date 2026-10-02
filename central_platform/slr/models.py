@@ -75,8 +75,9 @@ class SLRMastery(BaseModel):
     """5. Granular and aggregate concept mastery state."""
     model_config = ConfigDict(extra="ignore")
 
-    overall_score: float = 0.50
-    retention_rate: float = 0.85
+    overall_score: float = 0.0
+    retention_rate: float = 0.0
+    evidence_status: str = "INSUFFICIENT_EVIDENCE"
     concept_scores: Dict[str, float] = Field(default_factory=dict)
     concept_confidences: Dict[str, float] = Field(default_factory=dict)
     updated_at: str = Field(default_factory=_now_iso)

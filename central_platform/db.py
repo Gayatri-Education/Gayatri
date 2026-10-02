@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
@@ -93,6 +94,27 @@ from central_platform.models.schema import (
 from scripts.migrate_db import run_all_migrations
 
 
+class _ConnectionContextWrapper:
+    """Connection wrapper that suppresses per-operation auto-commit when inside an outer transaction."""
+
+    def __init__(self, raw_conn: sqlite3.Connection, db: PlatformDatabase):
+        self._raw_conn = raw_conn
+        self._db = db
+
+    def __enter__(self):
+        if not self._db.in_transaction:
+            return self._raw_conn.__enter__()
+        return self._raw_conn
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if not self._db.in_transaction:
+            return self._raw_conn.__exit__(exc_type, exc_val, exc_tb)
+        return False
+
+    def __getattr__(self, name):
+        return getattr(self._raw_conn, name)
+
+
 class PlatformDatabase:
     """Central data layer manager supporting multi-tenant isolation and 29 domain entities."""
 
@@ -103,19 +125,63 @@ class PlatformDatabase:
         )
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON;")
+        self._tx_depth: int = 0
+        self._conn_wrapper: Optional[_ConnectionContextWrapper] = _ConnectionContextWrapper(self._conn, self)
         self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @property
+    def in_transaction(self) -> bool:
+        """True if an explicit transaction is active on this database connection."""
+        return self._tx_depth > 0
+
+    @contextmanager
+    def transaction(self):
+        """Context manager providing an atomic database transaction.
+
+        Supports nested transactions using SQLite SAVEPOINTs.
+        Guarantees all DML operations within the block are committed together,
+        or completely rolled back on error with zero partial writes.
+        """
+        self._tx_depth += 1
+        depth = self._tx_depth
+        sp_name = f"tx_sp_{depth}"
+        raw_conn = self._get_raw_connection()
+        if depth > 1:
+            raw_conn.execute(f"SAVEPOINT {sp_name};")
+        try:
+            yield raw_conn
+            if depth > 1:
+                raw_conn.execute(f"RELEASE SAVEPOINT {sp_name};")
+            else:
+                raw_conn.commit()
+        except Exception:
+            if depth > 1:
+                raw_conn.execute(f"ROLLBACK TO SAVEPOINT {sp_name};")
+                raw_conn.execute(f"RELEASE SAVEPOINT {sp_name};")
+            else:
+                raw_conn.rollback()
+            raise
+        finally:
+            self._tx_depth -= 1
+
+    def _get_raw_connection(self) -> sqlite3.Connection:
         if self._conn is None:
             self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA foreign_keys = ON;")
+            self._conn_wrapper = _ConnectionContextWrapper(self._conn, self)
         return self._conn
+
+    def _get_connection(self) -> _ConnectionContextWrapper:
+        if self._conn is None or self._conn_wrapper is None:
+            self._get_raw_connection()
+        return self._conn_wrapper
 
     def close(self) -> None:
         if self._conn is not None:
             self._conn.close()
             self._conn = None
+            self._conn_wrapper = None
 
     def _init_db(self) -> None:
         """Run initial DDL and migrations automatically."""

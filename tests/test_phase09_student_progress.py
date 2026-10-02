@@ -350,7 +350,7 @@ def test_empty_student_progress_state(progress_service):
 
     report = progress_service.get_student_progress(student_id, course_id)
     assert report.student_id == student_id
-    assert report.overall_mastery == 0.50  # Neutral baseline
+    assert report.overall_mastery == 0.0  # Authoritative zero evidence baseline per F-017
     assert len(report.weak_areas) == 0  # No weak areas because exposure is 0
     assert len(report.misconceptions) == 0
     assert report.learning_streak.current_streak_days == 0
@@ -359,7 +359,7 @@ def test_empty_student_progress_state(progress_service):
     # Ensure clean dictionary serialization
     d = report.to_dict()
     assert d["student_id"] == student_id
-    assert d["overall_mastery"] == 0.50
+    assert d["overall_mastery"] == 0.0
 
 
 def test_topic_mastery_aggregation(progress_service, populated_student):
