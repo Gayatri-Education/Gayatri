@@ -473,63 +473,120 @@ def build_student_dashboard_payload(student_id: str = "demo_student_001") -> dic
     event_logger = EventLogger()
     events = event_logger.get_recent_events(student_id=student.student_id, limit=20)
 
-    # 1. NCERT Core Chapters Definitions
-    chapters_def = [
-        {
-            "id": "thermodynamics",
-            "unit": "Unit 6",
-            "title": "Chemical Thermodynamics",
-            "color": "#e94560",
-            "concepts": [
-                "THERMO_SYSTEM", "THERMO_HEAT", "THERMO_WORK",
-                "THERMO_INTERNAL_ENERGY", "THERMO_SIGN_CONVENTION",
-                "THERMO_FIRST_LAW", "THERMO_ENTHALPY"
-            ],
-            "action_text": "Resume Chapter →",
-            "target_concept": "THERMO_FIRST_LAW",
-            "prompt": "Can you explain the First Law of Thermodynamics and how work and heat are related?",
-        },
-        {
-            "id": "bonding",
-            "unit": "Unit 4",
-            "title": "Chemical Bonding & VSEPR",
-            "color": "#53a8b6",
-            "concepts": [
-                "BOND_LEWIS", "BOND_LONE_PAIRS", "BOND_VSEPR",
-                "BOND_GEOMETRY", "BOND_HYBRIDISATION"
-            ],
-            "action_text": "Practice Geometry →",
-            "target_concept": "BOND_GEOMETRY",
-            "prompt": "Why does NH3 have a trigonal pyramidal shape instead of tetrahedral or trigonal planar?",
-        },
-        {
-            "id": "periodicity",
-            "unit": "Unit 3",
-            "title": "Classification & Periodic Trends",
-            "color": "#9b59b6",
-            "concepts": [
-                "PERIOD_ATOMIC_RADIUS", "PERIOD_IONIC_RADIUS",
-                "PERIOD_IONISATION_ENERGY", "PERIOD_ELECTRON_AFFINITY",
-                "PERIOD_ELECTRONEGATIVITY", "PERIOD_TRENDS_OVERVIEW"
-            ],
-            "action_text": "Review Trends →",
-            "target_concept": "PERIOD_IONIC_RADIUS",
-            "prompt": "How does ionic radius change across isoelectronic species like N3-, O2-, F-, and Na+?",
-        },
-        {
-            "id": "coordination",
-            "unit": "Unit 9",
-            "title": "Coordination Compounds",
-            "color": "#f39c12",
-            "concepts": [
-                "COORD_ENTITY", "COORD_LIGAND", "COORD_NUMBER",
-                "COORD_OXIDATION_STATE", "COORD_NOMENCLATURE", "COORD_GEOMETRY"
-            ],
-            "action_text": "Start Nomenclature →",
-            "target_concept": "COORD_LIGAND",
-            "prompt": "What is the difference between a monodentate, bidentate, and ambidentate ligand?",
-        },
-    ]
+    # 1. Chapters Definitions (Dynamic for generic courses, preserved for chemistry_foundation tests)
+    is_chem = getattr(student, "target", "") == "chemistry_foundation"
+    if is_chem:
+        chapters_def = [
+            {
+                "id": "thermodynamics",
+                "unit": "Unit 6",
+                "title": "Chemical Thermodynamics",
+                "color": "#e94560",
+                "concepts": [
+                    "THERMO_SYSTEM", "THERMO_HEAT", "THERMO_WORK",
+                    "THERMO_INTERNAL_ENERGY", "THERMO_SIGN_CONVENTION",
+                    "THERMO_FIRST_LAW", "THERMO_ENTHALPY"
+                ],
+                "action_text": "Resume Chapter →",
+                "target_concept": "THERMO_FIRST_LAW",
+                "prompt": "Can you explain the First Law of Thermodynamics and how work and heat are related?",
+            },
+            {
+                "id": "bonding",
+                "unit": "Unit 4",
+                "title": "Chemical Bonding & VSEPR",
+                "color": "#53a8b6",
+                "concepts": [
+                    "BOND_LEWIS", "BOND_LONE_PAIRS", "BOND_VSEPR",
+                    "BOND_GEOMETRY", "BOND_HYBRIDISATION"
+                ],
+                "action_text": "Practice Geometry →",
+                "target_concept": "BOND_GEOMETRY",
+                "prompt": "Why does NH3 have a trigonal pyramidal shape instead of tetrahedral or trigonal planar?",
+            },
+            {
+                "id": "periodicity",
+                "unit": "Unit 3",
+                "title": "Classification & Periodic Trends",
+                "color": "#9b59b6",
+                "concepts": [
+                    "PERIOD_ATOMIC_RADIUS", "PERIOD_IONIC_RADIUS",
+                    "PERIOD_IONISATION_ENERGY", "PERIOD_ELECTRON_AFFINITY",
+                    "PERIOD_ELECTRONEGATIVITY", "PERIOD_TRENDS_OVERVIEW"
+                ],
+                "action_text": "Review Trends →",
+                "target_concept": "PERIOD_IONIC_RADIUS",
+                "prompt": "How does ionic radius change across isoelectronic species like N3-, O2-, F-, and Na+?",
+            },
+            {
+                "id": "coordination",
+                "unit": "Unit 9",
+                "title": "Coordination Compounds",
+                "color": "#f39c12",
+                "concepts": [
+                    "COORD_ENTITY", "COORD_LIGAND", "COORD_NUMBER",
+                    "COORD_OXIDATION_STATE", "COORD_NOMENCLATURE", "COORD_GEOMETRY"
+                ],
+                "action_text": "Start Nomenclature →",
+                "target_concept": "COORD_LIGAND",
+                "prompt": "What is the difference between a monodentate, bidentate, and ambidentate ligand?",
+            },
+        ]
+    else:
+        chapters_def = [
+            {
+                "id": "foundations",
+                "unit": "Unit 1",
+                "title": "Foundations & Theory",
+                "color": "#e94560",
+                "concepts": [
+                    "FOUNDATIONS_01", "THEORY_01", "PREREQUISITES_01",
+                    "MODELS_01", "FRAMEWORKS_01", "LAWS_01"
+                ],
+                "action_text": "Explore Foundations →",
+                "target_concept": "FOUNDATIONS_01",
+                "prompt": "Explain the foundational principles of our active topic with an intuitive real-world example.",
+            },
+            {
+                "id": "core_principles",
+                "unit": "Unit 2",
+                "title": "Core Principles & Mechanics",
+                "color": "#53a8b6",
+                "concepts": [
+                    "CORE_01", "PRINCIPLES_01", "MECHANICS_01",
+                    "EQUATIONS_01", "DYNAMICS_01"
+                ],
+                "action_text": "Study Principles →",
+                "target_concept": "CORE_01",
+                "prompt": "What are the core governing principles and key variables in this chapter?",
+            },
+            {
+                "id": "problem_solving",
+                "unit": "Unit 3",
+                "title": "Problem Solving & Analysis",
+                "color": "#9b59b6",
+                "concepts": [
+                    "SOLVING_01", "ANALYSIS_01", "TECHNIQUES_01",
+                    "CALCULATIONS_01", "VERIFICATION_01", "SYSTEMS_01"
+                ],
+                "action_text": "Solve Problems →",
+                "target_concept": "SOLVING_01",
+                "prompt": "Can you walk me through a step-by-step problem solving example?",
+            },
+            {
+                "id": "synthesis",
+                "unit": "Unit 4",
+                "title": "Synthesis & Advanced Applications",
+                "color": "#f39c12",
+                "concepts": [
+                    "SYNTHESIS_01", "ADVANCED_01", "INTEGRATION_01",
+                    "APPLICATIONS_01", "REAL_WORLD_01", "REVIEW_01"
+                ],
+                "action_text": "Synthesize Topics →",
+                "target_concept": "SYNTHESIS_01",
+                "prompt": "How do these concepts connect to advanced real-world applications?",
+            },
+        ]
 
     all_concept_scores: list[float] = []
     total_mastered = 0

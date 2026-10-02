@@ -87,6 +87,16 @@ class StudentProfile:
                     data = json.load(f)
                 valid_fields = {f.name for f in fields(cls)}
                 filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+                # Seamlessly migrate legacy demo profile to general foundation
+                if filtered_data.get("student_id") == "student_001" and filtered_data.get("target") == "chemistry_foundation":
+                    filtered_data["target"] = "general_foundation"
+                    filtered_data["current_topic"] = "Foundations"
+                    filtered_data["current_concept"] = "COURSE_FOUNDATIONS"
+                    if filtered_data.get("misconceptions") == ["THERMO_SIGN_CONVENTION"]:
+                        filtered_data["misconceptions"] = []
+                    inst = cls(**filtered_data)
+                    inst.save_to_file(target)
+                    return inst
                 return cls(**filtered_data)
             except Exception as exc:
                 logger.warning(f"Failed to load student from {target}: {exc}; creating default")
