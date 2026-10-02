@@ -740,7 +740,35 @@ This log records every development phase and architectural transition in chronol
   - Regression Suite:
     - 1,078 tests passing across all 20 phases (100% green, 0 failures, 0 regressions).
 - **Tests Run:** 1,078 tests collected, 1,078 passed (100% green).
-- **Remaining Risks:** None for Phase 20. Advancing to Phase 21 (Zero-Coupling Verification & Course Authoring Smoke Test).
+- **Remaining Risks:** None for Phase 20. Advancing to Phase 21 (Database & Migration Hardening).
+
+### Entry: Phase 21 — Database & Migration Hardening (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Authoritative Database Schema Manifest (`docs/reports/DATABASE_SCHEMA_MANIFEST.md`):
+    - Cataloged all 50 tables across migrations 001-008. Verified 0 duplicate table definitions across all migration files.
+  - Migration Checksum Tracking & Tamper Detection (`scripts/migrate_db.py`):
+    - Recorded SHA-256 hashes in `schema_migrations` upon migration application.
+    - Added `verify_migration_checksums(conn)` and `MigrationChecksumMismatchError` to detect and strictly block tampered migration files.
+  - Migration Lifecycle & Reversibility:
+    - Verified clean forward migration on an empty database (001 to 008).
+    - Verified idempotent rerun (safe no-op returning empty list).
+    - Verified incremental step-by-step application.
+    - Verified symmetric reverse rollback (008 down to 001) and subsequent reapplication.
+  - Relational Integrity & Concurrency:
+    - Enforced foreign key constraints with `PRAGMA foreign_keys = ON;`.
+    - Enforced uniqueness constraints across primary keys and unique column indexes.
+    - Proved data preservation across sequential migration executions.
+    - Verified multithreaded concurrent read/write access without deadlocks or thread conflicts.
+  - Dual-Engine Compatibility:
+    - Verified SQLite as authoritative local/CI engine and `psycopg2` driver present with honest environment reporting (live PostgreSQL daemon marked unverified).
+  - Test Suite (`tests/test_phase21_database_migration_hardening.py`):
+    - 12 comprehensive unit and integration tests covering empty DB migration, idempotency, incremental upgrades, reverse rollback, checksum verification, tamper detection, foreign keys, uniqueness, data preservation, concurrency, manifest consistency, and dual engine reporting.
+  - Regression Suite:
+    - 1,090 tests passing across all 21 phases (100% green, 0 failures, 0 regressions).
+- **Tests Run:** 1,090 tests collected, 1,090 passed (100% green).
+- **Remaining Risks:** None for Phase 21. Advancing to Phase 22 (Security, Privacy & Isolation Audit).
+
 
 
 

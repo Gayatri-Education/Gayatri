@@ -472,8 +472,29 @@
   - tests/test_phase20_legacy_removal_dead_code_cleanup.py: 12 comprehensive unit and integration tests covering legacy directory deletion, zero codebase-wide imports, dead config removal, scratch sanitization, clean imports across all layers, inference service decoupling, context builder independence, health probes, packaging hygiene, and end-to-end tutor orchestration.
   - Regression results: 1,078/1,078 passed (100% green, 0 regressions).
   ```
+- **Push Status:** `COMPLETED (commit fcb9720 pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 022: Phase 21 Database & Migration Hardening
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 21 Database & Migration Hardening Complete`
+- **Intended Labels:** `database`, `migrations`, `sqlite`, `postgresql`, `integrity`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 21 Database & Migration Hardening completed.
+
+  Deliverables:
+  - Authoritative Table Manifest (docs/reports/DATABASE_SCHEMA_MANIFEST.md): Exhaustive catalog of all 50 tables across migrations 001-008. Verified 0 duplicate table definitions across all migration files.
+  - Checksum Ledger & Tamper Detection: Upgraded scripts/migrate_db.py to record SHA-256 hashes in schema_migrations. Added verify_migration_checksums() and MigrationChecksumMismatchError rejecting modified migration scripts.
+  - Migration Lifecycle & Idempotency: Verified clean migration on empty database, idempotent reruns (returning empty list), incremental step-by-step application, and symmetric reverse rollback (008 down to 001) with clean re-application.
+  - Relational Integrity & Concurrency: Enforced foreign key constraints with PRAGMA foreign_keys = ON; verified rejection of orphan rows and uniqueness collisions; verified data preservation across migrations 001 through 008; verified thread-safe concurrent reads/writes without deadlocks.
+  - Dual-Engine Compatibility: Documented SQLite as authoritative verified local engine and psycopg2 driver present with honest environment reporting (live PostgreSQL daemon marked unverified).
+  - tests/test_phase21_database_migration_hardening.py: 12 comprehensive unit and integration tests covering all migration operations and database constraints.
+  - Regression results: 1,090/1,090 passed (100% green, 0 regressions).
+  ```
 - **Push Status:** `PENDING`
 - **Issue Operations Status:** `QUEUED`
+
 
 
 

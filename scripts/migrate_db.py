@@ -52,26 +52,60 @@ def get_applied_migrations(conn: sqlite3.Connection) -> List[Dict[str, str]]:
     ]
 
 
+class MigrationChecksumMismatchError(RuntimeError):
+    """Raised when on-disk migration script checksum differs from ledger record."""
+    pass
+
+
 def apply_migration_file(conn: sqlite3.Connection, sql_path: Path, version: str, description: str) -> bool:
     """Apply a single forward SQL migration file within a transaction."""
     ensure_migrations_table(conn)
-    applied = {m["version"] for m in get_applied_migrations(conn)}
-    if version in applied:
-        return False  # Already applied
+    applied_records = get_applied_migrations(conn)
+    applied_map = {m["version"]: m["checksum"] for m in applied_records}
+
+    current_checksum = compute_file_checksum(sql_path)
+
+    if version in applied_map:
+        if current_checksum != applied_map[version]:
+            raise MigrationChecksumMismatchError(
+                f"Migration {version} ({sql_path.name}) has been tampered with after application! "
+                f"Recorded checksum: {applied_map[version]}, Current: {current_checksum}"
+            )
+        return False  # Already applied and checksum matches
 
     with open(sql_path, "r", encoding="utf-8") as f:
         sql_content = f.read()
 
-    checksum = compute_file_checksum(sql_path)
     now_iso = datetime.now(timezone.utc).isoformat()
 
     with conn:
         conn.executescript(sql_content)
         conn.execute(
             "INSERT OR REPLACE INTO schema_migrations (version, description, applied_at, checksum) VALUES (?, ?, ?, ?);",
-            (version, description, now_iso, checksum),
+            (version, description, now_iso, current_checksum),
         )
     return True
+
+
+def verify_migration_checksums(conn: sqlite3.Connection) -> List[Dict[str, str]]:
+    """Verify that all applied migrations match their on-disk file checksums."""
+    applied = get_applied_migrations(conn)
+    mismatches = []
+    for record in applied:
+        version = record["version"]
+        matching = list(MIGRATIONS_DIR.glob(f"{version}_*.sql"))
+        forward = [f for f in matching if not f.name.endswith("_down.sql")]
+        if not forward:
+            continue
+        actual_checksum = compute_file_checksum(forward[0])
+        if actual_checksum != record["checksum"]:
+            mismatches.append({
+                "version": version,
+                "recorded_checksum": record["checksum"],
+                "actual_checksum": actual_checksum,
+                "file": forward[0].name,
+            })
+    return mismatches
 
 
 def rollback_migration_file(conn: sqlite3.Connection, sql_path: Path, version: str) -> bool:
