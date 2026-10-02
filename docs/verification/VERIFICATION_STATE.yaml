@@ -65,8 +65,9 @@ phases:
   phase_04_ai_gateway:
     name: "AI Gateway and Explicit Failure Semantics"
     status: "COMPLETE"
-    commit: null  # to be filled upon commit
+    commit: "cb565b0"
     branch: "fix/phase-04-ai-gateway"
+
     test_command: "pytest -v tests/test_phase04_ai_gateway_remediation.py && pytest -q"
     test_result: "PASSED (11 phase tests passed; 1178 full suite passed in 259.75s)"
     runtime_result: "VERIFIED (model failure fail-closed, timeout/500/429/invalid responses mapped to MODEL_* states)"

@@ -55,7 +55,8 @@ phases:
 
   phase_04_ai_gateway:
     status: "COMPLETE"
-    commit: null  # to be filled upon commit
+    commit: "cb565b0"
+
     implementation_verified: true
     tests_passed: true
     runtime_verified: true
