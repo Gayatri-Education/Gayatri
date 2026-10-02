@@ -184,8 +184,8 @@ def create_app() -> FastAPI:
         students_count = 5
         try:
             students_count = _portal_service.get_dashboard_overview("crs-chem-101").total_students
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed resolving total_students for legacy health overview: %s", exc)
         return {
             "status": "HEALTHY" if h["status"] != "UNHEALTHY" else "UNHEALTHY",
             "service": "TeacherPortalServer",

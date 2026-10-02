@@ -169,6 +169,6 @@ class LocalRuntimeEngine:
             # If an error occurred before commit, roll back the turn
             try:
                 self.session_store.rollback_turn(turn_id)
-            except Exception:
-                pass
+            except Exception as rollback_err:
+                logger.warning("Failed to rollback turn %s: %s", turn_id, rollback_err)
             raise

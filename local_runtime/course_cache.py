@@ -148,8 +148,8 @@ class LocalCourseCache:
             if curriculum_path.is_file():
                 try:
                     content["curriculum"] = json.loads(curriculum_path.read_text(encoding="utf-8"))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Failed loading curriculum.json from cached course: %s", exc)
             return content
         except Exception as exc:
             logger.error("Failed to read cached course %s: %s", course_id, exc)
@@ -268,8 +268,8 @@ class LocalCourseCache:
             try:
                 curr = json.loads((target_dir / "curriculum.json").read_text(encoding="utf-8"))
                 total_concepts = len(curr.get("concepts", []))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed reading concepts from curriculum.json during package import: %s", exc)
 
         return CoursePackageMetadata(
             course_id=course_id,
@@ -425,6 +425,6 @@ class LocalCourseCache:
         dest_path = self.quarantine_dir / dest_name
         try:
             shutil.copy2(str(file_path), str(dest_path))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed copying corrupted file %s to quarantine %s: %s", file_path, dest_path, exc)
         return dest_path

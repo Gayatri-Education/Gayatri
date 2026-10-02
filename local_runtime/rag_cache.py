@@ -106,8 +106,8 @@ class LocalRAGCache:
                 try:
                     index_data = json.loads(matching_files[0].read_text(encoding="utf-8"))
                     self._in_memory_indices[course_id] = index_data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Failed loading cached index from %s: %s", matching_files[0], exc)
 
         if not index_data or not index_data.get("chunks"):
             return []
@@ -186,7 +186,7 @@ class LocalRAGCache:
             try:
                 f.unlink()
                 removed = True
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed unlinking cached index file %s: %s", f, exc)
 
         return removed

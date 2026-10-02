@@ -7,10 +7,13 @@ Master Plan Section 13:
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+logger = logging.getLogger("gayatri.central_platform.api.routes.teachers")
 from central_platform.api.schemas import (
     AlertResolveRequest,
     ApiResponse,
@@ -637,8 +640,8 @@ async def evaluate_interventions(
         from central_platform.events.store import LearningEventStore
         store = LearningEventStore(db=get_db())
         events = store.get_events_for_student(req.student_id, course_id=req.course_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to fetch learning events for student %s: %s", req.student_id, exc)
     generated = _intervention_engine.evaluate_triggers_for_student(
         student_id=req.student_id,
         course_id=req.course_id,

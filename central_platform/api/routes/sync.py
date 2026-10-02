@@ -10,8 +10,11 @@ Master Plan Section 17:
 """
 from __future__ import annotations
 
+import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+
+logger = logging.getLogger("gayatri.central_platform.api.routes.sync")
 
 from central_platform.api.schemas import (
     ApiResponse,
@@ -76,8 +79,8 @@ async def sync_events(
         )
         try:
             _sync_manager.record_event(sync_ev)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to record event %s in legacy sync manager: %s", sync_ev.event_id, exc)
         count += 1
 
     return ApiResponse(

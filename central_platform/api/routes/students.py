@@ -8,10 +8,13 @@ Master Plan Section 15:
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 import json
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+
+logger = logging.getLogger("gayatri.central_platform.api.routes.students")
 from central_platform.api.schemas import (
     ApiResponse,
     StudentActionRequest,
@@ -299,8 +302,8 @@ async def get_student_enrolled_courses(
                             break
                     if active_concept:
                         break
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to extract active concept from hierarchy for course %s: %s", course.id, exc)
 
         courses_response.append(
             StudentEnrolledCourseResponse(
@@ -448,8 +451,8 @@ async def switch_student_course(
                         break
                 if active_concept:
                     break
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to extract active concept from hierarchy on course switch for %s: %s", course.id, exc)
 
     return ApiResponse(
         ok=True,

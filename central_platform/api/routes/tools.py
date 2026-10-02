@@ -82,8 +82,8 @@ async def list_course_tools(
             # Pick published or latest version
             pub_v = next((v for v in versions if getattr(v, "status", "") in ("published", "PUBLISHED")), versions[0])
             policy = pub_v.tool_policy
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to resolve course version tool policy for course %s: %s", course_id, exc)
 
     if policy is None:
         # Default policy enabling calculator and equation_balancer for backwards compatibility
@@ -110,8 +110,8 @@ async def execute_tool(
         if versions:
             pub_v = next((v for v in versions if getattr(v, "status", "") in ("published", "PUBLISHED")), versions[0])
             policy = pub_v.tool_policy
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to resolve course version tool policy for course %s: %s", req.course_id, exc)
 
     if policy is None:
         policy = CourseToolPolicy(

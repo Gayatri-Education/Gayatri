@@ -408,8 +408,32 @@
   - tests/test_phase17_student_multi_course_workflow_ui.py: 12 comprehensive unit and integration tests covering enrolled courses listing, context resolution, active context switching, concurrency guard (409 Conflict), unauthorized course rejection (403 Forbidden), scoped curriculum DAG navigation, scoped assignments isolation, class group boundaries, scoped knowledge notes, offline indicators, PySide6 bridge slots, and HTML controls.
   - Regression results: 1,041/1,041 passed (100% green, 0 regressions).
   ```
+- **Push Status:** `COMPLETED (commit 8f65325 pushed to origin/master)`
+- **Issue Operations Status:** `QUEUED`
+
+### Item 019: Phase 18 Completion & System-Wide Bug/Deadend Fixes
+- **Target Branch:** `master`
+- **Intended Issue Title:** `[Architecture] Phase 18 Teacher Instruction + RAG Integration & System-Wide Audit Complete`
+- **Intended Labels:** `teacher-instructions`, `rag`, `provenance`, `audit`, `P0`
+- **Intended Comment:**
+  ```text
+  Phase 18 Teacher Instruction + RAG Integration & System-Wide Audit completed.
+
+  Deliverables:
+  - central_platform/ai/context_builder.py: Implemented ProvenanceRecord dataclass, enhanced AssembledContext with applied_instruction_ids, contributed_source_ids, contributed_chunk_ids, provenance_records; integrated TeacherInstructionEngine with 5-tier precedence hierarchy (SESSION > STUDENT > CLASS > COURSE > ORGANIZATION), numerical priority tie-breaking, and timestamp recency resolution; integrated RAGService across textbook, class, and remedial scopes; strictly partitioned prompt blocks between behavioral directives and factual reference evidence.
+  - central_platform/tutor/orchestrator.py: Replaced non-existent search_chunks() call with rag_service.query(); updated TutorTurnResult with complete provenance and applied instruction IDs.
+  - central_platform/api/routes/tutor.py: Updated TutorTurnApiResponse to return applied instruction IDs, contributed chunk IDs, and provenance records.
+  - central_platform/db.py: Updated get_rag_chunks_by_course() with fallback concept matching and dual version ID checking; added list_courses(), list_course_versions(), get_users_by_role(), and get_teacher_instructions_for_course().
+  - central_platform/rag/service.py: Added concept and topic prefix-cleaning (cpt-, cpt_) for robust query matching.
+  - Codebase-Wide Bug & Silent Fail Remediation:
+    - Fixed silent tool policy fallback in central_platform/api/routes/tools.py due to missing list_course_versions.
+    - Replaced silent except-pass blocks with structured warning and debug logging across users.py, sync.py, teachers.py, curricula.py, students.py, courses/service.py, curriculum/service.py, notifications/queue.py, sync/client.py, local_runtime (course_cache, rag_cache, session, engine), and UI controllers (student, parent, admin).
+  - tests/test_phase18_teacher_instruction_rag_integration.py: 12 comprehensive unit and integration tests covering merged multi-tier context, provenance tracking, directives vs evidence separation, precedence cascade, priority tie-breaking, expiration, unauthorized note exclusion, graceful empty fallbacks, mixed scopes, version pinning, and REST API turn propagation.
+  - Regression results: 1,053/1,053 passed (100% green, 0 regressions).
+  ```
 - **Push Status:** `PENDING`
 - **Issue Operations Status:** `QUEUED`
+
 
 
 

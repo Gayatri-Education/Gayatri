@@ -730,9 +730,10 @@ class RAGService:
             # Concept / Chapter / Topic match bonus
             if concept:
                 c_lower = concept.lower()
-                if chunk.concept and c_lower in chunk.concept.lower():
+                c_clean = c_lower.replace("cpt-", "").replace("cpt_", "")
+                if chunk.concept and (c_lower in chunk.concept.lower() or c_clean in chunk.concept.lower()):
                     lexical_score += 0.25
-                elif (chunk.chapter and c_lower in chunk.chapter.lower()) or (chunk.topic and c_lower in chunk.topic.lower()):
+                elif (chunk.chapter and (c_lower in chunk.chapter.lower() or c_clean in chunk.chapter.lower())) or (chunk.topic and (c_lower in chunk.topic.lower() or c_clean in chunk.topic.lower())):
                     lexical_score += 0.15
 
             if lexical_score == 0.0:

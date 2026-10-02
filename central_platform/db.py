@@ -257,6 +257,39 @@ class PlatformDatabase:
                 for r in rows
             ]
 
+    def get_users_by_role(
+        self,
+        role: UserRole | str,
+        organization_id: Optional[str] = None,
+        include_deleted: bool = False,
+    ) -> List[User]:
+        role_val = role.value if hasattr(role, "value") else str(role)
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM users WHERE (role = ? OR LOWER(role) = LOWER(?))"
+            params: list[Any] = [role_val, role_val]
+            if organization_id:
+                sql += " AND organization_id = ?"
+                params.append(organization_id)
+            if not include_deleted:
+                sql += " AND is_deleted = 0"
+            sql += " ORDER BY full_name ASC;"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [
+                User(
+                    id=r["id"],
+                    email=r["email"],
+                    full_name=r["full_name"],
+                    role=UserRole(r["role"]),
+                    organization_id=r["organization_id"],
+                    is_active=bool(r["is_active"]),
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                    is_deleted=bool(r["is_deleted"]),
+                    deleted_at=r["deleted_at"],
+                )
+                for r in rows
+            ]
+
     def soft_delete_user(self, user_id: str) -> bool:
         now_iso = datetime.now(timezone.utc).isoformat()
         with self._get_connection() as conn:
@@ -533,6 +566,23 @@ class PlatformDatabase:
             rows = conn.execute(sql, (organization_id,)).fetchall()
             return [self._row_to_course(r) for r in rows]
 
+    def list_courses(self, organization_id: Optional[str] = None, include_deleted: bool = False) -> List[Course]:
+        """List all courses with optional organization filter and soft-delete filtering."""
+        with self._get_connection() as conn:
+            sql = "SELECT * FROM courses"
+            conditions = []
+            params: list[Any] = []
+            if organization_id:
+                conditions.append("organization_id = ?")
+                params.append(organization_id)
+            if not include_deleted:
+                conditions.append("is_deleted = 0")
+            if conditions:
+                sql += " WHERE " + " AND ".join(conditions)
+            sql += " ORDER BY code ASC;"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [self._row_to_course(r) for r in rows]
+
     def get_public_courses(self, include_deleted: bool = False) -> List[Course]:
         with self._get_connection() as conn:
             try:
@@ -590,6 +640,10 @@ class PlatformDatabase:
             sql += " ORDER BY version_number ASC;"
             rows = conn.execute(sql, (course_id,)).fetchall()
             return [self._row_to_course_version(r) for r in rows]
+
+    def list_course_versions(self, course_id: str, include_deleted: bool = False) -> List[CourseVersion]:
+        """List all versions for a course (alias for get_course_versions_by_course)."""
+        return self.get_course_versions_by_course(course_id, include_deleted=include_deleted)
 
     def get_latest_published_course_version(self, course_id: str) -> Optional[CourseVersion]:
         with self._get_connection() as conn:
@@ -2233,6 +2287,10 @@ class PlatformDatabase:
             rows = conn.execute(sql, tuple(params)).fetchall()
             return [self._row_to_teacher_instruction(r) for r in rows]
 
+    def get_teacher_instructions_for_course(self, course_id: str) -> List[TeacherInstructionRecord]:
+        """Retrieve all active teacher instructions scoped to a course."""
+        return self.get_teacher_instructions(course_id=course_id, only_active=True)
+
     def get_hierarchical_teacher_instructions(
         self,
         course_id: Optional[str] = None,
@@ -2944,7 +3002,7 @@ class PlatformDatabase:
                 conditions.append("rc.subject = ?")
                 params.append(subject)
             if concept:
-                conditions.append("(rc.concept = ? OR rc.concept = '' OR rc.concept IS NULL)")
+                conditions.append("(rc.concept = ? OR rc.concept = '' OR rc.concept IS NULL OR rc.concept = 'General' OR rc.concept = 'ALL')")
                 params.append(concept)
 
             where_str = " AND ".join(conditions)
@@ -2967,7 +3025,7 @@ class PlatformDatabase:
             for r in rows:
                 keys = r.keys()
                 # 1. Version check
-                src_v = r["src_version_id"] if "src_version_id" in keys else None
+                src_v = r["src_version_id"] if ("src_version_id" in keys and r["src_version_id"]) else (r["course_version_id"] if "course_version_id" in keys else None)
                 if course_version_id and src_v:
                     if src_v != course_version_id:
                         continue

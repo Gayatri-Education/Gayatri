@@ -10,10 +10,13 @@ Authoritative business logic for:
 from __future__ import annotations
 
 import hashlib
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
+
+logger = logging.getLogger("gayatri.central_platform.courses.service")
 
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import (
@@ -70,8 +73,8 @@ class CourseService:
                     details=details or {},
                 )
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to record audit log for %s on %s: %s", action, target, exc)
 
     def create_course(
         self,

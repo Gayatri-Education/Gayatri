@@ -10,8 +10,11 @@ Implements Section 30:
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("gayatri.central_platform.notifications.queue")
 
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import Notification
@@ -94,8 +97,8 @@ class NotificationQueueManager:
                     retry_time = datetime.fromisoformat(notif.next_retry_at.replace("Z", "+00:00"))
                     if retry_time > now:
                         continue  # Not due for retry yet
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Failed parsing next_retry_at for notification %s: %s", notif.id, exc)
 
             dispatched = await self.dispatch_single(notif)
             processed_count += 1

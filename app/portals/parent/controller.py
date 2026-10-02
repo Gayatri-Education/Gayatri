@@ -4,7 +4,10 @@ Entry point for the Parent Monitoring Dashboard.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger("gayatri.app.portals.parent.controller")
 
 
 class ParentPortalController:
@@ -50,7 +53,7 @@ class ParentPortalController:
                     child = effective_db.get_user(kid)
                     if child:
                         context["child_name"] = getattr(child, "full_name", kid)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed looking up parent %s or child %s in parent controller: %s", uid, kid, exc)
 
         return context

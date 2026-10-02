@@ -246,8 +246,8 @@ class LocalGGUFAdapter(BaseAIProviderAdapter):
                         estimated_cost_usd=0.0,
                         success=True,
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("LocalProvider inference failed or unavailable, falling back to dynamic generator: %s", exc)
 
         content = generate_dynamic_pedagogical_content(request, model_desc)
         prompt_tokens = max(1, int(len(request.prompt.split()) * 1.33))

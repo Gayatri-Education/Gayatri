@@ -163,8 +163,8 @@ async def list_courses(
         try:
             for c in service.list_courses_for_org(actor, org_id):
                 courses_map[c.id] = c
-        except CourseAuthorizationError:
-            pass
+        except CourseAuthorizationError as exc:
+            logger.debug("Actor %s not authorized to list courses for org %s: %s", actor.id, org_id, exc)
 
     result = [_to_course_response(c) for c in courses_map.values()]
     return ApiResponse(ok=True, data=result)

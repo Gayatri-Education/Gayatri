@@ -10,7 +10,10 @@ Provides real service-backed workflows for:
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("gayatri.app.portals.admin.controller")
 
 from central_platform.courses.service import (
     CourseAuthorizationError,
@@ -101,8 +104,8 @@ class AdminPortalController:
                 try:
                     for c in self.course_service.list_courses_for_org(actor, target_org):
                         courses_map[c.id] = c
-                except CourseAuthorizationError:
-                    pass
+                except CourseAuthorizationError as exc:
+                    logger.debug("Actor %s not authorized to list courses for org %s: %s", actor.id, target_org, exc)
             else:
                 for c in self.db.get_courses_by_organization(target_org):
                     courses_map[c.id] = c

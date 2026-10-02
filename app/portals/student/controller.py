@@ -13,8 +13,11 @@ Provides real service-backed workflows for:
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("gayatri.app.portals.student.controller")
 
 from central_platform.courses.service import CourseService
 from central_platform.curriculum.service import CurriculumService
@@ -89,8 +92,8 @@ class StudentPortalController:
                                 break
                         if active_concept:
                             break
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed extracting active concept from hierarchy for course %s: %s", course.id, exc)
 
             courses_list.append({
                 "id": enr.id,
@@ -156,8 +159,8 @@ class StudentPortalController:
                             break
                     if active_concept:
                         break
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed extracting active concept from hierarchy for switched course %s: %s", course.id, exc)
 
         return {
             "student_id": student_id,
@@ -331,7 +334,7 @@ class StudentPortalController:
                     if slr:
                         context["slr_id"] = getattr(slr, "slr_id", "")
                         context["overall_mastery"] = getattr(slr, "overall_mastery", mastery_pct / 100.0)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed fetching SLR for student %s course %s in dashboard context: %s", uid, cid, exc)
 
         return context

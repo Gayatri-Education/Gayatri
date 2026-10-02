@@ -13,10 +13,13 @@ Master Plan Section 24:
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+logger = logging.getLogger("gayatri.central_platform.api.routes.curricula")
 
 from central_platform.api.schemas import (
     ApiResponse,
@@ -100,8 +103,8 @@ async def get_curriculum(course_id: str):
                 total_concepts=total_concepts,
             )
             return ApiResponse(ok=True, data=res)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Database curriculum lookup for %s failed, falling back to local files: %s", course_id, exc)
 
     # Fallback to local curriculum files in data/curriculum
     candidates = [

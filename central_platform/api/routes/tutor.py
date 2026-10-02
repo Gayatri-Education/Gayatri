@@ -61,6 +61,10 @@ class TutorTurnApiResponse(BaseModel):
     model_used: str = "default"
     status: str = "SUCCESS"
     validation_issues: List[Dict[str, Any]] = Field(default_factory=list)
+    applied_instruction_ids: List[str] = Field(default_factory=list)
+    contributed_source_ids: List[str] = Field(default_factory=list)
+    contributed_chunk_ids: List[str] = Field(default_factory=list)
+    provenance_records: List[Dict[str, Any]] = Field(default_factory=list)
     ok: bool = True
     assistant_text: Optional[str] = None
 

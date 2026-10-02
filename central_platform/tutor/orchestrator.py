@@ -110,6 +110,10 @@ class TutorTurnResult:
     model_used: str = "default"
     status: str = "SUCCESS"  # SUCCESS, VALIDATION_FAILED, OFFLINE_FALLBACK, ERROR
     validation_issues: List[Dict[str, Any]] = field(default_factory=list)
+    applied_instruction_ids: List[str] = field(default_factory=list)
+    contributed_source_ids: List[str] = field(default_factory=list)
+    contributed_chunk_ids: List[str] = field(default_factory=list)
+    provenance_records: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -275,8 +279,10 @@ class GenericTutorOrchestrator:
             student_id=req.student_id,
             session_id=req.session_id,
             concept_id=target_concept,
+            course_version_id=version_id,
         )
         teacher_directives = self.teacher_engine.format_prompt_directive(instructions)
+        applied_instruction_ids = [inst.instruction_id for inst in instructions]
 
         # ── 7. Course Policy Enforcement ──────────────────────────────────
         course_version = self.db.get_course_version(version_id) if version_id else None
@@ -291,42 +297,69 @@ class GenericTutorOrchestrator:
 
         # ── 9. Scoped RAG Retrieval ────────────────────────────────────────
         rag_sources_used: List[str] = []
-        rag_context_blocks: List[str] = []
-        try:
-            chunks = self.rag_service.search_chunks(
-                query=clean_message,
-                course_id=req.course_id,
-                course_version_id=version_id,
-                organization_id=course.organization_id,
-                limit=3,
-            )
-            for chk in chunks:
-                rag_sources_used.append(chk.chunk_id)
-                rag_context_blocks.append(
-                    f'<rag_evidence_data chunk_id="{chk.chunk_id}">\n{chk.content}\n</rag_evidence_data>'
-                )
-        except Exception as exc:
-            logger.debug(f"Scoped RAG search returned empty or encountered exception: {exc}")
+        contributed_source_ids: List[str] = []
+        contributed_chunk_ids: List[str] = []
+        provenance_records: List[Dict[str, Any]] = []
+        rag_payload = ""
+        raw_rag_results: List[Dict[str, Any]] = []
 
-        rag_payload = "\n\n".join(rag_context_blocks) if rag_context_blocks else ""
+        try:
+            rag_query_res = self.rag_service.query(
+                query_text=clean_message,
+                course_id=req.course_id,
+                student_id=req.student_id,
+                class_id=class_id,
+                course_version_id=version_id,
+                concept=target_concept,
+                top_k=3,
+            )
+            raw_rag_results = rag_query_res.get("results", [])
+            rag_payload = rag_query_res.get("data_context", "")
+
+            for r in raw_rag_results:
+                cid = r.get("chunk_id")
+                sid = r.get("source_id")
+                if cid:
+                    contributed_chunk_ids.append(cid)
+                    rag_sources_used.append(cid)
+                if sid and sid not in contributed_source_ids:
+                    contributed_source_ids.append(sid)
+
+                provenance_records.append({
+                    "source_id": sid or "src-unknown",
+                    "chunk_id": cid or "chk-unknown",
+                    "source_title": r.get("source_title", r.get("chapter", "Course Material")),
+                    "authority": r.get("provenance_type", "NCERT"),
+                    "provenance_type": r.get("provenance_type", "NCERT"),
+                    "visibility_scope": r.get("visibility_scope", "course"),
+                    "citation": r.get("citation", ""),
+                    "class_id": r.get("class_id"),
+                    "course_version_id": r.get("course_version_id"),
+                    "score": r.get("score"),
+                })
+        except Exception as exc:
+            logger.debug(f"Scoped RAG retrieval returned empty or encountered exception: {exc}")
 
         # ── 10. 7-Layer Context Assembly ──────────────────────────────────
-        directives_list = [f"DIRECTIVE: {i.directive}" for i in instructions]
         assembled_context = self.context_builder.build_context(
             query=clean_message,
             student_id=req.student_id,
             course_id=req.course_id,
             concept_id=target_concept,
+            class_id=class_id,
+            session_id=req.session_id,
+            course_version_id=version_id,
+            organization_id=course.organization_id,
             conversation_history=req.conversation_history,
+            instructions=instructions,
+            rag_results=raw_rag_results,
         )
 
         sys_prompt = ContextBuilder.build_system_prompt(
-            teacher_directives=directives_list,
             subject=course.title,
             grade_level=getattr(course, "grade_level", None) or "Standard",
+            formatted_directives=teacher_directives,
         )
-        if teacher_directives:
-            sys_prompt = f"{sys_prompt}\n\n{teacher_directives}"
 
         user_prompt = ContextBuilder.build_user_prompt(
             user_query=clean_message,
@@ -453,4 +486,8 @@ class GenericTutorOrchestrator:
             model_used=ai_res.model,
             status=turn_status,
             validation_issues=[i.to_dict() for i in val_result.issues],
+            applied_instruction_ids=applied_instruction_ids,
+            contributed_source_ids=contributed_source_ids,
+            contributed_chunk_ids=contributed_chunk_ids,
+            provenance_records=provenance_records,
         )

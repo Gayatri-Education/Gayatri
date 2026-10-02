@@ -666,7 +666,40 @@ This log records every development phase and architectural transition in chronol
   - Replaced `.model_dump()` with `.to_dict()` for `Assignment` and `RAGSource` dataclasses in routes.
   - Corrected `list_rag_sources` parameter from `only_published=True` to `status="published"`.
 - **Tests Run:** 1,041 tests collected, 1,041 passed (100% green).
-- **Remaining Risks:** None for Phase 17. Advancing to Phase 18 (AI Gateway & Model Router Platform).
+- **Remaining Risks:** None for Phase 17. Phase 18 (Teacher Instruction + RAG Integration) completed.
+
+---
+
+### Entry: Phase 18 — Teacher Instruction + RAG Integration & System-Wide Audit (2026-10-02)
+- **Status:** Complete (Verified)
+- **Changes Made:**
+  - Unified Context Assembly (`central_platform/ai/context_builder.py`):
+    - Added `ProvenanceRecord` dataclass and populated `AssembledContext` with `applied_instruction_ids`, `contributed_source_ids`, `contributed_chunk_ids`, and `provenance_records`.
+    - Integrated `TeacherInstructionEngine` hierarchical resolution (`SESSION` > `STUDENT` > `CLASS` > `COURSE` > `ORGANIZATION`).
+    - Integrated `RAGService.query()` across Course Textbook, Class Group Notes, and Student Remedial scopes.
+    - Implemented strict separation of behavioral directives (`TEACHER DIRECTIVES`) and factual knowledge evidence (`COURSE KNOWLEDGE BASE`).
+  - Tutor Orchestrator & Turn Response (`central_platform/tutor/orchestrator.py`, `central_platform/api/routes/tutor.py`):
+    - Replaced placeholder methods with real `RAGService.query()`.
+    - Updated `TutorTurnResult` and `TutorTurnApiResponse` with provenance metadata, applied instruction IDs, and contributed chunk IDs.
+  - Platform Database Layer (`central_platform/db.py`):
+    - Enhanced `get_rag_chunks_by_course()` fallback support for 'General' / 'ALL' concepts and version ID matching.
+    - Added `list_courses(organization_id, include_deleted)`.
+    - Added `list_course_versions(course_id, include_deleted)` alias.
+    - Added `get_users_by_role(role, organization_id, include_deleted)`.
+    - Added `get_teacher_instructions_for_course(course_id)`.
+  - Prefix-Cleaning in RAG (`central_platform/rag/service.py`):
+    - Normalized concept and topic identifiers (`cpt-`, `cpt_`) for robust matching.
+  - System-Wide Bug & Deadend Remediation:
+    - Fixed silent fails in `central_platform/api/routes/tools.py` where missing `db.list_course_versions` caused tool policies to always fall back to default; added warning logging.
+    - Fixed silent exception swallowing in `central_platform/api/routes/users.py`, `sync.py`, `teachers.py`, `curricula.py`, `students.py`.
+    - Fixed bare `pass` blocks across `app/portals/student/controller.py`, `app/portals/parent/controller.py`, `app/portals/admin/controller.py`, `local_runtime/course_cache.py`, `local_runtime/rag_cache.py`, `local_runtime/session.py`, `local_runtime/engine.py`.
+  - Test Suite (`tests/test_phase18_teacher_instruction_rag_integration.py`):
+    - 12 comprehensive unit and integration tests covering merged multi-tier context, provenance tracking, directives vs evidence separation, precedence cascade, priority tie-breaking, expiration, unauthorized note exclusion, graceful empty fallbacks, mixed scopes, version pinning, and REST API turn propagation.
+  - Regression Suite:
+    - 1,053 tests passing across all 18 phases (100% green).
+- **Tests Run:** 1,053 tests collected, 1,053 passed (100% green).
+- **Remaining Risks:** None for Phase 18. Advancing to Phase 19.
+
 
 
 

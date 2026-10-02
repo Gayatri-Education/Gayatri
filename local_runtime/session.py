@@ -50,8 +50,8 @@ class LocalSessionPersistence:
                 conn = sqlite3.connect(uri, uri=True, timeout=10.0)
                 conn.row_factory = sqlite3.Row
                 return conn
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed opening read-only URI connection to %s: %s", uri, exc)
 
         conn = sqlite3.connect(self.db_path, timeout=10.0)
         conn.row_factory = sqlite3.Row
