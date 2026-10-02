@@ -218,7 +218,17 @@ class GenericTutorOrchestrator:
 
         # Resolve pinned or published version
         version_id = req.course_version_id
-        if not version_id:
+        if version_id:
+            ver = self.db.get_course_version(version_id)
+            if ver:
+                if ver.course_id != req.course_id:
+                    raise CourseNotFoundError(f"Version '{version_id}' does not belong to course '{req.course_id}'.")
+                status_str = ver.status.value if hasattr(ver.status, "value") else str(ver.status)
+                if status_str.upper() in ("DRAFT", "ARCHIVED"):
+                    raise CourseNotFoundError(f"Course version '{version_id}' is unpublished (status={status_str}).")
+            elif not version_id.startswith("v"):
+                raise CourseNotFoundError(f"Course version '{version_id}' not found.")
+        else:
             latest_pub = self.db.get_latest_published_course_version(req.course_id)
             if latest_pub:
                 version_id = latest_pub.id
@@ -428,13 +438,14 @@ class GenericTutorOrchestrator:
                 student_id=req.student_id,
                 event_type="TUTOR_TURN_COMPLETED",
                 concept_id=target_concept,
+                course_id=req.course_id,
+                course_version_id=version_id,
                 payload={
                     "course_id": req.course_id,
                     "version_id": version_id,
                     "val_valid": val_result.is_valid,
                     "latency_ms": ai_res.latency_ms,
                 },
-                course_version_id=version_id,
             )
 
             staged_changes = self.commit_pipeline.stage_changes(

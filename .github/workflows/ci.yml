@@ -31,6 +31,10 @@ jobs:
         run: |
           python -m compileall app core central_platform tests scripts
 
+      - name: Initialize local database schema
+        run: |
+          python scripts/migrate_db.py up --db-path gayatri_local.db
+
       - name: Run architecture guardrail suite
         run: |
           pytest -v tests/architecture

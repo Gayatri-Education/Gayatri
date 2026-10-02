@@ -144,19 +144,78 @@ class LearningEventStore:
         return event, True
 
     def ingest_batch(self, batch: BatchLearningEventIngest) -> Dict[str, Any]:
-        """Ingest a collection of events idempotently."""
+        """Ingest a collection of events idempotently with high-throughput batching."""
         total = len(batch.events)
+        if total == 0:
+            return {
+                "total": 0,
+                "inserted": 0,
+                "deduplicated": 0,
+                "events": [],
+            }
+
+        all_ids = [req.event_id for req in batch.events]
+        existing_ids = self.db.get_existing_learning_event_ids(all_ids)
+
+        seen_batch_ids: Set[str] = set()
+        seen_entities: Set[Tuple[str, str, str, str]] = set()
+        to_insert: List[LearningEvent] = []
+        results = []
         inserted = 0
         deduplicated = 0
-        results = []
 
         for req in batch.events:
-            event, was_new = self.ingest_event(req)
-            if was_new:
-                inserted += 1
-            else:
+            if req.event_id in existing_ids or req.event_id in seen_batch_ids:
                 deduplicated += 1
-            results.append({"event_id": event.id, "status": "RECORDED" if was_new else "DEDUPLICATED"})
+                results.append({"event_id": req.event_id, "status": "DEDUPLICATED"})
+                continue
+            seen_batch_ids.add(req.event_id)
+
+            entity_key = (
+                req.student_id,
+                req.session_id,
+                req.organization_id or "org-default",
+                req.course_id or "crs-default",
+            )
+            if entity_key not in seen_entities:
+                self._ensure_entities(
+                    student_id=req.student_id,
+                    session_id=req.session_id,
+                    organization_id=req.organization_id,
+                    course_id=req.course_id,
+                )
+                seen_entities.add(entity_key)
+
+            score_val = req.score if req.score is not None else req.payload.get("score")
+            if score_val is not None:
+                try:
+                    score_val = float(score_val)
+                except (ValueError, TypeError):
+                    score_val = None
+
+            concept_id_val = req.concept_id or req.payload.get("concept_id") or ""
+            event_type_str = req.event_type.value if isinstance(req.event_type, LearningEventType) else str(req.event_type)
+
+            event = LearningEvent(
+                id=req.event_id,
+                session_id=req.session_id,
+                student_id=req.student_id,
+                concept_id=concept_id_val,
+                event_type=event_type_str,
+                organization_id=req.organization_id,
+                course_id=req.course_id,
+                source=req.source,
+                payload=dict(req.payload),
+                score=score_val,
+                schema_version=req.schema_version,
+                created_at=req.timestamp,
+            )
+            to_insert.append(event)
+            inserted += 1
+            results.append({"event_id": req.event_id, "status": "RECORDED"})
+
+        if to_insert:
+            self.db.record_learning_events_batch(to_insert)
 
         return {
             "total": total,

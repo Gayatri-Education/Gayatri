@@ -366,6 +366,7 @@ async def create_course_version(
 
 
 @router.post("/{course_id}/versions/{version_id}/submit", response_model=ApiResponse[CourseVersionApiResponse])
+@router.post("/{course_id}/versions/{version_id}/submit-review", response_model=ApiResponse[CourseVersionApiResponse])
 async def submit_course_version(
     course_id: str,
     version_id: str,

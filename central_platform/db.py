@@ -1325,6 +1325,16 @@ class PlatformDatabase:
             )
             return cursor.rowcount > 0
 
+    def update_session_status(self, session_id: str, status: SessionStatus | str) -> bool:
+        status_val = status.value if hasattr(status, "value") else str(status)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        with self._get_connection() as conn:
+            cursor = conn.execute(
+                "UPDATE sessions SET status = ?, ended_at = CASE WHEN ? = 'completed' THEN ? ELSE ended_at END WHERE id = ?;",
+                (status_val, status_val, now_iso, session_id),
+            )
+            return cursor.rowcount > 0
+
     def get_sessions_for_student(self, student_id: str, course_id: Optional[str] = None, limit: int = 20) -> List[Session]:
         with self._get_connection() as conn:
             if course_id:
@@ -1381,6 +1391,51 @@ class PlatformDatabase:
                 ),
             )
         return event
+
+    def record_learning_events_batch(self, events: List[LearningEvent]) -> List[LearningEvent]:
+        if not events:
+            return []
+        rows = [
+            (
+                e.id,
+                e.session_id,
+                e.student_id,
+                e.organization_id,
+                e.course_id,
+                e.concept_id or "",
+                e.event_type,
+                e.source or "student_desktop",
+                json.dumps(e.payload) if isinstance(e.payload, dict) else str(e.payload),
+                e.score,
+                e.schema_version or "1.0.0",
+                e.created_at,
+            )
+            for e in events
+        ]
+        with self._get_connection() as conn:
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO learning_events 
+                (id, session_id, student_id, organization_id, course_id, concept_id, event_type, source, payload, score, schema_version, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                rows,
+            )
+        return events
+
+    def get_existing_learning_event_ids(self, event_ids: List[str]) -> Set[str]:
+        if not event_ids:
+            return set()
+        existing: Set[str] = set()
+        chunk_size = 500
+        with self._get_connection() as conn:
+            for i in range(0, len(event_ids), chunk_size):
+                chunk = event_ids[i : i + chunk_size]
+                placeholders = ",".join("?" for _ in chunk)
+                rows = conn.execute(f"SELECT id FROM learning_events WHERE id IN ({placeholders});", chunk).fetchall()
+                for r in rows:
+                    existing.add(r[0])
+        return existing
 
     def get_learning_event(self, event_id: str) -> Optional[LearningEvent]:
         with self._get_connection() as conn:
@@ -1496,6 +1551,9 @@ class PlatformDatabase:
                     updated_at=r["updated_at"],
                 )
             return None
+
+    def get_student_learning_record(self, student_id: str, course_id: Optional[str] = None) -> Optional[StudentLearningRecord]:
+        return self.get_slr(student_id, course_id)
 
     def upsert_mastery_state(self, state: MasteryState) -> MasteryState:
         # Clamp score/confidence to [0.0, 1.0] as a hard DB-level safety net
@@ -2285,7 +2343,30 @@ class PlatformDatabase:
             where_str = f"WHERE {' AND '.join(conditions)}" if conditions else ""
             sql = f"SELECT * FROM teacher_instructions {where_str} ORDER BY priority DESC, created_at DESC;"
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_teacher_instruction(r) for r in rows]
+            recs = [self._row_to_teacher_instruction(r) for r in rows]
+            if only_active:
+                now = datetime.now(timezone.utc)
+                active_recs = []
+                for rec in recs:
+                    if rec.expires_at:
+                        try:
+                            exp_dt = datetime.fromisoformat(rec.expires_at.replace("Z", "+00:00"))
+                            if exp_dt.tzinfo is None:
+                                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                            if now > exp_dt:
+                                continue
+                        except Exception as _parse_exc:
+                            # Malformed expires_at: fail-safe — treat as expired rather than serving stale instruction
+                            logger.warning(
+                                "Instruction %s has unparseable expires_at %r — treating as expired: %s",
+                                getattr(rec, "id", "?"),
+                                rec.expires_at,
+                                _parse_exc,
+                            )
+                            continue
+                    active_recs.append(rec)
+                return active_recs
+            return recs
 
     def get_teacher_instructions_for_course(self, course_id: str) -> List[TeacherInstructionRecord]:
         """Retrieve all active teacher instructions scoped to a course."""
@@ -2336,7 +2417,30 @@ class PlatformDatabase:
             where_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
             sql = f"SELECT * FROM teacher_instructions {where_sql} ORDER BY priority DESC, created_at DESC;"
             rows = conn.execute(sql, tuple(params)).fetchall()
-            return [self._row_to_teacher_instruction(r) for r in rows]
+            recs = [self._row_to_teacher_instruction(r) for r in rows]
+            if only_active:
+                now = datetime.now(timezone.utc)
+                active_recs = []
+                for rec in recs:
+                    if rec.expires_at:
+                        try:
+                            exp_dt = datetime.fromisoformat(rec.expires_at.replace("Z", "+00:00"))
+                            if exp_dt.tzinfo is None:
+                                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                            if now > exp_dt:
+                                continue
+                        except Exception as _parse_exc:
+                            # Malformed expires_at: fail-safe — treat as expired rather than serving stale instruction
+                            logger.warning(
+                                "Hierarchical instruction %s has unparseable expires_at %r — treating as expired: %s",
+                                getattr(rec, "id", "?"),
+                                rec.expires_at,
+                                _parse_exc,
+                            )
+                            continue
+                    active_recs.append(rec)
+                return active_recs
+            return recs
 
     def create_intervention(self, alert: InterventionRecord) -> InterventionRecord:
         with self._get_connection() as conn:

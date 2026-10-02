@@ -40,7 +40,7 @@ def package_release(
     out.mkdir(parents=True, exist_ok=True)
 
     # Directories and files to include in distribution
-    include_dirs = ["app", "core", "data", "docs", "legacy"]
+    include_dirs = ["app", "core", "central_platform", "data", "docs", "legacy", "migrations", "scripts"]
     include_files = [
         "launch.bat",
         "setup.bat",
@@ -51,6 +51,8 @@ def package_release(
         "VERSION",
         "CHANGELOG.md",
         "RELEASE_NOTES.md",
+        "LICENSE.md",
+        "model_manifest.json",
     ]
 
     for d in include_dirs:

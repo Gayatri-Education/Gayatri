@@ -151,14 +151,24 @@ class DeploymentValidator:
     def validate_secrets(self) -> ValidationResult:
         """Validates secret key security and absence of hardcoded weak secrets."""
         secret_key = self.env_vars.get("SECRET_KEY") or self.env_vars.get("JWT_SECRET") or ""
+        app_env = self.env_vars.get("APP_ENV", "development").lower()
+        strict_mode = self.env_vars.get("STRICT_SECRETS", "false").lower() == "true" or app_env == "production"
 
         if not secret_key:
+            if strict_mode:
+                return ValidationResult(
+                    category=ValidationCategory.SECRETS,
+                    check_name="secrets_security",
+                    status=ValidationStatus.FAIL,
+                    message="Missing required SECRET_KEY or JWT_SECRET in production/strict deployment environment.",
+                    details={"secret_key_configured": False, "strict_mode": True},
+                )
             return ValidationResult(
                 category=ValidationCategory.SECRETS,
                 check_name="secrets_security",
                 status=ValidationStatus.WARN,
                 message="No SECRET_KEY or JWT_SECRET explicitly defined in environment. Fallback signing key active.",
-                details={"secret_key_configured": False},
+                details={"secret_key_configured": False, "strict_mode": False},
             )
 
         if secret_key.lower() in self.WEAK_SECRETS or len(secret_key) < 16:
@@ -271,20 +281,99 @@ class DeploymentValidator:
             )
 
     def validate_health_checks(self) -> ValidationResult:
-        """Simulates system health check pinging core services (DB, AI, RAG, Payments)."""
+        """Probes live core platform subsystems (Database, AI Gateway, RAG, Payments, i18n).
+        
+        Performs genuine operational probes with zero simulated green responses.
+        """
+        db_up = False
+        db_info: Dict[str, Any] = {}
+        try:
+            if os.path.exists(self.db_path):
+                conn = sqlite3.connect(self.db_path)
+                res = conn.execute("SELECT 1;").fetchone()
+                conn.close()
+                if res and res[0] == 1:
+                    db_up = True
+                    db_info = {"status": "UP", "db_path": self.db_path}
+            if not db_up and not db_info:
+                db_info = {"status": "DOWN", "error": f"Database file not found at {self.db_path}"}
+        except Exception as exc:
+            db_info = {"status": "DOWN", "error": str(exc)}
+
+        ai_up = False
+        ai_info: Dict[str, Any] = {}
+        try:
+            manifest_file = self.root_dir / "model_manifest.json"
+            if manifest_file.exists():
+                with open(manifest_file, "r", encoding="utf-8") as f:
+                    manifest_data = json.load(f)
+                models = manifest_data.get("models", [manifest_data] if "model_id" in manifest_data else [])
+                ai_up = len(models) > 0
+                ai_info = {"status": "UP" if ai_up else "DOWN", "models_registered": len(models)}
+            else:
+                ai_info = {"status": "DOWN", "error": "model_manifest.json missing"}
+        except Exception as exc:
+            ai_info = {"status": "DOWN", "error": str(exc)}
+
+        rag_up = False
+        rag_info: Dict[str, Any] = {}
+        try:
+            from central_platform.db import PlatformDatabase
+            from central_platform.rag.service import RAGService
+            test_db = PlatformDatabase(db_path=self.db_path)
+            rag = RAGService(db=test_db)
+            rag_res = rag.query("health_probe", course_id="crs-health-probe")
+            rag_up = isinstance(rag_res, dict)
+            rag_info = {"status": "UP", "service": "RAGService"}
+        except Exception as exc:
+            rag_info = {"status": "DOWN", "error": str(exc)}
+
+        payments_up = False
+        payments_info: Dict[str, Any] = {}
+        try:
+            from central_platform.db import PlatformDatabase
+            from central_platform.fees.service import FeeService
+            test_db = PlatformDatabase(db_path=self.db_path)
+            fee_svc = FeeService(db=test_db)
+            payments_up = fee_svc is not None
+            payments_info = {"status": "UP", "service": "FeeService"}
+        except Exception as exc:
+            payments_info = {"status": "DOWN", "error": str(exc)}
+
+        i18n_up = False
+        i18n_info: Dict[str, Any] = {}
+        try:
+            from central_platform.i18n.registry import TRANSLATIONS
+            i18n_js = self.root_dir / "app" / "ui" / "design_system" / "i18n.js"
+            if len(TRANSLATIONS) >= 5 or i18n_js.exists():
+                i18n_up = True
+                i18n_info = {"status": "UP", "locales": len(TRANSLATIONS)}
+            else:
+                i18n_info = {"status": "DOWN", "error": "Insufficient translations registered"}
+        except Exception as exc:
+            i18n_info = {"status": "DOWN", "error": str(exc)}
+
         health_status = {
-            "database": "UP",
-            "ai_gateway": "UP",
-            "rag_service": "UP",
-            "payments_gateway": "UP",
-            "i18n_registry": "UP",
+            "database": "UP" if db_up else "DOWN",
+            "ai_gateway": "UP" if ai_up else "DOWN",
+            "rag_service": "UP" if rag_up else "DOWN",
+            "payments_gateway": "UP" if payments_up else "DOWN",
+            "i18n_registry": "UP" if i18n_up else "DOWN",
         }
+        all_up = all(s == "UP" for s in health_status.values())
+
         return ValidationResult(
             category=ValidationCategory.HEALTH_CHECKS,
             check_name="health_endpoints",
-            status=ValidationStatus.PASS,
-            message="All health check endpoints (liveness & readiness) reporting UP.",
-            details={"services": health_status},
+            status=ValidationStatus.PASS if all_up else ValidationStatus.FAIL,
+            message="All health check endpoints reporting UP via live subsystem probing." if all_up else f"Subsystems down: {[k for k, v in health_status.items() if v != 'UP']}",
+            details={"services": health_status, "probes": {
+                "database": db_info,
+                "ai_gateway": ai_info,
+                "rag_service": rag_info,
+                "payments_gateway": payments_info,
+                "i18n_registry": i18n_info,
+            }},
         )
 
     def validate_model_providers(self) -> ValidationResult:

@@ -47,7 +47,7 @@ An AST parse of every Python file in the repository (excluding `.git`, `.venv`, 
 | `peft` | `training/train_colab.py`, `train_slm.py` | **TRAINING ONLY** | ❌ Excluded (Dev/Colab) | ❌ Excluded | INTENTIONAL |
 | `trl` | `training/train_colab.py`, `train_slm.py` | **TRAINING ONLY** | ❌ Excluded (Dev/Colab) | ❌ Excluded | INTENTIONAL |
 | `datasets` | `training/train_colab.py`, `train_slm.py` | **TRAINING ONLY** | ❌ Excluded (Dev/Colab) | ❌ Excluded | INTENTIONAL |
-| `psycopg2` | `central_platform/db.py` (optional backend) | **OPTIONAL DRIVER** | ❌ Optional | ❌ Optional | INTENTIONAL |
+| `psycopg2` | `central_platform/db.py`, Phase 21 dual-engine test | **CORE RUNTIME** | ❌ Missing | ✅ `psycopg2-binary>=2.9.0` | **RESOLVED** |
 
 *Note: ML training packages (`torch`, `transformers`, `peft`, `trl`, `datasets`) are strictly restricted to scripts in `training/` designed to run in external GPU environments (e.g. Google Colab). They are intentionally not required for the local or edge inference runtime.*
 

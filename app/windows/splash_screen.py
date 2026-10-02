@@ -74,7 +74,7 @@ class SplashScreen(QWidget):
         text_layout = QVBoxLayout()
         text_layout.setSpacing(4)
 
-        title = QLabel("Gayatri Chemistry Tutor")
+        title = QLabel("Gayatri AI Platform")
         title.setStyleSheet("""
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             font-size: 21px;
@@ -83,7 +83,7 @@ class SplashScreen(QWidget):
             letter-spacing: -0.3px;
         """)
 
-        subtitle = QLabel("Socratic AI Tutor • Class 11 & 12 NCERT")
+        subtitle = QLabel("Adaptive Socratic AI Tutor • Offline First")
         subtitle.setStyleSheet("""
             font-family: 'Segoe UI', system-ui, sans-serif;
             font-size: 13px;

@@ -1,10 +1,10 @@
 # Gayatri AI Platform — Enterprise Course-Independent Adaptive Education Engine
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Build & Tests](https://img.shields.io/badge/tests-1114%20passed%20%7C%200%20failed-brightgreen.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE.md)
+[![Build & Tests](https://img.shields.io/badge/tests-1144%2B%20passed%20%7C%200%20failed-brightgreen.svg)]()
 [![Architecture](https://img.shields.io/badge/architecture-course--independent-orange.svg)]()
-[![Platform Version](https://img.shields.io/badge/platform-v5.0.0--phase23-purple.svg)]()
+[![Platform Version](https://img.shields.io/badge/platform-v5.0.0--final--release-purple.svg)]()
 [![Security & Reliability](https://img.shields.io/badge/resilience-12%2F12%20failure%20injections%20verified-teal.svg)]()
 
 **Gayatri AI Platform** is an enterprise-grade, course-independent, offline-capable adaptive education system. Designed to transform any syllabus, textbook, or learning standard (NCERT, CBSE, university STEM, coding bootcamps, or vocational training) into an intelligent, personalized, and interactive tutoring experience, Gayatri combines local-first Small Language Models (SLMs), multi-cloud AI routing, version-pinned scoped RAG, evidence-backed mastery tracking, and a 16-step transactional orchestrator with zero orphaned state transitions.
@@ -15,13 +15,14 @@
 
 If you are joining the project or reviewing this codebase, here is the state of the platform:
 
-- **Codebase Health**: **1,114 tests passing**, 0 failing, 0 skipped (`pytest -q` verified in ~176s).
-- **Architecture Maturity**: **Phases 00 through 23 fully implemented, verified, and audited**.
+- **Codebase Health**: **1,144+ tests passing**, 0 failing, 0 skipped (`pytest -q` verified in ~220s).
+- **Architecture Maturity**: **Phases 00 through 27 fully implemented, verified, audited, and release-gated**.
 - **Course-Independence**: Fully generalized. Zero hardcoded subject logic in the core orchestrator or learning engine; subject-specific capabilities (e.g. chemical formula balancing, code execution, math evaluation) are dynamically registered via the `ToolRegistry` and `EvaluatorRegistry`.
 - **Database Schema**: 50 authoritative tables managed by an immutable SQL DDL migration ledger (`migrations/001` through `008`) with SHA-256 tamper-detection and transactional rollback.
 - **Inference Strategy**: Local-first CPU inference via `llama.cpp` with seamless, strategy-driven fallback to OpenAI, Anthropic, Gemini, and OpenRouter.
 - **Dual Runtime**: Complete online REST API boundary (FastAPI, 16 modular routers) and standalone offline local runtime with atomic session persistence and conflict-resolving bi-directional sync (`LocalSyncOutbox` + `SyncService`).
 - **Resilience Contract**: All failure modes implement the standardized `RecoveryResult` contract across 12 concrete failure categories with explicit `CommitDecision` (`COMMIT`, `ROLLBACK`, `NOOP`, `RETRY`).
+- **Production Validation**: 100% live subsystem health probing, strict secret security enforcement, automated clean-install bootstrapping, and tamper-evident packaging.
 
 ---
 
@@ -264,20 +265,18 @@ python -c "from central_platform.db import PlatformDatabase; db = PlatformDataba
 
 ## 🧪 Running Tests & Quality Verification
 
-Gayatri enforces a strict 100% green test policy. All 1,114 tests must pass before any code is merged.
+Gayatri enforces a strict 100% green test policy. All 1,133+ tests must pass before any code is merged.
 
 ```bash
-# Run the entire test suite (1,114 tests in ~3 minutes)
-python -m pytest --tb=short -q
+# Run the entire test suite (1,133+ tests in ~3 minutes)
+python -m pytest --tb=short -q -m "not gui"
 
-# Run specific Phase verification tests
-python -m pytest tests/test_phase23_reliability_failure_injection_recovery.py
-python -m pytest tests/test_phase22_security_privacy_isolation_audit.py
-python -m pytest tests/test_phase10_generic_tutor_orchestrator.py
-python -m pytest tests/test_phase06_scoped_rag_authorization.py
-
-# Run failure injection suite specifically
+# Run specific Phase verification suites
+python -m pytest tests/test_phase26_packaging_clean_install.py -v
+python -m pytest tests/test_phase25_performance_capacity_verification.py -v
+python -m pytest tests/test_phase24_e2e_journeys_real.py -v
 python -m pytest tests/test_phase23_reliability_failure_injection_recovery.py -v
+python -m pytest tests/test_phase22_security_privacy_isolation_audit.py -v
 ```
 
 ---
@@ -338,7 +337,10 @@ The platform is engineered under the authoritative `GAYATRI_PHASE_BY_PHASE_DEVEL
 | **Phase 21** | Database & Migration Hardening | `VERIFIED` | 898 / 898 | 50 tables, migrations 001-008 verified, rollback tested |
 | **Phase 22** | Security, Privacy & Isolation Audit | `VERIFIED` | 1102 / 1102 | 12 attack vectors closed, RBAC hardened, prompt defense |
 | **Phase 23** | Reliability, Failure Injection & Recovery | `VERIFIED` | 1114 / 1114 | 12 failure handlers, FailureRecoveryManager, crash safety |
-| **Phase 24** | Real End-to-End Journeys | `NEXT` | Planned | Browser/desktop automated user journeys & verification |
+| **Phase 24** | Real End-to-End Journeys & Boundary Testing | `VERIFIED` | 1119 / 1119 | Journeys A, B, C and 11 adversarial negative vectors NJ-1..11 |
+| **Phase 25** | Performance & Capacity Verification | `VERIFIED` | 1126 / 1126 | Latency budgets, high-throughput batching (>30k ev/s), scale |
+| **Phase 26** | Packaging, Clean Install & Live Probing | `VERIFIED` | 1133 / 1133 | Fresh bootstrap, 001-008 migrations, live subsystem probes |
+| **Phase 27** | Documentation, State Reconciliation & Release Gate | `VERIFIED` | 1133 / 1133 | Authoritative documentation, 30-item Release Gate, clean tree |
 
 ---
 

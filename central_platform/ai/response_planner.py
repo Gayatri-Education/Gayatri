@@ -72,8 +72,8 @@ class ResponsePlannerEngine:
         if action_str == "EXPLAIN":
             scaffolding = [
                 f"Define {concept} clearly in plain language",
-                "Explain underlying physical/chemical mechanism",
-                "Provide relatable chemical example or equation",
+                "Explain underlying principles and mechanisms",
+                "Provide relatable real-world example or formulation",
                 "Ask guiding Socratic question to verify understanding"
             ]
             objective = f"Build intuitive understanding of {concept}."

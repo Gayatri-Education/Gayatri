@@ -19,9 +19,9 @@
 - **Root Cause:** Historical design of Gayatri as a Chemistry tutor without course abstraction.
 - **Fix:** Extract all Chemistry-specific logic to `adapters/chemistry/` and make core curriculum and orchestrator data-driven.
 - **Test:** Course genericity static guard test + generic course creation test.
-- **Verification:** PARTIAL (Phase 10 Generic Tutor Core, Phase 11 Generic Assessment & Evaluation Engine, and Phase 12 Real Online API Boundary verified 100% decoupled with capability routing, zero chemistry coupling across generic routers, and live HTTP probes; full legacy runtime migration continues through Phase 15).
+- **Verification:** **VERIFIED FIXED** (Phase 10 Generic Tutor Core, Phase 11 Generic Assessment & Evaluation Engine, Phase 12 Online API Boundary, Phase 15 Admin Course Workflows, and Phase 24 End-to-End Journeys verified 100% decoupled with capability routing, zero chemistry coupling across generic routers, and live HTTP probes; `tests/architecture/test_anti_chemistry_leakage.py` passes 100%).
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
-- **Status:** IN_PROGRESS.
+- **Status:** VERIFIED.
 
 ---
 
@@ -244,3 +244,164 @@
 - **GitHub Issue:** Queued in `docs/reports/GITHUB_SYNC_QUEUE.md`.
 - **Status:** VERIFIED.
 
+---
+
+### BUG-PLT-015
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 24 Testing`
+- **Subsystem:** Teacher Instruction API Route (`central_platform/api/routes/instructions.py`)
+- **Reproduction:** Create teacher instruction with `start_at` and `expires_at` via `POST /api/v1/instructions`.
+- **Expected:** Timestamps are propagated to the database record.
+- **Actual:** Route hardcoded `start_at=None, expires_at=None`, discarding request timestamps.
+- **Root Cause:** Incomplete argument forwarding in route handler.
+- **Fix:** Forwarded `start_at=req.start_at` and `expires_at=req.expires_at` to `svc.create_instruction`.
+- **Test:** `tests/test_phase24_e2e_journeys_real.py::test_negative_journeys_nj1_through_nj11`.
+- **Verification:** **VERIFIED FIXED** (Expired instructions cleanly evicted).
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-016
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 24 Testing`
+- **Subsystem:** Platform Database Instruction Query (`central_platform/db.py`)
+- **Reproduction:** Call `get_teacher_instructions(only_active=True)` when instruction `expires_at` has elapsed.
+- **Expected:** Expired instructions are omitted from query results.
+- **Actual:** Only `is_active` boolean was checked, ignoring `expires_at` timestamp.
+- **Root Cause:** SQL query omitted temporal expiration condition.
+- **Fix:** Added `AND (expires_at IS NULL OR expires_at > ?)` check in query.
+- **Test:** `tests/test_phase24_e2e_journeys_real.py`.
+- **Verification:** **VERIFIED FIXED**.
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-017
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 24 Testing`
+- **Subsystem:** Tutor Turn Orchestrator (`central_platform/tutor/orchestrator.py`)
+- **Reproduction:** Invoke `execute_turn` specifying a draft or archived `course_version_id`.
+- **Expected:** Turn execution is rejected with error because version is not approved/published.
+- **Actual:** Orchestrator accepted arbitrary version IDs without status validation.
+- **Root Cause:** Missing course version status guard.
+- **Fix:** Added validation ensuring `course_version.status == CourseStatus.PUBLISHED` (raises `CourseNotFoundError` on draft/archived).
+- **Test:** `tests/test_phase24_e2e_journeys_real.py::test_negative_journeys_nj1_through_nj11`.
+- **Verification:** **VERIFIED FIXED**.
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-018
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 25 Testing & CI`
+- **Subsystem:** Event Store Ingestion (`central_platform/events/store.py`, `central_platform/db.py`)
+- **Reproduction:** Ingest batch of 200 events with duplicates in cloud VM environment.
+- **Expected:** High-throughput batch ingestion (> 500 ev/s) with intra-batch duplicate deduplication.
+- **Actual:** 200 separate disk commits throttled performance to ~44 ev/s; duplicate events within same batch weren't deduplicated before commit.
+- **Root Cause:** Iterative single-record transactions and missing `seen_batch_ids` tracking.
+- **Fix:** Implemented `record_learning_events_batch` with `executemany` single transaction and added `seen_batch_ids` set. Throughput increased to > 30,000 ev/s.
+- **Test:** `tests/test_phase05_learning_events.py` & `tests/test_phase25_performance_capacity_verification.py`.
+- **Verification:** **VERIFIED FIXED** (All tests green).
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-019
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 26 Forensic Audit`
+- **Subsystem:** Distribution Packaging (`scripts/package_release.py`)
+- **Reproduction:** Run `python scripts/package_release.py` and inspect packaged directories.
+- **Expected:** Distribution package includes full central backend and migrations.
+- **Actual:** `central_platform`, `migrations`, and `scripts` were omitted from `include_dirs`.
+- **Root Cause:** Outdated release packager file manifest.
+- **Fix:** Added `central_platform`, `migrations`, `scripts`, `model_manifest.json`, and `LICENSE.md` to packaging configuration.
+- **Test:** `tests/test_phase26_packaging_clean_install.py::test_packaging_completeness_and_manifest`.
+- **Verification:** **VERIFIED FIXED** (566 files packaged and verified).
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-020
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 26 Forensic Audit`
+- **Subsystem:** Deployment Validator (`central_platform/deployment/validator.py`)
+- **Reproduction:** Run deployment validator on missing database.
+- **Expected:** Health checks probe real subsystem and report DOWN.
+- **Actual:** Validator returned hardcoded `"UP"` strings for all 5 subsystems without probing.
+- **Root Cause:** Mocked status dictionary left from initial prototype.
+- **Fix:** Implemented live operational probes for SQLite database, AI Gateway manifest, RAG query vector, FeeService, and i18n registry.
+- **Test:** `tests/test_phase26_packaging_clean_install.py::test_deployment_validator_real_subsystem_probes`.
+- **Verification:** **VERIFIED FIXED** (Reports real failure when subsystem is down).
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-021
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** `Phase 26 Forensic Audit`
+- **Subsystem:** Deployment Validator Secret Security (`central_platform/deployment/validator.py`)
+- **Reproduction:** Run deployment validation in production environment without `SECRET_KEY`.
+- **Expected:** Deployment readiness fails.
+- **Actual:** Missing secret returned `ValidationStatus.WARN`, allowing insecure release.
+- **Root Cause:** Lenient warning-only status on missing secret.
+- **Fix:** Enforced `ValidationStatus.FAIL` when `APP_ENV=production` or `STRICT_SECRETS=true`.
+- **Test:** `tests/test_phase26_packaging_clean_install.py::test_deployment_validator_secret_enforcement`.
+- **Verification:** **VERIFIED FIXED**.
+- **Status:** VERIFIED.
+
+
+
+---
+
+### BUG-PLT-022
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** Adversarial Code Audit (post-Phase-27)
+- **Subsystem:** Teacher Instruction DB Layer (central_platform/db.py - get_teacher_instructions)
+- **Reproduction:** Insert TeacherInstructionRecord with malformed expires_at (e.g. "NOT_A_DATE") and call get_teacher_instructions(only_active=True) - instruction returned as active.
+- **Expected:** Instruction with unparseable expires_at must be treated as expired (fail-safe) and NOT returned.
+- **Actual:** except Exception: pass silently swallowed parse error, fell through to active_recs.append(rec).
+- **Root Cause:** Silent exception swallow in timestamp filtering loop.
+- **Fix:** Changed to log warning and continue (skip) on parse error - fail-safe.
+- **Test:** tests/test_bug_audit_fixes.py::TestBugPLT022GetTeacherInstructionsMalformedExpiry (4 tests).
+- **Verification:** VERIFIED FIXED - all 4 regression tests pass.
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-023
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** Adversarial Code Audit (post-Phase-27)
+- **Subsystem:** Teacher Instruction DB Layer (central_platform/db.py - get_hierarchical_teacher_instructions)
+- **Reproduction:** Same as BUG-PLT-022 but via the hierarchical query path.
+- **Expected:** Fail-safe: malformed expires_at treated as expired.
+- **Actual:** Same except Exception: pass silent swallow in sibling method.
+- **Root Cause:** Duplicated bug pattern copied into get_hierarchical_teacher_instructions.
+- **Fix:** Same fail-safe fix applied - log warning and skip record.
+- **Test:** tests/test_bug_audit_fixes.py::TestBugPLT023HierarchicalMalformedExpiry (2 tests).
+- **Verification:** VERIFIED FIXED.
+- **Status:** VERIFIED.
+
+---
+
+### BUG-PLT-024
+- **Severity:** P1
+- **Date Found:** 2026-10-02
+- **Commit Found:** Adversarial Code Audit (post-Phase-27)
+- **Subsystem:** Teacher Instruction Engine (central_platform/teacher/instruction.py - _is_temporally_valid)
+- **Reproduction:** Create TeacherInstruction with start_at="GARBAGE" or expires_at="GARBAGE" and call _is_temporally_valid. Returns True.
+- **Expected:** Instruction with unparseable temporal bounds must return False (fail-safe).
+- **Actual:** except Exception: return True - any parse failure made instruction appear unconditionally valid, bypassing temporal access controls.
+- **Root Cause:** Overly permissive fallback - originally written to avoid blocking on non-critical metadata but exposes bypass path.
+- **Fix:** Changed to log warning and return False on parse error.
+- **Test:** tests/test_bug_audit_fixes.py::TestBugPLT024TemporalValidityParseError (5 tests).
+- **Verification:** VERIFIED FIXED - all 5 regression tests pass.
+- **Status:** VERIFIED.

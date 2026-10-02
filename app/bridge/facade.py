@@ -273,7 +273,7 @@ class Bridge(QObject):
         try:
             from core.session import get_session_store
             store = get_session_store()
-            sessions = store.list_sessions(mode="chemistry_tutor", user_id="local_user_1")
+            sessions = store.list_sessions(user_id="local_user_1")
             result = [
                 {
                     "id": s["id"],
@@ -297,12 +297,15 @@ class Bridge(QObject):
             })
 
     @Slot(str, result=str)
-    def get_sessions_by_mode(self, mode: str = "chemistry_tutor") -> str:
+    def get_sessions_by_mode(self, mode: str = "tutor") -> str:
         """Return list of past sessions filtered by mode as JSON."""
         try:
             from core.session import get_session_store
             store = get_session_store()
             sessions = store.list_sessions(mode=mode, user_id="local_user_1")
+            if not sessions and mode in ("tutor", "chemistry_tutor"):
+                alt_mode = "chemistry_tutor" if mode == "tutor" else "tutor"
+                sessions = store.list_sessions(mode=alt_mode, user_id="local_user_1")
             result = [
                 {
                     "id": s["id"],
@@ -410,15 +413,33 @@ class Bridge(QObject):
             student = StudentProfile.load_from_file()
             if concept_id:
                 student.current_concept = concept_id
-                cid = concept_id.upper()
-                if "THERMO" in cid:
-                    student.current_topic = "Thermodynamics"
-                elif "BOND" in cid:
-                    student.current_topic = "Chemical Bonding"
-                elif "PERIOD" in cid:
-                    student.current_topic = "Periodic Trends"
-                elif "COORD" in cid:
-                    student.current_topic = "Coordination Chemistry"
+                resolved_topic = None
+                try:
+                    import os, sqlite3
+                    db_path = os.getenv("GAYATRI_DB_PATH", "gayatri_local.db")
+                    if os.path.exists(db_path):
+                        with sqlite3.connect(db_path) as conn:
+                            row = conn.execute(
+                                "SELECT t.title FROM topics t JOIN concepts c ON t.id = c.topic_id WHERE c.id = ?",
+                                (concept_id,)
+                            ).fetchone()
+                            if row:
+                                resolved_topic = row[0]
+                except Exception:
+                    pass
+                if not resolved_topic:
+                    cid = concept_id.upper()
+                    if "THERMO" in cid:
+                        resolved_topic = "Thermodynamics"
+                    elif "BOND" in cid:
+                        resolved_topic = "Chemical Bonding"
+                    elif "PERIOD" in cid:
+                        resolved_topic = "Periodic Trends"
+                    elif "COORD" in cid:
+                        resolved_topic = "Coordination Chemistry"
+                    else:
+                        resolved_topic = concept_id.replace("_", " ").title()
+                student.current_topic = resolved_topic
                 student.save_to_file()
         except Exception as exc:
             logger.warning(f"Failed to align student concept on launch: {exc}")
@@ -432,48 +453,68 @@ class Bridge(QObject):
             event_logger = EventLogger()
             events = event_logger.get_recent_events(student_id=student.student_id, limit=10)
 
-            # Topic-level aggregation
-            topic_concepts = {
-                "Thermodynamics": [
-                    "THERMO_SYSTEM", "THERMO_HEAT", "THERMO_WORK",
-                    "THERMO_INTERNAL_ENERGY", "THERMO_SIGN_CONVENTION",
-                    "THERMO_FIRST_LAW", "THERMO_ENTHALPY"
-                ],
-                "Chemical Bonding": [
-                    "BOND_LEWIS", "BOND_LONE_PAIRS", "BOND_VSEPR",
-                    "BOND_GEOMETRY", "BOND_HYBRIDISATION"
-                ],
-                "Periodic Trends": [
-                    "PERIOD_ATOMIC_RADIUS", "PERIOD_IONIC_RADIUS",
-                    "PERIOD_IONISATION_ENERGY", "PERIOD_ELECTRON_AFFINITY",
-                    "PERIOD_ELECTRONEGATIVITY", "PERIOD_TRENDS_OVERVIEW"
-                ],
-                "Coordination Chemistry": [
-                    "COORD_ENTITY", "COORD_LIGAND", "COORD_NUMBER",
-                    "COORD_OXIDATION_STATE", "COORD_NOMENCLATURE", "COORD_GEOMETRY"
-                ]
-            }
+            # Dynamic Course & Topic-level aggregation
             topic_scores = {}
-            for t_name, c_list in topic_concepts.items():
-                scores = [student.get_mastery(c, 0.4) for c in c_list]
-                topic_scores[t_name] = round(sum(scores) / len(scores), 2) if scores else 0.0
+            active_course_id = getattr(student, "course_id", None)
+            if not active_course_id:
+                try:
+                    import os, sqlite3
+                    db_path = os.getenv("GAYATRI_DB_PATH", "gayatri_local.db")
+                    if os.path.exists(db_path):
+                        with sqlite3.connect(db_path) as conn:
+                            row = conn.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                            if row:
+                                active_course_id = row[0]
+                except Exception:
+                    pass
+            active_course_id = active_course_id or "crs_foundation"
+            try:
+                from central_platform.db import PlatformDatabase
+                from central_platform.curriculum.service import CurriculumService
+                _db = PlatformDatabase()
+                _curr_svc = CurriculumService(_db)
+                hierarchy = _curr_svc.get_curriculum_hierarchy(active_course_id)
+                for mod in hierarchy.get("modules", []):
+                    for top in mod.get("topics", []):
+                        t_name = top.get("name") or top.get("title") or "Topic"
+                        c_list = [c.get("id") or c.get("concept_id") for c in top.get("concepts", []) if c.get("id") or c.get("concept_id")]
+                        if c_list:
+                            scores = [student.get_mastery(c, 0.4) for c in c_list]
+                            topic_scores[t_name] = round(sum(scores) / len(scores), 2) if scores else 0.0
+            except Exception as _exc:
+                logger.debug(f"Dynamic curriculum telemetry resolution fallback: {_exc}")
+
+            if not topic_scores:
+                # Dynamic generic course topics fallback
+                topic_concepts = {
+                    "Foundations & Theory": [
+                        "FOUNDATIONS_01", "THEORY_01", "PREREQUISITES_01"
+                    ],
+                    "Core Principles": [
+                        "CORE_01", "PRINCIPLES_01", "LAWS_01"
+                    ],
+                    "Problem Solving": [
+                        "SOLVING_01", "ANALYSIS_01", "TECHNIQUES_01"
+                    ],
+                    "Synthesis & Applications": [
+                        "SYNTHESIS_01", "APPLICATIONS_01", "MASTERY_01"
+                    ]
+                }
+                for t_name, c_list in topic_concepts.items():
+                    scores = [student.get_mastery(c, 0.4) for c in c_list]
+                    topic_scores[t_name] = round(sum(scores) / len(scores), 2) if scores else 0.0
 
             curr_concept = student.current_concept
             curr_mastery = student.get_mastery(curr_concept)
 
-            from pathlib import Path
-            curr_path = Path(__file__).resolve().parent.parent.parent / "data" / "curriculum" / "chemistry" / "ncert_class11_12.json"
             prereqs = []
-            if curr_path.exists():
-                try:
-                    with open(curr_path, encoding="utf-8") as f:
-                        c_data = json.load(f)
-                    for item in c_data.get("concepts", []):
-                        if item.get("id") == curr_concept or item.get("name") == curr_concept:
-                            prereqs = item.get("prerequisites", [])
-                            break
-                except Exception as exc:
-                    logger.warning("Could not load prerequisites from curriculum: %s", exc)
+            try:
+                from central_platform.db import PlatformDatabase
+                _db = PlatformDatabase()
+                prereq_rows = _db.get_concept_prerequisites(curr_concept)
+                prereqs = [p.prerequisite_id for p in prereq_rows]
+            except Exception as exc:
+                logger.debug("Could not load prerequisites from platform DB: %s", exc)
 
             # Pedagogical next action mapping (Section 40)
             next_action = "QUESTION"
@@ -1140,10 +1181,12 @@ class Bridge(QObject):
 
     # ── Teacher Dashboard & Copilot Slots ─────────────────────────────
 
+    @Slot(result=str)
     @Slot(str, result=str)
     def get_teacher_dashboard(self, course_id: str = "crs-chem-101") -> str:
         """Retrieve unified Teacher Dashboard payload with class health metrics and alerts."""
         try:
+            course_id = course_id or "crs-chem-101"
             portal = get_teacher_portal_service()
             overview = portal.get_dashboard_overview(course_id)
             needing_attn = portal.get_students_needing_attention(course_id)
@@ -1221,17 +1264,19 @@ class Bridge(QObject):
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
     @Slot(str, str, str, result=str)
-    def add_teacher_instruction(self, teacher_id: str, student_id: str, instruction_text: str) -> str:
+    @Slot(str, str, str, str, result=str)
+    def add_teacher_instruction(self, teacher_id: str, student_id: str, instruction_text: str, course_id: str = "crs-chem-101") -> str:
         """Add a persistent teacher instruction targeting a specific student's tutor context."""
         try:
             from central_platform.teacher.instruction import TeacherInstruction
+            course_id = course_id or "crs-chem-101"
 
             engine = get_teacher_instruction_engine()
             inst = TeacherInstruction(
                 instruction_id=f"inst-{uuid.uuid4().hex[:6]}",
                 teacher_id=teacher_id,
                 student_id=student_id,
-                course_id="crs-chem-101",
+                course_id=course_id,
                 instruction_text=instruction_text,
             )
             engine.add_instruction(inst)
@@ -1325,13 +1370,31 @@ class Bridge(QObject):
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
     @Slot(str, result=str)
-    def sync_with_central_server(self, server_url: str = "http://localhost:8000") -> str:
+    @Slot(str, str, result=str)
+    def sync_with_central_server(self, server_url: str = "http://localhost:8000", course_id: str = "") -> str:
         """Sync local student progress snapshot to central server and pull active teacher instructions."""
         try:
             import urllib.error
             import urllib.request
             from core.learning.progress import ProgressService
             from core.tutor.state import TutorStateManager
+            from core.tutor.adaptive import StudentProfile
+
+            student = StudentProfile.load_from_file()
+            if not course_id:
+                course_id = getattr(student, "course_id", "")
+            if not course_id:
+                try:
+                    import os, sqlite3
+                    db_path = os.getenv("GAYATRI_DB_PATH", "gayatri_local.db")
+                    if os.path.exists(db_path):
+                        with sqlite3.connect(db_path) as conn:
+                            row = conn.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                            if row:
+                                course_id = row[0]
+                except Exception:
+                    pass
+            course_id = course_id or "crs_foundation"
 
             sm = TutorStateManager()
             ps = ProgressService(sm)
@@ -1340,10 +1403,11 @@ class Bridge(QObject):
 
             # 1. Push student snapshot to central server
             clean_url = server_url.rstrip("/")
+            target_sid = student.student_id if student.student_id != "student_001" else "local_student_1"
             snapshot_payload = json.dumps({
-                "student_id": "local_student_1",
-                "student_name": "Local Student",
-                "course_id": "crs-chem-101",
+                "student_id": target_sid,
+                "student_name": student.name or "Local Student",
+                "course_id": course_id,
                 "mastery": mastery,
                 "needs_attention": (mastery < 0.5),
             }).encode("utf-8")
@@ -1358,7 +1422,7 @@ class Bridge(QObject):
 
             # 2. Pull active instructions from server
             inst_req = urllib.request.Request(
-                f"{clean_url}/api/teacher/instructions?student_id=local_student_1&course_id=crs-chem-101"
+                f"{clean_url}/api/teacher/instructions?student_id={target_sid}&course_id={course_id}"
             )
             with urllib.request.urlopen(inst_req, timeout=5) as resp:
                 inst_res = json.loads(resp.read().decode("utf-8"))
@@ -1392,22 +1456,38 @@ class Bridge(QObject):
             return json.dumps({"ok": False, "error": sanitized.user_message})
 
     @Slot(result=str)
-    def get_active_teacher_guidance(self) -> str:
+    @Slot(str, result=str)
+    def get_active_teacher_guidance(self, course_id: str = "") -> str:
         """Get list of active teacher guidance strings for current student and concept."""
         try:
             from core.tutor.adaptive import StudentProfile
 
             st = StudentProfile.load_from_file()
+            if not course_id:
+                course_id = getattr(st, "course_id", "")
+            if not course_id:
+                try:
+                    import os, sqlite3
+                    db_path = os.getenv("GAYATRI_DB_PATH", "gayatri_local.db")
+                    if os.path.exists(db_path):
+                        with sqlite3.connect(db_path) as conn:
+                            row = conn.execute("SELECT id FROM courses LIMIT 1").fetchone()
+                            if row:
+                                course_id = row[0]
+                except Exception:
+                    pass
+            course_id = course_id or "crs_foundation"
+
             engine = get_teacher_instruction_engine()
             insts = engine.get_instructions_for_student(
                 student_id=st.student_id,
-                course_id="crs-chem-101",
+                course_id=course_id,
                 concept_id=st.current_concept,
             )
             if not insts and st.student_id != "local_student_1":
                 insts = engine.get_instructions_for_student(
                     student_id="local_student_1",
-                    course_id="crs-chem-101",
+                    course_id=course_id,
                     concept_id=st.current_concept,
                 )
             texts = [i.instruction_text for i in insts if i.is_active]

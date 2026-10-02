@@ -106,13 +106,27 @@ Meanwhile, on the local developer machine, these packages were already present i
 
 During this reconciliation task, the following changes were applied and tested:
 
-1. **`requirements.txt`**: Added explicit declarations for `fastapi>=0.110.0`, `uvicorn>=0.28.0`, `pyjwt>=2.8.0`, `psutil>=5.9.0`, `rank-bm25>=0.2.2`, `pypdf>=4.0.0`, `pymupdf>=1.24.0`.
+1. **`requirements.txt`**: Added explicit declarations for `fastapi>=0.110.0`, `uvicorn>=0.28.0`, `pyjwt>=2.8.0`, `psutil>=5.9.0`, `rank-bm25>=0.2.2`, `pypdf>=4.0.0`, `pymupdf>=1.24.0`, and `psycopg2-binary>=2.9.0`.
 2. **`pyproject.toml`**:
    - Updated package discovery from `include = ["app*", "core*", "tests*"]` to `include = ["app*", "core*", "central_platform*", "adapters*", "tests*"]`.
-   - Updated runtime dependencies to include all required packages.
+   - Updated runtime dependencies to include all required packages including `psycopg2-binary>=2.9.0`.
    - Updated platform version to `5.0.0` and license to `MIT`.
-3. **`.github/workflows/ci.yml`**: Added `env: QT_QPA_PLATFORM: offscreen` to headless test step to ensure reliable headless execution on Windows CI runners.
-4. **`docs/forensics/*`**: Created authoritative evidence documents capturing the true state of the repository.
+3. **`.github/workflows/ci.yml`**:
+   - Added `env: QT_QPA_PLATFORM: offscreen` to headless test step.
+   - Added explicit `Initialize local database schema` step (`python scripts/migrate_db.py up --db-path gayatri_local.db`).
+4. **`tests/conftest.py`**: Created root session fixture ensuring `gayatri_local.db` exists with all migrations applied for any test invocation.
+5. **`.gitignore`**: Added un-ignore rule `!training/data/processed/*.jsonl` so that synthetic training datasets required by `test_slm_pedagogical_alignment.py` are properly committed.
+6. **`docs/forensics/*`**: Created authoritative evidence documents capturing the true state of the repository.
+
+### CI Run 36995403088 Forensic Outcome:
+Following commit `095f7c2` (which added `fastapi` and dependencies), CI advanced through all setup steps, compilation hygiene, and architecture guardrails. The headless test suite executed 1,114 tests, yielding:
+- **Passed:** 1,109 (99.55%)
+- **Failed:** 5 (0.45%)
+
+The 5 failures were:
+- `test_phase21_database_migration_hardening.py`: Failed on missing `psycopg2` driver in CI environment (fixed via `psycopg2-binary>=2.9.0`).
+- `test_phase41_deployment_validation.py` & `test_phase43_production_readiness_gate.py`: Failed because `gayatri_local.db` did not exist on fresh git checkout (fixed via `conftest.py` auto-init and workflow migration step).
+- `test_slm_pedagogical_alignment.py` (2 tests): Failed because `training/data/processed/train.jsonl` was excluded by blanket `*.jsonl` in `.gitignore` (fixed via `.gitignore` exception and dataset tracking).
 
 ---
 
