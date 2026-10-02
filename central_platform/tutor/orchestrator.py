@@ -188,33 +188,13 @@ class GenericTutorOrchestrator:
         if not course:
             raise CourseNotFoundError(f"Course '{req.course_id}' does not exist.")
 
-        # Enforce Enrollment Authorization
+        # Enforce Enrollment Authorization (Phase 2 / F-003: No auto-enrollment in tutor orchestrator)
         if req.course_id not in enrolled_course_ids:
-            if course.visibility == CourseVisibility.PRIVATE:
-                raise EnrollmentError(
-                    f"Student '{req.student_id}' is not enrolled in private course '{req.course_id}'."
-                )
-            else:
-                # Public course auto-enrollment
-                logger.info(f"Auto-enrolling student '{req.student_id}' into public course '{req.course_id}'.")
-                if not self.db.get_user(req.student_id):
-                    self.db.create_user(
-                        User(
-                            id=req.student_id,
-                            organization_id=course.organization_id,
-                            email=f"{req.student_id}@student.internal",
-                            full_name=f"Student {req.student_id}",
-                            role=UserRole.STUDENT,
-                        )
-                    )
-                new_enrollment = Enrollment(
-                    id=f"enr-{uuid.uuid4().hex[:8]}",
-                    student_id=req.student_id,
-                    course_id=req.course_id,
-                    cohort_id=req.cohort_id,
-                    is_active=True,
-                )
-                self.db.create_enrollment(new_enrollment)
+            course_type = "private course" if course.visibility == CourseVisibility.PRIVATE else "course"
+            logger.warning("Student '%s' is not enrolled in %s '%s'.", req.student_id, course_type, req.course_id)
+            raise EnrollmentError(
+                f"Student '{req.student_id}' is not enrolled in {course_type} '{req.course_id}'."
+            )
 
         # Resolve pinned or published version
         version_id = req.course_version_id
@@ -254,19 +234,19 @@ class GenericTutorOrchestrator:
             else:
                 target_concept = f"{req.course_id}_foundations"
 
-        # Guarantee user and session existence for relational integrity
+        # Enforce user existence for relational integrity (Phase 2 / F-003: No auto-creation)
         if not self.db.get_user(req.student_id):
-            self.db.create_user(
-                User(
-                    id=req.student_id,
-                    organization_id=course.organization_id,
-                    email=f"{req.student_id}@student.internal",
-                    full_name=f"Student {req.student_id}",
-                    role=UserRole.STUDENT,
-                )
+            raise EnrollmentError(
+                f"Student '{req.student_id}' does not exist in platform directory."
             )
 
-        if not self.db.get_session(req.session_id):
+        existing_session = self.db.get_session(req.session_id)
+        if existing_session:
+            if existing_session.student_id != req.student_id:
+                raise EnrollmentError(f"Session '{req.session_id}' belongs to another student.")
+            if existing_session.course_id != req.course_id:
+                raise ValueError(f"Session '{req.session_id}' belongs to course '{existing_session.course_id}', not '{req.course_id}'.")
+        else:
             self.db.create_session(
                 Session(
                     id=req.session_id,

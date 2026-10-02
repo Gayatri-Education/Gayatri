@@ -169,8 +169,8 @@ def test_generic_tutor_execution_physics(test_db, seeded_courses):
     assert result.pedagogical_action in ("EXPLAIN", "PRACTICE", "CONTINUE")
 
 
-def test_generic_tutor_execution_programming_public_auto_enroll(test_db, seeded_courses):
-    """Verify public CS course auto-enrolls student and executes turn."""
+def test_generic_tutor_execution_programming_requires_prior_enrollment(test_db, seeded_courses):
+    """F-003: Verify unenrolled student cannot execute turn in public course; explicit enrollment required."""
     orchestrator = GenericTutorOrchestrator(db=test_db)
     req = TutorTurnRequest(
         student_id="student-cs-01",
@@ -179,19 +179,26 @@ def test_generic_tutor_execution_programming_public_auto_enroll(test_db, seeded_
         message="How do variables and loops work in Python?",
     )
 
+    # 1. Negative invariant check: Unenrolled student must be rejected with EnrollmentError
+    with pytest.raises(EnrollmentError, match="not enrolled"):
+        orchestrator.execute_turn(req)
+
+    # 2. Positive path: Explicitly enroll student via authoritative provisioning helper
+    enroll_student(test_db, "student-cs-01", "course-cs")
     result = orchestrator.execute_turn(req)
 
     assert result.status == "SUCCESS"
     assert result.course_id == "course-cs"
     assert result.state_committed is True
 
-    # Assert student is now actively enrolled
+    # Assert student is actively enrolled
     enrs = test_db.get_enrollments_for_student("student-cs-01")
     assert any(e.course_id == "course-cs" for e in enrs)
 
 
 def test_generic_tutor_execution_history(test_db, seeded_courses):
-    """Verify tutor turn on History course."""
+    """Verify tutor turn on History course with pre-enrolled student."""
+    enroll_student(test_db, "student-hist-01", "course-history")
     orchestrator = GenericTutorOrchestrator(db=test_db)
     req = TutorTurnRequest(
         student_id="student-hist-01",
@@ -263,6 +270,7 @@ def test_unauthorized_private_course_enrollment(test_db, seeded_courses):
 
 def test_rag_empty_graceful_handling(test_db, seeded_courses):
     """Verify that when RAG returns 0 chunks, turn executes smoothly without failure."""
+    enroll_student(test_db, "student-cs-02", "course-cs")
     orchestrator = GenericTutorOrchestrator(db=test_db)
     req = TutorTurnRequest(
         student_id="student-cs-02",
