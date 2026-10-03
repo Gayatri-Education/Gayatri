@@ -37,6 +37,11 @@ def get_db():
     return _DB_INSTANCE
 
 
+def is_production_mode() -> bool:
+    """Return True if running in production mode (F-001, F-011, F-012, F-025)."""
+    return os.environ.get("GAYATRI_ENV", "").lower() == "production" or os.environ.get("APP_ENV", "").lower() == "production"
+
+
 def extract_bearer_token(authorization: Optional[str] = Header(None, alias="Authorization")) -> Optional[str]:
     """Extract raw JWT bearer token from Authorization header."""
     if not authorization:

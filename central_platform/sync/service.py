@@ -94,8 +94,8 @@ class SyncService:
             if binding:
                 self._device_bindings[device_id] = binding.student_id
                 return binding.student_id
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed looking up device binding for %s from DB: %s", device_id, exc)
         return self._device_bindings.get(device_id)
 
     def process_sync_batch(
@@ -157,8 +157,8 @@ class SyncService:
             else:
                 try:
                     self.db.update_device_sync_time(device_id)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Failed updating device sync time for %s: %s", device_id, exc)
 
         # 3. Out-of-order event reconciliation: sort by sequence_num then timestamp
         def _sort_key(ev: Dict[str, Any]) -> Tuple[int, str]:

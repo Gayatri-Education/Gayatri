@@ -51,7 +51,7 @@ from central_platform.auth.dependencies import (
 from central_platform.courses.service import CourseService
 from central_platform.models.schema import Assignment, ClassGroup, Cohort, CourseVisibility, User, UserRole
 from central_platform.rag.service import RAGService
-from central_platform.teacher.portal import TeacherPortalService
+from central_platform.teacher.portal import TeacherPortalService, get_shared_portal_service
 from central_platform.teacher.instruction import (
     InstructionStatus,
     SafetyStatus,
@@ -76,18 +76,10 @@ router = APIRouter(prefix="/teachers", tags=["Teachers"])
 
 _slr_service = SLRService()
 
-try:
-    from server import (
-        portal as _portal_service,
-        instruction_engine as _instruction_engine,
-        intervention_engine as _intervention_engine,
-        copilot as _copilot,
-    )
-except Exception:
-    _portal_service = TeacherPortalService()
-    _instruction_engine = TeacherInstructionEngine()
-    _intervention_engine = TeacherInterventionEngine()
-    _copilot = TeacherCopilot()
+_portal_service = get_shared_portal_service()
+_instruction_engine = TeacherInstructionEngine()
+_intervention_engine = TeacherInterventionEngine()
+_copilot = TeacherCopilot()
 
 
 @router.get("/dashboard", response_model=ApiResponse[TeacherDashboardResponse])

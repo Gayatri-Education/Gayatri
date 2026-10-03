@@ -36,7 +36,7 @@ from central_platform.learning.models import StudentActionPayload
 from central_platform.models.schema import User, UserRole
 from central_platform.progress.service import StudentProgressService
 from central_platform.slr.service import SLRService
-from central_platform.teacher.portal import TeacherPortalService
+from central_platform.teacher.portal import TeacherPortalService, get_shared_portal_service
 
 router = APIRouter(prefix="/students", tags=["Students"])
 
@@ -47,10 +47,7 @@ _engine_bridge = LearningEngineBridge()
 _progress_service = StudentProgressService()
 
 
-try:
-    from server import portal as _portal_service
-except Exception:
-    _portal_service = TeacherPortalService()
+_portal_service = get_shared_portal_service()
 
 
 

@@ -43,10 +43,7 @@ def get_sync_service() -> SyncService:
     return SyncService(db=db)
 
 
-try:
-    from server import sync_manager as _sync_manager
-except Exception:
-    _sync_manager = SyncManager()
+_sync_manager = SyncManager()
 
 
 @router.post("/events", response_model=ApiResponse[BatchSyncEventsResponse])

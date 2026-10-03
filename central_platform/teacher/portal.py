@@ -395,3 +395,43 @@ class TeacherPortalService:
             "interventions": interventions,
             "authoritative": True,
         }
+
+
+# Phase 10: Re-export HTML dashboard view renderer
+from central_platform.teacher.views import render_teacher_dashboard_html  # noqa: E402
+
+
+def seed_demo_teacher_roster(portal_service: TeacherPortalService, course_id: str = "crs-chem-101") -> None:
+    """Explicitly seed demo cohort roster for interactive teacher command center and backwards compatibility."""
+    default_cohort = [
+        ("stu-202", "Rahul Kumar", 0.85, False, [], 2, 0.90, "Solved Hess's Law formation enthalpy"),
+        ("stu-203", "Priya Sharma", 0.94, False, [], 0, 0.96, "Calculated Gibbs free energy at non-standard T"),
+        ("stu-204", "Amit Patel", 0.42, True, ["THERMO_SIGN_CONVENTION"], 7, 0.60, "Failed sign convention in expansion work (ΔU)"),
+        ("stu-205", "Ananya Roy", 0.67, False, ["BOND_ORBITAL_HYBRIDIZATION"], 4, 0.78, "Struggled with sp3d axial/equatorial bond angles"),
+        ("stu-206", "Vikram Seth", 0.52, True, ["THERMO_REVERSIBLE_WORK"], 5, 0.68, "Confused isothermal reversible with adiabatic work"),
+    ]
+    for sid, sname, mast, attn, misc, hnts, ret, act in default_cohort:
+        if sid not in portal_service._students:
+            portal_service.register_student_snapshot(
+                student_id=sid,
+                name=sname,
+                course_id=course_id,
+                mastery=mast,
+                needs_attention=attn,
+                misconceptions=misc,
+                hint_count=hnts,
+                retention_rate=ret,
+                recent_activity=act,
+            )
+
+
+_shared_portal_service: Optional[TeacherPortalService] = None
+
+
+def get_shared_portal_service() -> TeacherPortalService:
+    """Return the shared TeacherPortalService for platform API routes with seeded demo roster."""
+    global _shared_portal_service
+    if _shared_portal_service is None:
+        _shared_portal_service = TeacherPortalService()
+        seed_demo_teacher_roster(_shared_portal_service)
+    return _shared_portal_service
