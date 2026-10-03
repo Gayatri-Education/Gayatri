@@ -167,27 +167,83 @@ def rollback_all_migrations(conn: sqlite3.Connection) -> List[str]:
     return rolled_back
 
 
+def get_migration_connection(db_target: Optional[str] = None) -> Any:
+    """Resolve database connection, handling PostgreSQL URLs or SQLite paths."""
+    target = db_target or os.environ.get("DATABASE_URL") or os.environ.get("GAYATRI_DB_PATH", ":memory:")
+    if target.startswith("postgres://") or target.startswith("postgresql://"):
+        try:
+            import psycopg2
+        except ImportError:
+            raise RuntimeError("PostgreSQL driver psycopg2 is not installed.")
+        try:
+            conn = psycopg2.connect(target, connect_timeout=3)
+            return conn
+        except Exception as exc:
+            raise ConnectionError(f"PostgreSQL connection to {target.split('@')[-1]} failed: {exc}")
+
+    conn = sqlite3.connect(target)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    if target != ":memory:":
+        try:
+            conn.execute("PRAGMA journal_mode = WAL;")
+            conn.execute("PRAGMA synchronous = NORMAL;")
+        except Exception:
+            pass
+    return conn
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Gayatri AI Database Migration Runner")
-    parser.add_argument("command", choices=["up", "down", "status"], help="Migration action")
-    parser.add_argument("--db-path", default=os.environ.get("GAYATRI_DB_PATH", ":memory:"), help="Database path")
+    parser.add_argument("command", choices=["up", "down", "status", "verify"], help="Migration action")
+    parser.add_argument("--db-path", default=None, help="Database path or connection string")
     args = parser.parse_args()
 
-    conn = sqlite3.connect(args.db_path)
-    conn.execute("PRAGMA foreign_keys = ON;")
+    db_target = args.db_path or os.environ.get("DATABASE_URL") or os.environ.get("GAYATRI_DB_PATH", ":memory:")
 
     try:
+        conn = get_migration_connection(db_target)
+    except ConnectionError as err:
+        print(f"[ERROR] Database connection failed: {err}")
+        return 1
+    except Exception as err:
+        print(f"[ERROR] Could not initialize database: {err}")
+        return 1
+
+    try:
+        is_sqlite = isinstance(conn, sqlite3.Connection)
+        backend = "SQLite" if is_sqlite else "PostgreSQL"
+
         if args.command == "up":
             applied = run_all_migrations(conn)
-            print(f"[OK] Applied {len(applied)} migration(s): {', '.join(applied) if applied else 'Already up to date'}")
+            print(f"[OK] Applied {len(applied)} migration(s) on {backend}: {', '.join(applied) if applied else 'Already up to date'}")
         elif args.command == "down":
             rolled = rollback_all_migrations(conn)
-            print(f"[OK] Rolled back {len(rolled)} migration(s): {', '.join(rolled) if rolled else 'Nothing to roll back'}")
+            print(f"[OK] Rolled back {len(rolled)} migration(s) on {backend}: {', '.join(rolled) if rolled else 'Nothing to roll back'}")
+        elif args.command == "verify":
+            mismatches = verify_migration_checksums(conn)
+            if mismatches:
+                print(f"[FAILED] Tampering detected in {len(mismatches)} migration(s):")
+                for m in mismatches:
+                    print(f" - Version {m['version']} ({m['file']}): recorded {m['recorded_checksum'][:12]}... != actual {m['actual_checksum'][:12]}...")
+                return 1
+            print(f"[OK] All applied migrations on {backend} verified against on-disk checksums (Zero tampering).")
         elif args.command == "status":
             records = get_applied_migrations(conn)
+            journal = "N/A"
+            if is_sqlite and db_target != ":memory:":
+                try:
+                    journal = conn.execute("PRAGMA journal_mode;").fetchone()[0].upper()
+                except Exception:
+                    pass
+            print(f"Database Backend: {backend} (Target: {db_target}, Journal: {journal})")
             print(f"Total Applied Migrations: {len(records)}")
             for r in records:
                 print(f" - Version: {r['version']} | {r['description']} | Applied: {r['applied_at']}")
+            mismatches = verify_migration_checksums(conn)
+            if mismatches:
+                print(f"[WARNING] {len(mismatches)} migration checksum mismatch(es) detected!")
+            else:
+                print("[OK] Migration checksum integrity: VERIFIED")
         return 0
     finally:
         conn.close()

@@ -95,7 +95,14 @@ runtime_entry_points:
 
 authoritative_runtime: "central_platform.api.server (online) / app.main (desktop)"
 
-release_state: "PRODUCTION_RELEASE_READY"
-release_gate_status: "VERIFIED_PASSED (30/30 gates passed)"
-last_verified: "2026-10-02T18:55:00+05:30"
+release_state: "BLOCKED_PENDING_FORENSIC_REMEDIATION"
+release_gate_status: "PENDING_INDEPENDENT_VERIFICATION"
+verification_summary:
+  implemented: true
+  tested: false
+  runtime_verified: false
+  security_verified: false
+  regression_verified: false
+  production_ready: false
+last_verified: "2026-10-02T22:43:00+05:30"
 

@@ -18,9 +18,24 @@ from typing import Any, Dict, Optional, Set
 
 import jwt
 
-# Configurable secret key with production fallback
-JWT_SECRET_KEY = os.environ.get("GAYATRI_JWT_SECRET", "gayatri-platform-production-secret-key-3.0.0-entropy")
+DEFAULT_INSECURE_SECRET = "gayatri-platform-production-secret-key-3.0.0-entropy"
+JWT_SECRET_KEY = os.environ.get("GAYATRI_JWT_SECRET", DEFAULT_INSECURE_SECRET)
 JWT_ALGORITHM = "HS256"
+
+
+def get_jwt_secret_key() -> str:
+    """Retrieve verified JWT secret key, strictly refusing insecure defaults in production."""
+    secret = os.environ.get("GAYATRI_JWT_SECRET")
+    env = os.environ.get("GAYATRI_ENV", "development").lower()
+    if env == "production":
+        if not secret or secret == DEFAULT_INSECURE_SECRET:
+            raise RuntimeError(
+                "Production startup aborted: GAYATRI_JWT_SECRET environment variable "
+                "must be explicitly set with high entropy in production mode."
+            )
+        return secret
+    return secret or DEFAULT_INSECURE_SECRET
+
 
 # In-memory revocation registry (production can back with Redis / PostgreSQL)
 _REVOKED_JTIS: Set[str] = set()
@@ -51,7 +66,7 @@ def create_access_token(
     if custom_claims:
         payload.update(custom_claims)
 
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, get_jwt_secret_key(), algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(
@@ -73,13 +88,13 @@ def create_refresh_token(
         "iat": int(now.timestamp()),
         "exp": int(exp.timestamp()),
     }
-    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, get_jwt_secret_key(), algorithm=JWT_ALGORITHM)
 
 
 def decode_and_verify_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
     """Decode, verify signature, check expiration, and ensure token is not revoked."""
     try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, get_jwt_secret_key(), algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError as exc:
         raise PermissionError("Token has expired") from exc
     except jwt.InvalidTokenError as exc:

@@ -51,7 +51,7 @@ from central_platform.auth.dependencies import (
 from central_platform.courses.service import CourseService
 from central_platform.models.schema import Assignment, ClassGroup, Cohort, CourseVisibility, User, UserRole
 from central_platform.rag.service import RAGService
-from central_platform.teacher.portal import TeacherPortalService
+from central_platform.teacher.portal import TeacherPortalService, get_shared_portal_service
 from central_platform.teacher.instruction import (
     InstructionStatus,
     SafetyStatus,
@@ -76,24 +76,17 @@ router = APIRouter(prefix="/teachers", tags=["Teachers"])
 
 _slr_service = SLRService()
 
-try:
-    from server import (
-        portal as _portal_service,
-        instruction_engine as _instruction_engine,
-        intervention_engine as _intervention_engine,
-        copilot as _copilot,
-    )
-except Exception:
-    _portal_service = TeacherPortalService()
-    _instruction_engine = TeacherInstructionEngine()
-    _intervention_engine = TeacherInterventionEngine()
-    _copilot = TeacherCopilot()
+_portal_service = get_shared_portal_service()
+_instruction_engine = TeacherInstructionEngine()
+_intervention_engine = TeacherInterventionEngine()
+_copilot = TeacherCopilot()
 
 
 @router.get("/dashboard", response_model=ApiResponse[TeacherDashboardResponse])
 async def get_teacher_dashboard(
     course_id: str = "crs-chem-101",
     current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Any = Depends(get_db),
 ):
     """Retrieve full teacher dashboard analytics, alerts, and student roster."""
     if current_user:
@@ -102,7 +95,20 @@ async def get_teacher_dashboard(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: students are not authorized to access teacher dashboard",
             )
-        enforce_resource_boundaries(current_user)
+        from fastapi.params import Depends as DependsClass
+        effective_db = get_db() if (db is None or isinstance(db, DependsClass)) else db
+        course = effective_db.get_course(course_id)
+        is_public = False
+        if course:
+            vis = getattr(course, "visibility", None)
+            vis_str = vis.value if hasattr(vis, "value") else str(vis)
+            if vis_str.upper() == "PUBLIC" or course.organization_id in ("org-default", None):
+                is_public = True
+
+        if course and course.organization_id and not is_public:
+            enforce_resource_boundaries(current_user, target_org_id=course.organization_id)
+        else:
+            enforce_resource_boundaries(current_user)
 
     overview = _portal_service.get_dashboard_overview(course_id)
     students = _portal_service.get_all_students(course_id)
@@ -195,11 +201,13 @@ async def create_instruction(
         if current_user.role == UserRole.TEACHER and req.student_id not in ("all", "*", "", None):
             db = get_db()
             target_user = db.get_user(req.student_id)
-            if target_user and current_user.organization_id and target_user.organization_id != current_user.organization_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Forbidden: student '{req.student_id}' belongs to another organization",
-                )
+            if target_user and target_user.organization_id and current_user.organization_id:
+                if target_user.organization_id not in ("org-default", None) and current_user.organization_id not in ("org-default", None):
+                    if target_user.organization_id != current_user.organization_id:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Forbidden: student '{req.student_id}' belongs to another organization",
+                        )
             assigned = db.get_assigned_student_ids_for_teacher(current_user.id)
             if assigned and req.student_id not in assigned:
                 raise HTTPException(
@@ -762,6 +770,7 @@ async def get_teacher_student_detail(
     student_id: str,
     course_id: Optional[str] = "crs-chem-101",
     current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Any = Depends(get_db),
 ):
     """Retrieve full Section 19 Student View from Authoritative SLR."""
     if current_user:
@@ -770,14 +779,24 @@ async def get_teacher_student_detail(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: students cannot use teacher endpoints",
             )
-        if current_user.role == UserRole.TEACHER:
-            db = get_db()
-            assigned = db.get_assigned_student_ids_for_teacher(current_user.id)
-            if assigned and student_id not in assigned:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"Forbidden: student '{student_id}' is not assigned to this teacher",
-                )
+        from fastapi.params import Depends as DependsClass
+        effective_db = get_db() if (db is None or isinstance(db, DependsClass)) else db
+        if current_user.role in (UserRole.TEACHER, UserRole.ORG_ADMIN):
+            target_student = effective_db.get_user(student_id)
+            if target_student and target_student.organization_id and current_user.organization_id:
+                if target_student.organization_id not in ("org-default", None) and current_user.organization_id not in ("org-default", None):
+                    if current_user.role != UserRole.SUPER_ADMIN and target_student.organization_id != current_user.organization_id:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Forbidden: cross-organization access to student '{student_id}' prohibited",
+                        )
+            if current_user.role == UserRole.TEACHER:
+                assigned = effective_db.get_assigned_student_ids_for_teacher(current_user.id)
+                if assigned and student_id not in assigned:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"Forbidden: student '{student_id}' is not assigned to this teacher",
+                    )
 
     detail = _portal_service.get_student_detail(student_id, course_id=course_id or "crs-chem-101")
     return ApiResponse(ok=True, data=detail)
@@ -788,8 +807,9 @@ async def get_teacher_student_timeline(
     student_id: str,
     course_id: Optional[str] = "crs-chem-101",
     current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Any = Depends(get_db),
 ):
-    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    detail = await get_teacher_student_detail(student_id, course_id, current_user, db)
     return ApiResponse(ok=True, data=detail.data.get("learning_timeline", []))
 
 
@@ -798,8 +818,9 @@ async def get_teacher_student_mastery(
     student_id: str,
     course_id: Optional[str] = "crs-chem-101",
     current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Any = Depends(get_db),
 ):
-    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    detail = await get_teacher_student_detail(student_id, course_id, current_user, db)
     return ApiResponse(ok=True, data=detail.data.get("mastery", {}))
 
 
@@ -808,8 +829,9 @@ async def get_teacher_student_misconceptions(
     student_id: str,
     course_id: Optional[str] = "crs-chem-101",
     current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Any = Depends(get_db),
 ):
-    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    detail = await get_teacher_student_detail(student_id, course_id, current_user, db)
     return ApiResponse(ok=True, data=detail.data.get("misconceptions", []))
 
 
@@ -818,8 +840,9 @@ async def get_teacher_student_sessions(
     student_id: str,
     course_id: Optional[str] = "crs-chem-101",
     current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Any = Depends(get_db),
 ):
-    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    detail = await get_teacher_student_detail(student_id, course_id, current_user, db)
     return ApiResponse(ok=True, data=detail.data.get("sessions", []))
 
 
@@ -828,8 +851,9 @@ async def get_teacher_student_interventions(
     student_id: str,
     course_id: Optional[str] = "crs-chem-101",
     current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Any = Depends(get_db),
 ):
-    detail = await get_teacher_student_detail(student_id, course_id, current_user)
+    detail = await get_teacher_student_detail(student_id, course_id, current_user, db)
     itvs = _intervention_engine.get_interventions(course_id=course_id, student_id=student_id)
     if itvs:
         return ApiResponse(ok=True, data=[i.to_dict() for i in itvs])

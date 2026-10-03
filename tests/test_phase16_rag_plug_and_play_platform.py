@@ -377,27 +377,28 @@ def test_rag_api_endpoints(client):
     assert resp.status_code == 200
     assert resp.json()["data"]["status"] == "published"
 
-    # 5. List Sources (no auth required)
-    resp = client.get("/api/v1/rag/sources?course_id=crs-chem-101")
+    # 5. List Sources (unauthenticated rejected, teacher authorized)
+    assert client.get("/api/v1/rag/sources?course_id=crs-chem-101").status_code == 401
+    resp = client.get("/api/v1/rag/sources?course_id=crs-chem-101", headers=t_hdr)
     assert resp.status_code == 200
     assert len(resp.json()["data"]) >= 1
 
-    # 6. Get Chunks (no auth required)
-    resp = client.get(f"/api/v1/rag/sources/{source_id}/chunks")
+    # 6. Get Chunks (unauthenticated rejected, teacher authorized)
+    assert client.get(f"/api/v1/rag/sources/{source_id}/chunks").status_code == 401
+    resp = client.get(f"/api/v1/rag/sources/{source_id}/chunks", headers=t_hdr)
     assert resp.status_code == 200
     chunks = resp.json()["data"]
     assert len(chunks) >= 2
     assert any("Enthalpy" in c["text"] for c in chunks)
 
-    # 7. Query RAG (no auth required)
-    resp = client.post(
-        "/api/v1/rag/query",
-        json={
-            "query": "What is enthalpy change in exothermic reaction?",
-            "course_id": "crs-chem-101",
-            "top_k": 2,
-        },
-    )
+    # 7. Query RAG (unauthenticated rejected, teacher/student authorized)
+    query_payload = {
+        "query": "What is enthalpy change in exothermic reaction?",
+        "course_id": "crs-chem-101",
+        "top_k": 2,
+    }
+    assert client.post("/api/v1/rag/query", json=query_payload).status_code == 401
+    resp = client.post("/api/v1/rag/query", headers=t_hdr, json=query_payload)
     assert resp.status_code == 200
     res_data = resp.json()["data"]
     assert res_data["status"] == "RAG_OK"

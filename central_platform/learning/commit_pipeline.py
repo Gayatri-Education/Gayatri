@@ -82,6 +82,7 @@ class StateCommitPipeline:
         target_concept: Optional[str] = None,
         rag_sources_required: bool = False,
         response_plan: Optional[Any] = None,
+        fault_injection_point: Optional[str] = None,
     ) -> CommitResult:
         """Validate AI response and atomically commit staged changes only if validation passes."""
         summary = {
@@ -110,19 +111,29 @@ class StateCommitPipeline:
                 validation_result=val_result,
             )
 
-        # 3. Transactional Commit to Database
+        # 3. Transactional Commit to Database (Single Unified Atomic Transaction)
         try:
-            # Commit mastery updates
-            for ms in staged.mastery_updates:
-                self.db.upsert_mastery_state(ms)
+            with self.db.transaction():
+                # Commit mastery updates
+                for ms in staged.mastery_updates:
+                    self.db.upsert_mastery_state(ms)
 
-            # Commit misconception records
-            for sm in staged.misconception_records:
-                self.db.record_student_misconception(sm)
+                if fault_injection_point == "after_mastery":
+                    raise RuntimeError("Fault injected after mastery update")
 
-            # Commit learning events
-            for ev in staged.learning_events:
-                self.db.record_learning_event(ev)
+                # Commit misconception records
+                for sm in staged.misconception_records:
+                    self.db.record_student_misconception(sm)
+
+                if fault_injection_point == "after_misconceptions":
+                    raise RuntimeError("Fault injected after misconception records")
+
+                # Commit learning events
+                for ev in staged.learning_events:
+                    self.db.record_learning_event(ev)
+
+                if fault_injection_point == "after_events":
+                    raise RuntimeError("Fault injected after learning events")
 
             logger.info(f"State commit SUCCESSFUL for student {staged.student_id}: {summary}")
             return CommitResult(

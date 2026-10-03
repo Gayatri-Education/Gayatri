@@ -384,6 +384,7 @@ def test_negative_journeys_nj1_through_nj11(client: TestClient, db: PlatformData
 
     db.create_course(Course(id=private_course, organization_id=org_alpha, code="DEF101", title="Confidential Defense Tech", visibility=CourseVisibility.PRIVATE))
     db.create_course_version(CourseVersion(id=version_id, course_id=private_course, version_number="1.0.0", status=CourseStatus.PUBLISHED, created_by="system"))
+    db.create_enrollment(Enrollment(id=f"enr-a-{ts}", student_id=student_alpha, course_id=private_course))
 
     token_beta = create_access_token(user_id=student_beta, role="student", organization_id=org_beta)
     headers_beta = {"Authorization": f"Bearer {token_beta}"}

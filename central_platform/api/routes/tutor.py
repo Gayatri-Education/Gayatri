@@ -10,7 +10,11 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from central_platform.auth.dependencies import get_current_user_optional, get_db
+from central_platform.auth.dependencies import (
+    enforce_resource_boundaries,
+    get_current_user,
+    get_db,
+)
 from central_platform.courses.service import CourseNotFoundError
 from central_platform.db import PlatformDatabase
 from central_platform.models.schema import User
@@ -75,8 +79,14 @@ class TutorTurnApiResponse(BaseModel):
 async def submit_tutor_turn(
     req: TutorTurnApiRequest,
     db: PlatformDatabase = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ) -> TutorTurnApiResponse:
+    # ── Identity & Resource Boundary Enforcement (Phase 1 / F-001, F-002) ──
+    enforce_resource_boundaries(
+        current_user=current_user,
+        target_student_id=req.student_id,
+    )
+
     query_text = req.message or req.student_input or ""
     if not query_text.strip():
         raise HTTPException(status_code=400, detail="Missing message or student_input text.")

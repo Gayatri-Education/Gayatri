@@ -110,8 +110,8 @@ class NCERTRetriever:
             return RAGContext(query=q, results=[], confidence=ConfidenceLevel.LOW, status=RAGStatus.RAG_EMPTY)
 
         try:
-            # 1. Vector Candidate Retrieval
-            vector_candidates = self.store.search_similar(q, top_k=max(1, top_k * 3))
+            # 1. Vector Candidate Retrieval (fetch wide pool to ensure recall prior to metadata filtering)
+            vector_candidates = self.store.search_similar(q, top_k=max(15, top_k * 5))
         except Exception as e:
             logger.error(f"RAG Store search error: {e}")
             return RAGContext(query=q, results=[], confidence=ConfidenceLevel.LOW, status=RAGStatus.RAG_ERROR, error_message=str(e))
@@ -123,12 +123,37 @@ class NCERTRetriever:
         filtered_candidates: list[tuple[DocumentChunk, float, float]] = []
         for chunk, vec_score in vector_candidates:
             # Metadata filter checks
-            if chapter and chunk.chapter and chapter.lower() not in chunk.chapter.lower():
-                continue
-            if topic and chunk.topic and topic.lower() not in chunk.topic.lower():
-                continue
-            if concept and getattr(chunk, "concept", "") and concept.lower() not in getattr(chunk, "concept", "").lower():
-                continue
+            if chapter:
+                req_ch = chapter.lower()
+                chunk_ch = (chunk.chapter or "").lower()
+                ch_words = [w for w in req_ch.split() if len(w) >= 5]
+                ch_match = req_ch in chunk_ch or chunk_ch in req_ch or any(w in chunk_ch for w in ch_words)
+                if not ch_match:
+                    continue
+
+            if topic:
+                req_t = topic.lower()
+                ct = (chunk.topic or "").lower()
+                cst = getattr(chunk, "subtopic", "").lower()
+                cch = (chunk.chapter or "").lower()
+                combined_t = f"{ct} {cst} {cch}"
+                t_words = [w for w in req_t.replace("-", " ").replace("_", " ").split() if len(w) >= 4]
+                t_match = (
+                    req_t in combined_t
+                    or ct in req_t
+                    or cst in req_t
+                    or req_t in chunk.text.lower()
+                    or any(w in combined_t for w in t_words)
+                )
+                if not t_match:
+                    continue
+
+            if concept and getattr(chunk, "concept", ""):
+                c_clean = concept.lower().replace("chem_", "").replace("cpt_", "").replace("cpt-", "")
+                chunk_c_clean = str(getattr(chunk, "concept", "")).lower().replace("chem_", "").replace("cpt_", "").replace("cpt-", "")
+                if c_clean not in chunk_c_clean and chunk_c_clean not in c_clean:
+                    continue
+
             if difficulty and getattr(chunk, "difficulty", "") and difficulty.lower() != getattr(chunk, "difficulty", "").lower():
                 continue
             if content_type and getattr(chunk, "content_type", "") and content_type.lower() != getattr(chunk, "content_type", "").lower():
@@ -137,9 +162,9 @@ class NCERTRetriever:
             bm25_score = BM25LexicalScorer.score_chunk(q, chunk.text)
             filtered_candidates.append((chunk, vec_score, bm25_score))
 
-        # Fallback to unfiltered candidates if metadata filter was too restrictive
+        # Fail-closed: do not leak unfiltered candidates if metadata filter yielded zero matches
         if not filtered_candidates:
-            filtered_candidates = [(c, vs, BM25LexicalScorer.score_chunk(q, c.text)) for c, vs in vector_candidates]
+            return RAGContext(query=q, results=[], confidence=ConfidenceLevel.LOW, status=RAGStatus.RAG_EMPTY)
 
         # 3. Reciprocal Rank Fusion (RRF)
         # Sort candidates by Vector Rank and Lexical Rank

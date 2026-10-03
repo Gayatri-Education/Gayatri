@@ -829,14 +829,15 @@ class RAGService:
                 try:
                     with open(fpath, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                        chunks = data if isinstance(data, list) else data.get("chunks", [])
+                        chunks = data if isinstance(data, list) else (data.get("chunks") or data.get("sections", []))
+                        file_chapter = data.get("chapter", "Chemistry") if isinstance(data, dict) else "Chemistry"
                         for c in chunks:
                             text = c.get("text", "")
-                            words = query_text.lower().split()
+                            words = [w for w in query_text.lower().split() if len(w) > 2]
                             if any(w in text.lower() for w in words):
-                                chk_id = c.get("chunk_id", fpath.stem)
-                                chapter = c.get("chapter", "Chemistry")
-                                topic = c.get("topic", "General")
+                                chk_id = c.get("chunk_id", f"{fpath.stem}_{c.get('page', 100)}")
+                                chapter = c.get("chapter", file_chapter)
+                                topic = c.get("topic", c.get("subtopic", "General"))
                                 page = c.get("page", 100)
                                 cit = f"NCERT: {chapter} (p. {page})"
                                 results.append(
@@ -860,19 +861,13 @@ class RAGService:
                     break
 
         if not results:
-            results.append(
-                {
-                    "chunk_id": "chunk-thermo-01",
-                    "source_id": "ncert_chem_11_ch6",
-                    "chapter": "Thermodynamics",
-                    "topic": "First Law",
-                    "concept": "Internal Energy",
-                    "page": 160,
-                    "text": "Delta U = q + w. In gas expansion, w = -P_ext * Delta V.",
-                    "score": 0.92,
-                    "citation": "NCERT: Thermodynamics (p. 160)",
-                }
-            )
+            return {
+                "status": "RAG_EMPTY",
+                "query": query_text,
+                "results": [],
+                "count": 0,
+                "data_context": "",
+            }
 
         data_context = RAGSecuritySanitizer.build_llm_rag_context(results)
         return {

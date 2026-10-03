@@ -44,15 +44,38 @@ class PrivacyRulesEngine:
     """Authoritative Privacy Rules Engine enforcing data access boundaries."""
 
     _policy_store: Dict[str, StudentPrivacySetting] = {}
+    _parent_student_links: Dict[str, set[str]] = {}
 
     @classmethod
     def _make_key(cls, parent_id: str, student_id: str) -> str:
         return f"{parent_id}:{student_id}"
 
     @classmethod
+    def link_parent_student(cls, parent_id: str, student_id: str) -> None:
+        """Register an authorized relationship between parent and student."""
+        cls._parent_student_links.setdefault(parent_id, set()).add(student_id)
+
+    @classmethod
+    def unlink_parent_student(cls, parent_id: str, student_id: str) -> None:
+        """Remove relationship between parent and student."""
+        if parent_id in cls._parent_student_links:
+            cls._parent_student_links[parent_id].discard(student_id)
+
+    @classmethod
+    def get_linked_students(cls, parent_id: str) -> List[str]:
+        """Return all student IDs authorized for a parent."""
+        return sorted(list(cls._parent_student_links.get(parent_id, set())))
+
+    @classmethod
+    def is_parent_linked(cls, parent_id: str, student_id: str) -> bool:
+        """Return True if parent is authorized for the given student."""
+        return student_id in cls._parent_student_links.get(parent_id, set())
+
+    @classmethod
     def set_privacy_setting(cls, setting: StudentPrivacySetting) -> None:
         key = cls._make_key(setting.parent_id, setting.student_id)
         cls._policy_store[key] = setting
+
 
     @classmethod
     def get_privacy_setting(cls, parent_id: str, student_id: str) -> StudentPrivacySetting:
@@ -123,7 +146,11 @@ class PrivacyRulesEngine:
 
         if setting.visibility_level != ParentVisibilityLevel.SUMMARY_ONLY:
             if setting.allow_teacher_notes_visibility:
-                filtered["teacher_notes"] = raw_data.get("teacher_notes", [])
+                raw_notes = raw_data.get("teacher_notes", [])
+                filtered["teacher_notes"] = [
+                    n for n in raw_notes
+                    if not (isinstance(n, dict) and (n.get("is_private") or n.get("scope") == "INTERNAL"))
+                ]
             if setting.allow_assessment_answers_visibility:
                 filtered["assessments"] = raw_data.get("assessments", [])
 
@@ -133,4 +160,11 @@ class PrivacyRulesEngine:
         if setting.allow_financial_visibility:
             filtered["fee_summary"] = raw_data.get("fee_summary", {})
 
+        # Invariant: Never expose private safety classifications or internal flags
+        filtered.pop("safety_status", None)
+        filtered.pop("safety_reasons", None)
+        filtered.pop("internal_notes", None)
+        filtered.pop("crisis_flags", None)
+
         return filtered
+

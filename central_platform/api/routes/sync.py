@@ -11,7 +11,7 @@ Master Plan Section 17:
 from __future__ import annotations
 
 import logging
-from typing import Optional
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 
 logger = logging.getLogger("gayatri.central_platform.api.routes.sync")
@@ -20,6 +20,9 @@ from central_platform.api.schemas import (
     ApiResponse,
     BatchSyncEventsRequest,
     BatchSyncEventsResponse,
+    DeviceBindRequest,
+    DeviceBindResponse,
+    DeviceListItem,
     SyncStatusResponse,
 )
 from central_platform.auth.dependencies import (
@@ -40,10 +43,7 @@ def get_sync_service() -> SyncService:
     return SyncService(db=db)
 
 
-try:
-    from server import sync_manager as _sync_manager
-except Exception:
-    _sync_manager = SyncManager()
+_sync_manager = SyncManager()
 
 
 @router.post("/events", response_model=ApiResponse[BatchSyncEventsResponse])
@@ -102,6 +102,7 @@ async def sync_events(
             latest_mastery=result["latest_mastery"],
             server_timestamp=result["server_timestamp"],
             is_replay=result.get("is_replay", False),
+            sequence_gaps=result.get("sequence_gaps", []),
         ),
     )
 
@@ -122,4 +123,67 @@ async def get_sync_status(
         ok=True,
         data=SyncStatusResponse(**status_data),
     )
+
+
+@router.post("/devices/bind", response_model=ApiResponse[DeviceBindResponse])
+async def bind_device(
+    req: DeviceBindRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Explicitly bind hardware device to authenticated student account."""
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=req.student_id)
+
+    svc = get_sync_service()
+    try:
+        svc.bind_device(
+            device_id=req.device_id,
+            student_id=req.student_id,
+            organization_id=req.organization_id,
+            device_name=req.device_name,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+
+    binding = svc.db.get_device_binding(req.device_id)
+    return ApiResponse(
+        ok=True,
+        data=DeviceBindResponse(
+            device_id=req.device_id,
+            student_id=req.student_id,
+            device_name=req.device_name,
+            status="ACTIVE",
+            bound_at=binding.bound_at if binding else "",
+        ),
+    )
+
+
+@router.get("/devices", response_model=ApiResponse[List[DeviceListItem]])
+async def list_devices(
+    student_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Retrieve all devices bound to a student account."""
+    if current_user:
+        enforce_resource_boundaries(current_user, target_student_id=student_id)
+
+    svc = get_sync_service()
+    devices = svc.db.get_devices_for_student(student_id)
+    return ApiResponse(
+        ok=True,
+        data=[
+            DeviceListItem(
+                device_id=d.device_id,
+                student_id=d.student_id,
+                organization_id=d.organization_id,
+                device_name=d.device_name,
+                device_type=d.device_type,
+                status=d.status,
+                bound_at=d.bound_at,
+                last_synced_at=d.last_synced_at,
+            )
+            for d in devices
+        ],
+    )
+
 

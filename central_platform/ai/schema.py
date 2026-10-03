@@ -45,6 +45,17 @@ class RoutingStrategy(str, Enum):
     CLOUD_PREFERRED = "cloud_preferred"
 
 
+class ModelExecutionStatus(str, Enum):
+    """Normalized provider execution states (Phase 4 / F-011, F-012)."""
+    MODEL_SUCCESS = "MODEL_SUCCESS"
+    MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+    MODEL_TIMEOUT = "MODEL_TIMEOUT"
+    MODEL_RATE_LIMITED = "MODEL_RATE_LIMITED"
+    MODEL_CONFIGURATION_ERROR = "MODEL_CONFIGURATION_ERROR"
+    MODEL_INVALID_RESPONSE = "MODEL_INVALID_RESPONSE"
+
+
+
 @dataclass
 class AIModelDescriptor:
     """Descriptor for an AI model supported by a provider."""
@@ -146,6 +157,8 @@ class AIExecutionResult:
     error_message: Optional[str] = None
     fallback_used: bool = False
     original_provider: Optional[str] = None
+    status: ModelExecutionStatus = ModelExecutionStatus.MODEL_SUCCESS
+    mock: bool = False
     cached: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
@@ -154,6 +167,8 @@ class AIExecutionResult:
             "content": self.content,
             "provider": self.provider,
             "model": self.model,
+            "mock": self.mock,
+            "status": self.status.value if isinstance(self.status, ModelExecutionStatus) else str(self.status),
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.total_tokens,
@@ -166,6 +181,17 @@ class AIExecutionResult:
             "original_provider": self.original_provider,
             "cached": self.cached,
         }
+
+    @property
+    def provenance(self) -> Dict[str, Any]:
+        """Machine-readable provenance record (F-014)."""
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "mock": self.mock,
+            "status": self.status.value if isinstance(self.status, ModelExecutionStatus) else str(self.status),
+        }
+
 
 
 @dataclass

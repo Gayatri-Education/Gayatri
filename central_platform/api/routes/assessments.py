@@ -142,7 +142,10 @@ async def create_question_bank_item(
         explanation=req.explanation,
         tags=req.tags,
     )
-    created = service.create_question(item)
+    try:
+        created = service.create_question(item)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
     return ApiResponse(
         ok=True,
         data=QuestionBankItemResponse(
@@ -230,7 +233,10 @@ async def create_assessment(
         rubric=req.rubric,
         status=req.status,
     )
-    created = service.create_assessment(asmt)
+    try:
+        created = service.create_assessment(asmt)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
     return ApiResponse(
         ok=True,
         data=AssessmentResponse(
@@ -451,7 +457,10 @@ async def create_assignment(
         instructions=req.instructions,
         due_at=req.due_at,
     )
-    created = service.create_assignment(assign)
+    try:
+        created = service.create_assignment(assign)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
     return ApiResponse(
         ok=True,
         data=AssignmentResponse(
@@ -770,8 +779,14 @@ async def submit_assessment_legacy(
     service: AssessmentService = Depends(get_assessment_service),
 ):
     """Legacy backward-compatible submission endpoint."""
+    legacy_service = AssessmentService(
+        db=service.db,
+        event_store=service.event_store,
+        slr_service=service.slr_service,
+        allow_auto_provision=True,
+    )
     total = max(len(submission.answers), 1)
-    asmt = service.get_assessment(submission.assessment_id)
+    asmt = legacy_service.get_assessment(submission.assessment_id)
     if not asmt:
         item_ids = []
         for q_id, ans_val in submission.answers.items():
@@ -786,7 +801,7 @@ async def submit_assessment_legacy(
                     options=getattr(matching_sample, "options", ["A", "B", "C", "D"]),
                     correct_answer=str(getattr(matching_sample, "answer", getattr(matching_sample, "correct_answer", ans_val))),
                 )
-                service.create_question(qb_item)
+                legacy_service.create_question(qb_item)
                 item_ids.append(q_id)
             else:
                 qb_item = QuestionBankItem(
@@ -797,7 +812,7 @@ async def submit_assessment_legacy(
                     item_type="SHORT_ANSWER",
                     correct_answer=str(ans_val),
                 )
-                service.create_question(qb_item)
+                legacy_service.create_question(qb_item)
                 item_ids.append(q_id)
 
         asmt = Assessment(
@@ -808,10 +823,10 @@ async def submit_assessment_legacy(
             total_marks=float(total * 4.0),
             item_ids=item_ids,
         )
-        service.create_assessment(asmt)
+        legacy_service.create_assessment(asmt)
 
-    attempt = service.start_attempt(submission.assessment_id, submission.student_id)
-    completed_attempt = service.submit_attempt(attempt.id, submission.answers, submission.student_id)
+    attempt = legacy_service.start_attempt(submission.assessment_id, submission.student_id)
+    completed_attempt = legacy_service.submit_attempt(attempt.id, submission.answers, submission.student_id)
 
     return ApiResponse(
         ok=True,

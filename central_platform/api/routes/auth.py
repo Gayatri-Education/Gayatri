@@ -25,6 +25,7 @@ from central_platform.auth.dependencies import (
     extract_bearer_token,
     get_current_user,
     get_db,
+    is_production_mode,
 )
 from central_platform.auth.tokens import (
     create_access_token,
@@ -209,7 +210,15 @@ async def reset_password(req: PasswordResetRequest):
 
 @router.get("/demo-tokens", response_model=ApiResponse[dict])
 async def get_demo_tokens():
-    """Return pre-generated JWT tokens for all local testing personas."""
+    """Return pre-generated JWT tokens for all local testing personas.
+    
+    Disabled in production mode to prevent false-green backdoors.
+    """
+    if is_production_mode():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Demo tokens are disabled in production environment.",
+        )
     personas = {
         "superadmin": {
             "id": "usr_superadmin",

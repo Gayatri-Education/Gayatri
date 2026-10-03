@@ -76,22 +76,14 @@ from central_platform.teacher.intervention import (
     TeacherAlert,
     TeacherInterventionEngine,
 )
-from central_platform.teacher.portal import TeacherPortalService
+from central_platform.teacher.portal import TeacherPortalService, get_shared_portal_service
 
-try:
-    from server import (
-        portal as _portal_service,
-        instruction_engine as _instruction_engine,
-        intervention_engine as _intervention_engine,
-        copilot as _copilot,
-        sync_manager as _sync_manager,
-    )
-except Exception:
-    _portal_service = TeacherPortalService()
-    _instruction_engine = TeacherInstructionEngine()
-    _intervention_engine = TeacherInterventionEngine()
-    _copilot = TeacherCopilot()
-    _sync_manager = SyncManager()
+# Central Platform Domain Service Instances (Phase 10: decoupled from root server.py)
+_portal_service = get_shared_portal_service()
+_instruction_engine = TeacherInstructionEngine()
+_intervention_engine = TeacherInterventionEngine()
+_copilot = TeacherCopilot()
+_sync_manager = SyncManager()
 
 
 def create_app() -> FastAPI:
@@ -302,7 +294,7 @@ def create_app() -> FastAPI:
     async def get_dashboard_html():
         """Serve the interactive Teacher Command Center HTML."""
         try:
-            from server import render_teacher_dashboard_html
+            from central_platform.teacher.views import render_teacher_dashboard_html
             html = render_teacher_dashboard_html("crs-chem-101")
             return HTMLResponse(content=html, status_code=200)
         except Exception as exc:

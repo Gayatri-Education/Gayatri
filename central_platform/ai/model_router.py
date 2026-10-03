@@ -6,7 +6,9 @@ performance tier, cost constraints, and available fallback chains.
 """
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Optional, Set
+
 
 from central_platform.ai.schema import (
     AIModelDescriptor,
@@ -151,6 +153,15 @@ class ModelRouter:
             )
 
         if not target_p:
+            if os.environ.get("GAYATRI_ENV", "").lower() == "production" or os.environ.get("APP_ENV", "").lower() == "production":
+                return RoutingDecision(
+                    task_type=task_type,
+                    target_provider="",
+                    target_model="",
+                    target_tier=target_tier,
+                    fallback_chain=[],
+                    rationale=f"No provider found matching strategy '{strategy.value}' in production mode (F-011, F-012). Mock engine prohibited.",
+                )
             return RoutingDecision(
                 task_type=task_type,
                 target_provider="mock_engine",
@@ -159,6 +170,7 @@ class ModelRouter:
                 fallback_chain=[],
                 rationale=f"No provider found matching strategy '{strategy.value}' and capabilities '{required_capabilities}'; defaulting to mock engine.",
             )
+
 
         # Build fallback chain
         fallback_chain = [

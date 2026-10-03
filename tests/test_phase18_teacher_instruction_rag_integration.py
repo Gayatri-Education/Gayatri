@@ -784,6 +784,9 @@ def test_rest_api_turn_provenance_and_instructions(db):
 
     app.dependency_overrides[get_db] = lambda: db
     client = TestClient(app)
+    from central_platform.auth.tokens import create_access_token
+    token = create_access_token(user_id="student-01", role="student")
+    headers = {"Authorization": f"Bearer {token}"}
 
     payload = {
         "student_id": "student-01",
@@ -792,7 +795,7 @@ def test_rest_api_turn_provenance_and_instructions(db):
         "message": "What is the SI unit of force?",
     }
 
-    resp = client.post("/api/v1/tutor/turn", json=payload)
+    resp = client.post("/api/v1/tutor/turn", headers=headers, json=payload)
     app.dependency_overrides.clear()
 
     assert resp.status_code == 200

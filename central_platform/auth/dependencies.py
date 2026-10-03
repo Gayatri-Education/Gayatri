@@ -37,6 +37,11 @@ def get_db():
     return _DB_INSTANCE
 
 
+def is_production_mode() -> bool:
+    """Return True if running in production mode (F-001, F-011, F-012, F-025)."""
+    return os.environ.get("GAYATRI_ENV", "").lower() == "production" or os.environ.get("APP_ENV", "").lower() == "production"
+
+
 def extract_bearer_token(authorization: Optional[str] = Header(None, alias="Authorization")) -> Optional[str]:
     """Extract raw JWT bearer token from Authorization header."""
     if not authorization:
@@ -95,7 +100,16 @@ async def get_current_user(
             )
         return user
 
-    # Fallback user model for tokens minted in tests
+    # Production gate: Fail closed if account does not exist in the database (F-001, F-004)
+    env = os.environ.get("GAYATRI_ENV", "development").lower()
+    if env == "production":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authenticated user record not found in platform directory",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # In development/test mode: construct User strictly from valid signed claims
     return User(
         id=user_id,
         email=payload.get("email", f"{user_id}@gayatri.ai"),
@@ -197,4 +211,14 @@ def enforce_resource_boundaries(
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Forbidden: student '{target_student_id}' is not assigned to this teacher",
+                )
+
+    # 5. Parent Scope Isolation:
+    if user_role == UserRole.PARENT:
+        if target_student_id:
+            from central_platform.privacy.policies import PrivacyRulesEngine
+            if not PrivacyRulesEngine.is_parent_linked(current_user.id, target_student_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Forbidden: student '{target_student_id}' is not linked to this parent",
                 )

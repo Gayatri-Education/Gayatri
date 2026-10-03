@@ -31,6 +31,7 @@ from central_platform.models.schema import (
     CourseStatus,
     CourseVersion,
     CourseVisibility,
+    Enrollment,
     KnowledgeContentType,
     Organization,
     RAGChunk,
@@ -82,6 +83,7 @@ def test_perf_single_user_turn_latency(tmp_path):
     db.create_user(User(id=student_id, email="std@turn.edu", full_name="Perf Student", role=UserRole.STUDENT, organization_id=org_id))
     db.create_course(Course(id=course_id, organization_id=org_id, code="TP101", title="Turn Performance", visibility=CourseVisibility.PUBLIC))
     db.create_course_version(CourseVersion(id=version_id, course_id=course_id, version_number="1.0.0", status=CourseStatus.PUBLISHED, created_by="system"))
+    db.create_enrollment(Enrollment(id=f"enr-{student_id}", student_id=student_id, course_id=course_id, is_active=True))
 
     orchestrator = GenericTutorOrchestrator(db=db)
     latencies = []
@@ -224,6 +226,7 @@ def test_perf_memory_stability_repeated_sessions(tmp_path):
     db.create_user(User(id=student_id, email="std@mem.edu", full_name="Memory Student", role=UserRole.STUDENT, organization_id=org_id))
     db.create_course(Course(id=course_id, organization_id=org_id, code="MEM101", title="Memory Testing", visibility=CourseVisibility.PUBLIC))
     db.create_course_version(CourseVersion(id=version_id, course_id=course_id, version_number="1.0.0", status=CourseStatus.PUBLISHED, created_by="system"))
+    db.create_enrollment(Enrollment(id=f"enr-{student_id}", student_id=student_id, course_id=course_id, is_active=True))
 
     process = psutil.Process(os.getpid())
     orchestrator = GenericTutorOrchestrator(db=db)
